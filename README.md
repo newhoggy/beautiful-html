@@ -3,6 +3,10 @@
 Technical explainers, design docs, decision records, incident reviews and change
 walkthroughs, written as rich, interactive HTML with one consistent theme.
 
+**Live site: [newhoggy.github.io/beautiful-html](https://newhoggy.github.io/beautiful-html/)**
+Start with the [design doc demo](https://newhoggy.github.io/beautiful-html/docs/edge-rate-limiting-design.html)
+or the [component gallery](https://newhoggy.github.io/beautiful-html/docs/component-gallery.html).
+
 - **No build step to write.** Pages are plain HTML. Open one straight from disk.
 - **One theme.** Design tokens drive typography, colour (light and dark), spacing and motion.
 - **Interactive where it helps.** Diagrams you can step through, live parameter
@@ -27,7 +31,8 @@ Node ≥ 20 is the only requirement. There are no npm dependencies.
 - **CI** (`.github/workflows/ci.yml`) runs on every push and pull request. It
   syntax-checks every script, runs `npm run check`, uploads all documents bundled as
   single files, and renders every page in Chrome (light, dark and phone layouts).
-- **GitHub Pages** (`.github/workflows/pages.yml`) publishes the repo as it stands, with
+- **GitHub Pages** (`.github/workflows/pages.yml`) publishes the repo as it stands to
+  [newhoggy.github.io/beautiful-html](https://newhoggy.github.io/beautiful-html/), with
   no build step. It stays off until you opt in:
   1. Go to Settings → Pages and set the source to **GitHub Actions**.
   2. Add the repository variable `PAGES_ENABLED=true`.
