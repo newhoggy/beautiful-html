@@ -292,6 +292,12 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
 - **When testing the checker with injected faults, assert the injection happened.** A
   replacement anchored on stale text matched nothing, and the "test" passed while
   checking nothing.
+- **`scrollWidth` over-reports overflow.** With `overflow-x: clip` on `body`, it still
+  counts clipped content and content inside scroll containers. To test for sideways
+  scrolling, try `scrollTo(250, …)` and confirm `scrollX` stays 0.
+- **Check diagrams at phone width for legibility, not just fit.** An SVG that shrinks to
+  375px makes its labels about 5px tall. Below 640px, diagrams keep a 520px minimum and
+  scroll inside their figure.
 - **Screenshots can re-lay out the page.** The screenshot tool may capture at a different
   viewport width than the page sees, which reflows text above the target and moves it.
   Verify scroll positions by sampling `getBoundingClientRect()` inside the page, not from a

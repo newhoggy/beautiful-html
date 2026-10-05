@@ -202,3 +202,12 @@ bh-sequence:not(.is-ready) :is(bh-msg, bh-note) { display: list-item; margin-lef
 bh-sequence:not(.is-ready) bh-msg::before { content: attr(from) " → " attr(to) ": "; color: var(--text-muted); }
 bh-sequence:not(.is-ready) bh-note::before { content: "Note (" attr(over) "): "; color: var(--text-muted); }
 bh-sequence.is-ready svg { margin-inline: auto; }
+
+/* ---- Phones: never shrink a diagram into illegibility ----------------------------------
+   Below 640px a diagram keeps at least 520px of width (labels stay ≥ ~10px) and its
+   figure scrolls sideways instead. */
+@media (max-width: 640px) {
+  figure.diagram { overflow-x: auto; overscroll-behavior-x: contain; }
+  figure.diagram > svg,
+  figure.diagram bh-sequence svg { min-width: 520px; }
+}

@@ -1292,6 +1292,9 @@
       }
       root.dataset.bhReady = "";
       doc.dispatchEvent(new CustomEvent("bh-ready"));
+      // Preload the (small) search module when idle, so ⌘K opens at once and the first
+      // keystrokes land in the box instead of being lost while the module loads.
+      if (SITE_ROOT) (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(() => loadModule("search.js"));
     })();
   });
 

@@ -25,7 +25,7 @@
   const bh = window.bh;
   const { el, whenReady } = bh;
   const SVG = "http://www.w3.org/2000/svg";
-  const H = 260, PAD = { top: 16, right: 16, bottom: 30, left: 48 }, BAR_MAX = 24, GAP = 2;
+  const H = 272, PAD = { top: 30, right: 16, bottom: 30, left: 48 }, BAR_MAX = 24, GAP = 2;
 
   const svgEl = (tag, attrs, text) => {
     const n = document.createElementNS(SVG, tag);
@@ -150,7 +150,8 @@
         grid.append(svgEl("text", { class: "chart-tick", x: x(i), y: B + 18, "text-anchor": "middle" }, r.x));
       });
       if (this.getAttribute("y-label")) {
-        grid.append(svgEl("text", { class: "chart-axis-label", x: L, y: 6 }, `${this.getAttribute("y-label")}${this.unit ? ` (${this.unit})` : ""}`));
+        // The axis title gets its own band above the top gridline.
+        grid.append(svgEl("text", { class: "chart-axis-label", x: L - 40, y: 8 }, `${this.getAttribute("y-label")}${this.unit ? ` (${this.unit})` : ""}`));
       }
       svg.append(grid);
 
