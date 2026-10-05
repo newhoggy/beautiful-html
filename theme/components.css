@@ -796,3 +796,76 @@ bh-versions.is-comparing .bh-versions-tag {
 bh-versions.is-comparing .bh-versions-range { display: block; margin-top: var(--space-3); }
 /* While comparing, the corner tags take the figures' link-button spot. */
 bh-versions.is-comparing .bh-versions-stage .bh-link-btn { display: none; }
+
+/* ---- bh-codewalk: scroll-driven code walkthrough (module: theme/modules/codewalk.js) ------ */
+
+bh-codewalk { display: block; container-type: inline-size; }
+bh-cw-step { display: block; }
+bh-cw-step::before {
+  content: "Lines " attr(lines);
+  display: block;
+  margin-bottom: var(--space-1);
+  font-size: var(--step--2);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+bh-cw-step > * + * { margin-top: var(--space-2); }
+bh-codewalk:not(.is-ready) bh-cw-step { margin-top: var(--space-4); }
+
+.cw-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
+.cw-code {
+  order: -1;
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--space-2));
+  z-index: 3;
+  align-self: start;
+  background: var(--bg);
+}
+.cw-code pre { max-height: 42dvh; overflow: auto; }
+.cw-steps { padding-bottom: 12vh; }
+
+bh-codewalk.is-ready bh-cw-step {
+  margin-bottom: 28vh;
+  padding: var(--space-4) var(--space-5);
+  border-left: 3px solid var(--border);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  opacity: 0.5;
+  cursor: pointer;
+  transition: opacity var(--dur-2), border-color var(--dur-2), background var(--dur-2);
+}
+bh-codewalk.is-ready bh-cw-step:last-child { margin-bottom: 0; }
+/* A linked step lands below the pinned code (stacked) or mid-screen (side by side). */
+bh-codewalk.is-ready bh-cw-step { scroll-margin-top: calc(42dvh + 6rem); }
+bh-codewalk.is-ready bh-cw-step.is-active { opacity: 1; border-left-color: var(--accent); background: var(--surface); }
+
+@container (min-width: 52rem) {
+  .cw-grid { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); }
+  .cw-code { order: 0; grid-column: 2; grid-row: 1; top: calc(var(--topbar-h) + var(--space-5)); background: none; }
+  .cw-code pre { max-height: calc(100dvh - var(--topbar-h) - 8rem); }
+  .cw-steps { grid-column: 1; grid-row: 1; padding-block: 8vh 30vh; }
+  bh-codewalk.is-ready bh-cw-step { margin-bottom: 36vh; scroll-margin-top: 30vh; }
+}
+
+/* Overlays inside the code: gutter numbers, lit bands, shades over other lines. */
+.cw-pre { position: relative; padding-left: calc(var(--space-5) + 3.4ch); }
+.cw-gutter {
+  position: absolute;
+  left: 0;
+  width: calc(var(--space-4) + 2.6ch);
+  padding-right: 0.6ch;
+  text-align: right;
+  white-space: pre;
+  color: var(--text-muted);
+  user-select: none;
+  pointer-events: none;
+}
+.cw-layer > span {
+  position: absolute;
+  left: 0;
+  pointer-events: none;
+  transition: top var(--dur-3) var(--ease-out), height var(--dur-3) var(--ease-out);
+}
+.cw-band { background: color-mix(in oklab, var(--accent) 12%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+.cw-shade { background: color-mix(in oklab, var(--code-bg) 62%, transparent); }

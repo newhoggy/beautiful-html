@@ -308,6 +308,10 @@
         const versions = host.closest("bh-versions");
         if (versions && versions.show) versions.show(versions.figures.indexOf(p));
       }
+      if (p.tagName === "BH-CW-STEP") {
+        const walk = p.closest("bh-codewalk");
+        if (walk && walk.activate && walk.steps) walk.activate(walk.steps.indexOf(p), true);
+      }
       if (p.tagName === "BH-STEP") {
         const stepper = p.closest("bh-stepper");
         if (stepper && stepper.go && stepper.steps) stepper.go(stepper.steps.indexOf(p));
@@ -1144,6 +1148,7 @@
   const MODULES = [
     ["versions.js", "bh-versions"],
     ["sequence.js", "bh-sequence"],
+    ["codewalk.js", "bh-codewalk"],
   ];
 
   function loadModule(file) {

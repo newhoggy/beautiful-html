@@ -165,6 +165,39 @@ else { reject(retry_after(cost - tokens)) }<span class="marker">3</span></code><
     <pre class="diff" data-title="config.yaml"><code>  timeout_ms: 2000
 <span class="del">- retries: 5</span><span class="add">+ retries: 2</span><span class="add">+ retry_budget: 0.1</span>  backoff: exponential</code></pre>
 
+    <h3 id="code-walkthrough">Code walkthrough</h3>
+    <p>For explaining an implementation, <code>&lt;bh-codewalk&gt;</code> pins the code beside the prose. As you scroll, each step highlights its lines and shades the rest.</p>
+    <bh-codewalk class="wide" id="walk-token-bucket">
+<pre data-title="token_bucket.rs"><code class="language-rust">use std::time::{Duration, Instant};
+
+pub struct TokenBucket {
+    capacity: f64, // b: the largest burst
+    rate: f64,     // r: tokens per second
+    tokens: f64,
+    last: Instant, // monotonic clock
+}
+
+impl TokenBucket {
+    pub fn try_acquire(&amp;mut self, cost: f64) -&gt; Result&lt;(), Duration&gt; {
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.last).as_secs_f64();
+        self.tokens = (self.tokens + elapsed * self.rate).min(self.capacity);
+        self.last = now;
+
+        if self.tokens &gt;= cost {
+            self.tokens -= cost;
+            Ok(())
+        } else {
+            Err(Duration::from_secs_f64((cost - self.tokens) / self.rate))
+        }
+    }
+}</code></pre>
+      <bh-cw-step lines="3-8"><p><strong>The whole state is four fields.</strong> Capacity and rate are configuration; <code>tokens</code> and <code>last</code> are all the limiter remembers per client.</p></bh-cw-step>
+      <bh-cw-step lines="12-15"><p><strong>Refill lazily.</strong> No timer runs in the background: on each call, add the tokens earned since <code>last</code> and clamp to capacity.</p></bh-cw-step>
+      <bh-cw-step lines="17-19"><p><strong>Admit</strong> by spending tokens. Weighted requests just pass a larger <code>cost</code>.</p></bh-cw-step>
+      <bh-cw-step lines="20-22"><p><strong>Reject with a time.</strong> The error carries exactly how long until enough tokens exist, which becomes the <code>Retry-After</code> header.</p></bh-cw-step>
+    </bh-codewalk>
+
     <!-- ================================================================ -->
     <h2 id="diagrams">Diagrams</h2>
     <p>Inline SVG drawn with theme classes — <code>.node.c1…c6</code>, <code>.edge</code>, <code>.zone</code>, <code>.label</code>. Colours follow the theme; arrowheads are automatic. Pair a diagram with <code>&lt;bh-stepper for="…"&gt;</code> to walk through it. Each step is linkable (<a href="#gallery-arch-step-3"><code>#gallery-arch-step-3</code></a>), and the link button in the stepper bar copies a link to the current step.</p>

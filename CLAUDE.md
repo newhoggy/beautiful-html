@@ -77,6 +77,7 @@ after editing `docs/glossary.html`. Index also compiles `theme/glossary.js`.
 | Events in time                    | `ol.timeline` (`.danger` / `.warn` / `.ok` on items)       |
 | Numbers that matter               | `.metrics` tiles; tables for anything with more than one dimension |
 | Parallel variants (languages, APIs) | `<bh-tabs>`                                              |
+| How an implementation works, step by step | `<bh-codewalk id>`: one `pre>code` + `bh-cw-step lines="3-8"` |
 | A relationship between parameters | `<bh-playground>` with `data-expr` / `data-bind`           |
 | Facts about a thing               | `dl.kv`                                                    |
 | A change to a system (before/after) | `<bh-versions>` with one `figure` per version (`data-label`), parts marked `data-change` |
@@ -201,6 +202,10 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
   `MODULES` in `bh.js` with the selector that triggers them. A module must be a classic
   script that uses `window.bh` and sets `window.bhModules[file] = true`. `bundle`
   inlines every module.
+- **Don't set up state only in observer callbacks.** `IntersectionObserver` and
+  `ResizeObserver` fire on rendering frames, which can be throttled. Create observers and
+  initial state synchronously during setup, and let callbacks refine them. A walkthrough
+  once never created its step detector for exactly this reason.
 - **Readiness:** async work (scripts, rendering) must be wrapped in `bh.settle(promise)`,
   so that `<html data-bh-ready>` only appears once the page has truly settled.
   Screenshot tests rely on it.

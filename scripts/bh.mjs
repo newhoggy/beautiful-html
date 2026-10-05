@@ -400,6 +400,20 @@ function linkTargetProblems(html) {
         for (const a of refs) if (!actors.has(a)) out.push(`<${c.tag}> refers to unknown actor "${a}"`);
       }
     }
+    if (n.tag === "bh-codewalk") {
+      require(n, "<bh-codewalk>");
+      const code = src.slice(n.start, n.end).match(/<code\b[^>]*>([\s\S]*?)<\/code>/);
+      const lines = code ? decodeEntities(code[1].replace(/<[^>]+>/g, "")).replace(/\n$/, "").split("\n").length : 0;
+      if (!code) out.push("<bh-codewalk> needs a <pre><code> block");
+      for (const st of n.children.filter((c) => c.tag === "bh-cw-step")) {
+        const spec = nodeAttr(st, "lines") || "";
+        if (!/^\s*\d+(\s*-\s*\d+)?(\s*,\s*\d+(\s*-\s*\d+)?)*\s*$/.test(spec)) { out.push(`<bh-cw-step lines="${spec}"> must look like "3-8, 12"`); continue; }
+        for (const part of spec.split(",")) {
+          const [a, b = a] = part.split("-").map((x) => +x.trim());
+          if (a < 1 || b < a || b > lines) out.push(`<bh-cw-step lines="${spec}"> is outside the code (1–${lines})`);
+        }
+      }
+    }
     if (n.tag === "bh-stepper" && !nodeAttr(n, "id") && !nodeAttr(n, "for")) {
       out.push("<bh-stepper> needs for=\"figure-id\" (or an id) so its steps can be linked to");
     }

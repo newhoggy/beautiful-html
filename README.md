@@ -81,6 +81,8 @@ dist/                   Bundled single-file outputs (git-ignored)
   across every page. Hovering, focusing or tapping one shows its definition in a popup
   that stays put. You can move the pointer into the popup to select and copy text or
   follow its links. Clicking or pressing Enter pins it.
+- **Code walkthroughs:** `<bh-codewalk>` pins the code beside the prose; scrolling
+  through the steps highlights each step's lines and shades the rest.
 - **Sequence diagrams:** `<bh-sequence>` draws actors, messages, replies and notes in the
   theme, and can be stepped through like any diagram.
 - **Current vs proposed:** `<bh-versions>` switches between versions of a diagram, or
