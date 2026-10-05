@@ -532,12 +532,172 @@ function linkTargetProblems(html) {
   return out;
 }
 
+// ---- theme checks: stylesheet import order, token contrast -------------------------
+
+/** @import must come before every rule except @charset and @layer statements placed before
+    the first import; anything else in between makes later imports silently ignored. */
+function cssImportProblems(file) {
+  const css = fs.readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const out = [];
+  let phase = 0; // 0 = before imports, 1 = in imports, 2 = after
+  for (const m of css.matchAll(/@(charset|import|layer)\b[^;{]*(;|\{)|[^\s@][^{]*\{/g)) {
+    const kind = m[1], statement = m[2] === ";";
+    if (kind === "import") {
+      if (phase === 2) out.push(`${path.relative(ROOT, file)}: @import after other rules is ignored by browsers: ${m[0].trim().slice(0, 60)}`);
+      const local = m[0].match(/url\(\s*["']?([^"')]+)["']?\s*\)/);
+      if (local && !/^https?:/.test(local[1]) && !fs.existsSync(path.resolve(path.dirname(file), local[1]))) out.push(`${path.relative(ROOT, file)}: @import of missing file ${local[1]}`);
+      phase = phase === 2 ? 2 : 1;
+    } else if (kind === "charset" || (kind === "layer" && statement && phase === 0)) {
+      // allowed before imports
+    } else {
+      phase = 2;
+    }
+  }
+  return out;
+}
+
+/** WCAG contrast for every text/background token pair, in both themes (from light-dark()). */
+const CONTRAST_PAIRS = [
+  // [foreground, [backgrounds], minimum ratio]
+  ["text", ["bg", "surface", "surface-2", "code-bg"], 4.5],
+  ["text-muted", ["bg", "surface", "surface-2", "code-bg"], 4.5],
+  ["accent", ["bg", "surface", "accent-soft"], 4.5],
+  ["accent-contrast", ["accent"], 4.5],
+  ["info", ["info-soft", "surface"], 4.5],
+  ["ok", ["ok-soft", "surface"], 4.5],
+  ["warn", ["warn-soft", "surface"], 4.5],
+  ["danger", ["danger-soft", "surface"], 4.5],
+  // c1–c5 colour syntax-highlighted code (text); c6 only strokes (non-text, 3:1).
+  ["c1", ["code-bg", "surface"], 4.5], ["c2", ["code-bg", "surface"], 4.5], ["c3", ["code-bg", "surface"], 4.5],
+  ["c4", ["code-bg", "surface"], 4.5], ["c5", ["code-bg", "surface"], 4.5], ["c6", ["surface"], 3],
+];
+
+function contrastProblems() {
+  const css = fs.readFileSync(path.join(ROOT, "theme", "tokens.css"), "utf8");
+  const tok = {};
+  for (const m of css.matchAll(/--([\w-]+):\s*light-dark\((#[0-9a-f]{6}),\s*(#[0-9a-f]{6})\)/gi)) tok[m[1]] = { light: m[2], dark: m[3] };
+  const lum = (hex) => {
+    const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const out = [];
+  for (const [fg, bgs, min] of CONTRAST_PAIRS) for (const bg of bgs) for (const mode of ["light", "dark"]) {
+    if (!tok[fg] || !tok[bg]) { out.push(`tokens.css: --${fg} or --${bg} is not a light-dark() hex pair`); continue; }
+    const r = ratio(tok[fg][mode], tok[bg][mode]);
+    if (r < min) out.push(`tokens.css: --${fg} on --${bg} is ${r.toFixed(2)}:1 in ${mode} mode (needs ${min}:1)`);
+  }
+  return out;
+}
+
+// ---- diagram labels: no collisions -------------------------------------------------------
+//
+// Free-standing labels (<text> outside a .node) must not touch an edge, an arrowhead, a
+// node, or another label; text inside a node must fit its box. Sizes are estimated from
+// the theme (node text 14px, labels 12px, zone labels 11px; ~0.58em per character), so
+// keep a little air. Opt one label out with data-overlap-ok.
+
+const CHAR_W = 0.58;
+
+function labelBox(n, src, inNode) {
+  const cls = (nodeAttr(n, "class") || "").split(/\s+/);
+  const size = cls.includes("zone-label") ? 11 : cls.includes("label") || cls.includes("sub") || cls.includes("mono") ? 12 : 14;
+  const text = nodeText(src, n);
+  const w = text.length * size * CHAR_W;
+  const x = +nodeAttr(n, "x") || 0, y = +nodeAttr(n, "y") || 0;
+  const anchor = nodeAttr(n, "text-anchor") || (inNode ? "middle" : "start");
+  const left = anchor === "middle" ? x - w / 2 : anchor === "end" ? x - w : x;
+  // Zone labels hang from y (top); everything else is vertically centred on y.
+  const top = cls.includes("zone-label") ? y - size * 0.8 : y - size / 2;
+  return { text, left, right: left + w, top, bottom: top + size };
+}
+
+function samplePath(segs) {
+  const pts = [];
+  for (const s of segs) {
+    if (s.type === "C" && s.ctrl && s.ctrl.length === 2) {
+      const [p0, p1, p2, p3] = [s.from, s.ctrl[0], s.ctrl[1], s.to];
+      for (let i = 0; i <= 24; i++) {
+        const t = i / 24, u = 1 - t;
+        pts.push([0, 1].map((k) => u * u * u * p0[k] + 3 * u * u * t * p1[k] + 3 * u * t * t * p2[k] + t * t * t * p3[k]));
+      }
+    } else {
+      for (let i = 0; i <= 12; i++) pts.push([0, 1].map((k) => s.from[k] + ((s.to[k] - s.from[k]) * i) / 12));
+    }
+  }
+  return pts;
+}
+
+function arrowPoints(segs, end) {
+  const e = endDirection(segs, end);
+  if (!e) return [];
+  const [px, py] = e.point, [dx, dy] = e.dir, [nx, ny] = [-dy, dx];
+  const tip = [px + dx * ARROW_LEN, py + dy * ARROW_LEN], a = [px + nx * 5, py + ny * 5], b = [px - nx * 5, py - ny * 5];
+  const mid = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+  return [tip, a, b, mid(tip, a), mid(tip, b), [(tip[0] + a[0] + b[0]) / 3, (tip[1] + a[1] + b[1]) / 3]];
+}
+
+const inside = (p, box, pad) => p[0] >= box.left - pad && p[0] <= box.right + pad && p[1] >= box.top - pad && p[1] <= box.bottom + pad;
+const boxesOverlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+
+function diagramLabelProblems(html) {
+  const out = [];
+  for (const m of stripComments(html).matchAll(/<svg\b[\s\S]*?<\/svg>/g)) {
+    if (/\stransform=/.test(m[0])) continue; // estimates don't follow transforms
+    const { root: tree, src } = parseTree(m[0]);
+    const labels = [], nodes = [], edges = [];
+    walkTree(tree, (n) => {
+      const nodeG = n.parent && (function up(p) { return p && p.tag !== "#root" ? (p.tag === "g" && hasClass(p, "node") ? p : up(p.parent)) : null; })(n.parent);
+      if (n.tag === "text") {
+        const box = labelBox(n, src, !!nodeG);
+        if (nodeG) {
+          const r = findNode(nodeG, (x) => x.tag === "rect");
+          if (r && !/\sdata-overlap-ok\b/.test(n.attrs)) {
+            const w = +nodeAttr(r, "width");
+            if (box.right - box.left > w - 8) out.push(`node text "${box.text}" (~${Math.round(box.right - box.left)}px) doesn't fit its ${w}px box`);
+          }
+        } else if (!/\sdata-overlap-ok\b/.test(n.attrs)) labels.push(box);
+      }
+      if (n.tag === "rect" && nodeG && nodeG.children.find((c) => c.tag === "rect") === n) {
+        const x = +nodeAttr(n, "x") || 0, y = +nodeAttr(n, "y") || 0;
+        nodes.push({ left: x, top: y, right: x + (+nodeAttr(n, "width") || 0), bottom: y + (+nodeAttr(n, "height") || 0), id: nodeAttr(nodeG, "data-id") || "?" });
+      }
+      if (n.tag === "path" && hasClass(n, "edge")) {
+        let segs;
+        try { segs = parsePath(nodeAttr(n, "d") || ""); } catch { return; }
+        const arrows = hasClass(n, "no-arrow") ? [] : [...arrowPoints(segs, "end"), ...(hasClass(n, "both") ? arrowPoints(segs, "start") : [])];
+        edges.push({ id: nodeAttr(n, "data-id") || nodeAttr(n, "d"), line: samplePath(segs), arrows });
+      }
+    });
+    for (const l of labels) {
+      for (const e of edges) {
+        if (e.line.some((p) => inside(p, l, 1.5))) out.push(`label "${l.text}" touches edge "${e.id}"`);
+        else if (e.arrows.some((p) => inside(p, l, 1))) out.push(`label "${l.text}" touches the arrowhead of "${e.id}"`);
+      }
+      for (const nd of nodes) if (boxesOverlap(l, nd)) out.push(`label "${l.text}" overlaps node "${nd.id}"`);
+    }
+    labels.forEach((a, i) => labels.slice(i + 1).forEach((b) => { if (boxesOverlap(a, b)) out.push(`labels "${a.text}" and "${b.text}" overlap`); }));
+  }
+  return out;
+}
+
 // ---- check ------------------------------------------------------------------------
 
 function cmdCheck() {
   let errors = 0, warnings = 0;
   const templates = fs.readdirSync(TEMPLATES).filter((f) => f.endsWith(".html")).sort().map((f) => path.join(TEMPLATES, f));
   const files = [INDEX, ...docFiles(), ...templates];
+
+  // Theme: stylesheet import order and token contrast in both themes.
+  {
+    const problems = [
+      ...fs.readdirSync(path.join(ROOT, "theme")).filter((f) => f.endsWith(".css")).flatMap((f) => cssImportProblems(path.join(ROOT, "theme", f))),
+      ...contrastProblems(),
+    ];
+    console.log((problems.length ? c.red("✗ ") : c.green("✓ ")) + "theme (import order, token contrast)");
+    problems.forEach((p) => console.log(c.red("  error  ") + p));
+    errors += problems.length;
+  }
 
   // Glossary: compiled data must be fresh and entries well-formed.
   const glossary = compileGlossary();
@@ -660,6 +820,9 @@ function cmdCheck() {
       for (const end of ends) for (const p of tipProblems(segs, end, rects)) err(`edge "${name}" ${p}`);
     }
     }
+
+    // Diagram labels never collide with edges, arrowheads, nodes or each other.
+    for (const p of diagramLabelProblems(raw)) err(p);
 
     // Glossary references resolve to a global or page-local term.
     const localTerms = parseGlossary(html);

@@ -68,7 +68,7 @@
   --accent-contrast: light-dark(#ffffff, #0c0e12);
 
   --info:   light-dark(#0b63bd, #6cb6ff);  --info-soft:   light-dark(#e4f0fc, #0f2236);
-  --ok:     light-dark(#13804b, #4fd18b);  --ok-soft:     light-dark(#e2f5eb, #0e2a1d);
+  --ok:     light-dark(#127a48, #4fd18b);  --ok-soft:     light-dark(#e2f5eb, #0e2a1d);
   --warn:   light-dark(#9a5800, #f2b450);  --warn-soft:   light-dark(#fdf1dc, #2e2210);
   --danger: light-dark(#c4262e, #ff7b80);  --danger-soft: light-dark(#fde6e7, #351416);
 

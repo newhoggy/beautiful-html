@@ -125,6 +125,10 @@ beats five decorative ones.
 - **Labels never touch a line or arrowhead.** Place each label in open space beside its edge,
   not on the edge's path. Whenever you move an edge, re-check every label near it: moved
   curves have run straight through labels that used to be clear.
+  - `npm run check` estimates label boxes from the theme (about 0.58em per character) and
+    fails when a free label touches an edge, an arrowhead, a node or another label, or
+    when a node's text is wider than its box.
+  - For a deliberate exception, add `data-overlap-ok` to that `<text>`.
 - Pad the `viewBox` by at least 16 (`viewBox="-16 -16 W+32 H+32"`) so strokes and labels never clip.
 - Every diagram's `<svg>` gets `role="img"` and an `aria-label` describing what it shows.
 - **Point at diagram parts from the prose.** When the text names a part of a diagram,
@@ -211,6 +215,11 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
 
 - **In `bh.css`, the `@layer` statement must come before every `@import`.** An `@import`
   that follows any other rule is silently ignored, and the whole theme vanished that way.
+  `check` now enforces this order and that imported files exist.
+- **Token contrast is checked.** `check` computes WCAG contrast for every
+  text/background token pair, from the `light-dark()` values, in both themes
+  (`CONTRAST_PAIRS` in `scripts/bh.mjs`). Add a pair there whenever a new token is
+  used as text on a new background.
 - **`!important` reverses inside cascade layers:** an important declaration in an *earlier*
   layer beats one in a later layer. Prefer specificity or layer order; use `!important`
   only to beat the generic article spacing rules.
