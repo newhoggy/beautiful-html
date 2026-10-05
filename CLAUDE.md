@@ -73,6 +73,18 @@ beats five decorative ones.
   - `c4` failure
   - `c5` network
   - `c6` infrastructure
+- **The line stops where the arrowhead begins.** It meets the centre of the head's base at
+  a right angle, and it never runs under the head: a stroke reaching the tip blunts the point.
+  - The head is 10 units long. Its base sits on the path's end point and it points along
+    the path's final direction, so this holds automatically, even for a path ending in a curve.
+  - So **end every arrowed path 10 units short of where the tip should land**, which is
+    11 short of the target's outline (the tip touches the node's stroke). For example, to
+    point right at a node whose left edge is `x=600`, end the path at `x=589`. A curve can
+    flow straight into the head: `M550 105 C570 105 570 54 589 54`.
+  - `.edge.both` follows the same rule at its start as well.
+  - `npm run check` enforces this. It projects each arrow tip and fails when a tip pokes into
+    a node, or stops more than 2 units short of the node it points at. Tips aimed at
+    non-rectangular shapes can't be verified, so check those by eye.
 - Pad the `viewBox` by at least 16 (`viewBox="-16 -16 W+32 H+32"`) so strokes and labels never clip.
 - Every diagram's `<svg>` gets `role="img"` and an `aria-label` describing what it shows.
 - A figcaption says what to *notice*, not what the picture is.

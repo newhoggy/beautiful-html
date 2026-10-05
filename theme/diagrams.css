@@ -7,6 +7,12 @@
    <rect class="zone" …/>  <text class="label" …/>
 
    Arrowheads: edges get marker-end automatically (markers injected by bh.js).
+   The head (10 units) starts where the path ends and points along its final
+   direction, so the line meets the base square-on and never runs under the
+   head to blunt the tip. End paths 10 short of the tip's target (11 short of
+   the node outline). `npm run check` verifies where every tip lands:
+     M550 105 C570 105 570 54 589 54   ✓ node at x=600: tip lands at 599
+     M550 105 C570 105 570 54 599 54   ✗ tip pokes 9 units into the node
    Stepper states: bh-stepper toggles .is-lit / .is-dim on [data-id] elements.
    ========================================================================== */
 

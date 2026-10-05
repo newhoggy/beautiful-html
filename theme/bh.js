@@ -323,11 +323,13 @@
     svg.setAttribute("height", "0");
     svg.setAttribute("aria-hidden", "true");
     svg.style.position = "absolute";
-    svg.innerHTML = `<defs>
-      <marker id="bh-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="bh-arrow-head" d="M0 0 10 5 0 10z"/></marker>
-      <marker id="bh-arrow-start" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="bh-arrow-head" d="M0 0 10 5 0 10z"/></marker>
-      <marker id="bh-arrow-lit" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="bh-arrow-head lit" d="M0 0 10 5 0 10z"/></marker>
-    </defs>`;
+    // Fixed-size heads (10 user units, independent of stroke width) whose BASE centre sits on
+    // the path end and which point along the path's final direction. The line therefore stops
+    // at the base — square-on and centred — and never runs under the head to blunt the tip.
+    // Paths end 10 units short of where the tip should land; `npm run check` verifies landing.
+    const head = (id, cls) =>
+      `<marker id="${id}" viewBox="0 0 10 10" refX="0" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto-start-reverse" overflow="visible"><path class="${cls}" d="M0 0 10 5 0 10z"/></marker>`;
+    svg.innerHTML = `<defs>${head("bh-arrow", "bh-arrow-head")}${head("bh-arrow-start", "bh-arrow-head")}${head("bh-arrow-lit", "bh-arrow-head lit")}</defs>`;
     doc.body.prepend(svg);
   }
 
