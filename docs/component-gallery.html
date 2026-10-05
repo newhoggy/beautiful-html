@@ -198,6 +198,7 @@ else { reject(retry_after(cost - tokens)) }<span class="marker">3</span></code><
       <li><span class="swatch c2"></span>Storage</li>
       <li><span class="swatch c6"></span>Infrastructure</li>
     </ul>
+    <p>Prose can point into a diagram. Hover over <span data-ref="gallery-arch:gw e-client-gw">the gateway</span>, or over <span data-ref="gallery-arch:svc e-svc-cache cache e-svc-db db">the service and its two stores</span>, to light those parts. Click one to bring the diagram into view. Mark up the phrase with <code>data-ref="figure-id:part-id …"</code>.</p>
     <bh-stepper for="gallery-arch">
       <bh-step highlight="client e-client-gw gw"><p>The client calls the <strong>gateway</strong> over HTTPS; TLS terminates here.</p></bh-step>
       <bh-step highlight="gw e-gw-svc svc"><p>The gateway authenticates and forwards to the <strong>service</strong>.</p></bh-step>

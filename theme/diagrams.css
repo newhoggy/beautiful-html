@@ -138,3 +138,30 @@
 .legend .swatch { width: 0.85em; height: 0.85em; border-radius: 3px; background: var(--tone, var(--text-muted)); }
 .legend .c1 { --tone: var(--c1); } .legend .c2 { --tone: var(--c2); } .legend .c3 { --tone: var(--c3); }
 .legend .c4 { --tone: var(--c4); } .legend .c5 { --tone: var(--c5); } .legend .c6 { --tone: var(--c6); }
+
+/* ---- Prose ↔ diagram references ---------------------------------------------------
+   <span data-ref="figure-id:node-id">the gateway</span>: a colour swatch matching the
+   node plus a solid underline (glossary terms use a dotted one). */
+
+.diagram-ref {
+  --ref-tone: var(--accent);
+  border-bottom: 2px solid color-mix(in oklab, var(--ref-tone) 45%, transparent);
+  border-radius: 2px 2px 0 0;
+  cursor: pointer;
+  transition: background var(--dur-1), border-color var(--dur-1);
+}
+.diagram-ref::before {
+  content: "";
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  margin-right: 0.3em;
+  border-radius: 2px;
+  background: var(--ref-tone);
+  vertical-align: 0.08em;
+}
+.diagram-ref:hover,
+.diagram-ref.is-active {
+  background: color-mix(in oklab, var(--ref-tone) 14%, transparent);
+  border-bottom-color: var(--ref-tone);
+}

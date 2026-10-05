@@ -440,6 +440,22 @@ function cmdCheck() {
     const seen = new Set();
     for (const id of ids) { if (seen.has(id)) err(`duplicate id="${id}"`); seen.add(id); }
 
+    // Prose ↔ diagram references point at a real figure and real parts of it.
+    {
+      const { root: tree, src } = parseTree(raw);
+      for (const m of html.matchAll(/\sdata-ref="([^"]*)"/g)) {
+        const i = m[1].indexOf(":");
+        if (i < 1) { err(`data-ref="${m[1]}" must be "figure-id:part-id [part-id…]"`); continue; }
+        const figId = m[1].slice(0, i).trim();
+        const fig = findNode(tree, (n) => nodeAttr(n, "id") === figId);
+        if (!fig) { err(`data-ref="${m[1]}": no element with id="${figId}"`); continue; }
+        const parts = new Set([...src.slice(fig.start, fig.end).matchAll(/\sdata-id="([^"]+)"/g)].map((x) => x[1]));
+        for (const id of m[1].slice(i + 1).split(/[\s,]+/).filter(Boolean)) {
+          if (!parts.has(id)) err(`data-ref="${m[1]}": #${figId} has no part with data-id="${id}"`);
+        }
+      }
+    }
+
     // Ids bh.js generates at runtime: stepper steps (#<for or id>-step-N).
     for (const m of html.matchAll(/<bh-stepper\b([^>]*)>([\s\S]*?)<\/bh-stepper>/g)) {
       const base = attrOf(m[1], "id") || attrOf(m[1], "for");

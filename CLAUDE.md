@@ -112,6 +112,11 @@ beats five decorative ones.
   curves have run straight through labels that used to be clear.
 - Pad the `viewBox` by at least 16 (`viewBox="-16 -16 W+32 H+32"`) so strokes and labels never clip.
 - Every diagram's `<svg>` gets `role="img"` and an `aria-label` describing what it shows.
+- **Point at diagram parts from the prose.** When the text names a part of a diagram,
+  wrap the phrase: `<span data-ref="figure-id:part-id [part-id…]">the gateway</span>`.
+  - Hover or focus lights those parts; click brings the diagram into view.
+  - Include the edges that make the point, not just the nodes.
+  - `npm run check` fails when the figure or a part id doesn't exist.
 - A figcaption says what to *notice*, not what the picture is.
 - Mermaid (`<pre class="mermaid">`) is a fallback for quick sequence or state diagrams only.
 
@@ -227,7 +232,9 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
   Verify scroll positions by sampling `getBoundingClientRect()` inside the page, not from a
   screenshot.
 - **Browser automation can mislead.** `requestAnimationFrame` is throttled while a script
-  awaits in a background or automated tab, so live readouts can show stale zeros. Trust a
-  screenshot over a value read during an `await`.
+  awaits in a background or automated tab, so live readouts can show stale zeros. Smooth
+  scrolling may not advance at all, and scroll-reveal fades may never finish. To check
+  logic, use `behavior: "instant"` and clear `.reveal-pending`. Confirm the real motion
+  by eye in a foreground tab.
 - Leave no test state behind: clear a forced theme (`localStorage` key `bh-theme`), close
   test tabs, stop `serve`, and delete throwaway pages, then run `npm run index` again.

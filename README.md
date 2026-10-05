@@ -80,6 +80,8 @@ dist/                   Bundled single-file outputs (git-ignored)
   across every page. Hovering, focusing or tapping one shows its definition in a popup
   that stays put. You can move the pointer into the popup to select and copy text or
   follow its links. Clicking or pressing Enter pins it.
+- **Diagram references:** `data-ref="figure-id:part-id"` on a phrase lights that part of
+  the diagram on hover and brings the diagram into view on click.
 - **Diagrams:** inline SVG using theme classes. Arrowheads are automatic, and every
   diagram follows light/dark. `<bh-stepper for="id">` lights up parts of a diagram
   step by step. Mermaid is available as a fallback.

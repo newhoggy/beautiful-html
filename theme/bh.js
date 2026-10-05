@@ -5,6 +5,7 @@
    Page chrome:   top bar, theme toggle, reading progress, skip link, TOC +
                   scroll-spy, heading anchors & eyebrows, auto meta, sidenotes,
                   code-block copy buttons, scroll reveal, SVG arrow markers.
+   Diagram refs:  <span data-ref="figure-id:node-id …"> in prose lights those diagram parts.
    Deep links:    every section heading, figure, glossary entry and [data-linkable]
                   block offers "copy link"; arriving at #id reveals and highlights it.
    Lazy libs:     Prism (if code has language-*), Mermaid (if pre.mermaid).
@@ -472,6 +473,84 @@
     doc.body.prepend(svg);
   }
 
+  // ---- Prose ↔ diagram references -------------------------------------------------------
+  //
+  // <span data-ref="figure-id:node-id [more-ids]">the gateway</span>
+  // Hover or focus lights those [data-id] parts (dimming the rest); click also brings the
+  // diagram into view and holds the highlight briefly. The diagram's previous state (e.g.
+  // a stepper's) is restored afterwards.
+
+  function parseRef(value) {
+    const i = (value || "").indexOf(":");
+    if (i < 1) return null;
+    const fig = doc.getElementById(value.slice(0, i).trim());
+    const ids = value.slice(i + 1).split(/[\s,]+/).filter(Boolean);
+    return fig && ids.length ? { fig, ids } : null;
+  }
+
+  function buildDiagramRefs() {
+    const refs = [...doc.querySelectorAll("[data-ref]")];
+    if (!refs.length) return;
+    let active = null; // { ref, fig, saved, held, timer }
+
+    const restore = () => {
+      if (!active) return;
+      clearTimeout(active.timer);
+      for (const [n, lit, dim] of active.saved) { n.classList.toggle("is-lit", lit); n.classList.toggle("is-dim", dim); }
+      active.ref.classList.remove("is-active");
+      active = null;
+    };
+    const apply = (ref) => {
+      const r = parseRef(ref.dataset.ref);
+      if (!r) return null;
+      restore();
+      const nodes = [...r.fig.querySelectorAll("[data-id]")];
+      const saved = nodes.map((n) => [n, n.classList.contains("is-lit"), n.classList.contains("is-dim")]);
+      for (const n of nodes) {
+        const lit = r.ids.includes(n.dataset.id);
+        n.classList.toggle("is-lit", lit);
+        n.classList.toggle("is-dim", !lit);
+      }
+      ref.classList.add("is-active");
+      active = { ref, fig: r.fig, saved, held: false, timer: 0 };
+      return r.fig;
+    };
+    const show = (ref) => {
+      const fig = apply(ref);
+      if (!fig) return;
+      const box = fig.getBoundingClientRect();
+      const topbar = (doc.querySelector(".bh-topbar") || { offsetHeight: 0 }).offsetHeight;
+      if (box.top < topbar || box.bottom > innerHeight) {
+        fig.classList.remove("reveal-pending");
+        fig.scrollIntoView({ block: "center", behavior: reducedMotion.matches ? "instant" : "smooth" });
+      }
+      active.held = true;
+      active.timer = setTimeout(restore, 2600);
+    };
+
+    for (const ref of refs) {
+      const r = parseRef(ref.dataset.ref);
+      if (!r) { console.warn(`[bh] data-ref "${ref.dataset.ref}" does not match a figure and its parts`, ref); continue; }
+      ref.classList.add("diagram-ref");
+      ref.tabIndex = 0;
+      ref.setAttribute("role", "button");
+      ref.title = `Show in ${linkLabel(r.fig)}`;
+      // Take the colour of the first part referred to, so the text matches the diagram.
+      const first = r.fig.querySelector(`[data-id="${CSS.escape(r.ids[0])}"]`);
+      const tone = first && getComputedStyle(first).getPropertyValue("--tone").trim();
+      if (tone) ref.style.setProperty("--ref-tone", tone);
+      ref.addEventListener("pointerenter", () => { if (!(active && active.held)) apply(ref); });
+      ref.addEventListener("pointerleave", () => { if (active && active.ref === ref && !active.held) restore(); });
+      ref.addEventListener("focus", () => apply(ref));
+      ref.addEventListener("blur", () => { if (active && active.ref === ref && !active.held) restore(); });
+      ref.addEventListener("click", (e) => { e.preventDefault(); show(ref); });
+      ref.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); show(ref); }
+        if (e.key === "Escape") restore();
+      });
+    }
+  }
+
   // ---- Scroll reveal (only below-the-fold elements; never hides content without IO) ------------
 
   function buildReveal() {
@@ -751,7 +830,7 @@
     "h1", "h2", "h3", "h4", "h5", "h6", "a", "code", "pre", "kbd", "samp", "svg", "button",
     "input", "select", "textarea", "label", "summary", "script", "style", "[data-term]",
     ".term", ".no-glossary", ".bh-hero", ".bh-footer", ".bh-toc", ".bh-tablist",
-    ".code-block", ".mermaid", ".badge", ".eyebrow", "dl.glossary > dt",
+    ".code-block", ".mermaid", ".badge", ".eyebrow", "dl.glossary > dt", "[data-ref]",
   ].join(",");
 
   const splitList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
@@ -1046,6 +1125,7 @@
     injectMarkers();
     buildMermaid();
     buildReveal();
+    buildDiagramRefs();
     buildGlossary();
     setupDeepLinks();
   });
