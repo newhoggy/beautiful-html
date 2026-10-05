@@ -71,6 +71,7 @@ after editing `docs/glossary.html`. Index also compiles `theme/glossary.js`.
 | --------------------------------- | ---------------------------------------------------------- |
 | Options / trade-offs              | `.compare` with `.option` (mark the pick `.chosen`) + `.pros`/`.cons` |
 | A decision                        | `.decision` (one sentence: "We will … because …")          |
+| A choice that hinges on priorities | `<bh-matrix id>` table: Criterion, Weight (0–5), then one score column per option (0–5) |
 | A process the reader performs     | `ol.steps`                                                 |
 | A process a system performs       | SVG diagram + `<bh-stepper for>`                           |
 | Messages between parties over time | `<bh-sequence>` in a `figure.diagram` (+ `<bh-stepper for>`) |

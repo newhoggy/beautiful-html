@@ -1149,6 +1149,7 @@
     ["versions.js", "bh-versions"],
     ["sequence.js", "bh-sequence"],
     ["codewalk.js", "bh-codewalk"],
+    ["matrix.js", "bh-matrix"],
   ];
 
   function loadModule(file) {

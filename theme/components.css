@@ -869,3 +869,30 @@ bh-codewalk.is-ready bh-cw-step.is-active { opacity: 1; border-left-color: var(-
 }
 .cw-band { background: color-mix(in oklab, var(--accent) 12%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
 .cw-shade { background: color-mix(in oklab, var(--code-bg) 62%, transparent); }
+
+/* ---- bh-matrix: weighted decision matrix (module: theme/modules/matrix.js) ----------------- */
+
+bh-matrix { display: block; }
+.mx-weight { display: flex; align-items: center; gap: var(--space-2); min-width: 8rem; }
+.mx-weight input { flex: 1; }
+.mx-weight-value { min-width: 1ch; font-family: var(--font-mono); font-weight: 600; }
+.mx-dots { display: inline-flex; gap: 3px; vertical-align: middle; }
+.mx-dots > span { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--border); }
+.mx-dots > span.on { background: var(--text-muted); }
+bh-matrix .is-leader { background: color-mix(in oklab, var(--ok) 9%, transparent); }
+bh-matrix .is-leader .mx-dots > span.on { background: var(--ok); }
+bh-matrix thead th.is-leader { color: var(--ok); }
+bh-matrix thead th.is-leader::after { content: " ✓"; }
+bh-matrix tfoot th, bh-matrix tfoot td { border-top: 2px solid var(--border-strong); font-weight: 600; }
+.mx-total { position: relative; min-width: 7rem; }
+.mx-total-bar {
+  display: block;
+  height: 0.45rem;
+  margin-bottom: 0.3rem;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, var(--text-muted) var(--pct), var(--surface-2) var(--pct));
+}
+.is-leader .mx-total-bar { background: linear-gradient(90deg, var(--ok) var(--pct), var(--surface-2) var(--pct)); }
+.mx-total-value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.mx-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-3); }
+.mx-status { font-size: var(--step--1); font-weight: 500; }

@@ -414,6 +414,24 @@ function linkTargetProblems(html) {
         }
       }
     }
+    if (n.tag === "bh-matrix") {
+      require(n, "<bh-matrix>");
+      const table = findNode(n, (x) => x.tag === "table");
+      const headRow = table && findNode(table, (x) => x.tag === "thead");
+      const heads = headRow ? findNode(headRow, (x) => x.tag === "tr").children.filter((c) => c.tag === "th" || c.tag === "td") : [];
+      const options = heads.length - 2;
+      if (options < 2) out.push("<bh-matrix> header needs: Criterion, Weight, then at least two options");
+      const body = table && findNode(table, (x) => x.tag === "tbody");
+      for (const tr of body ? body.children.filter((c) => c.tag === "tr") : []) {
+        const cells = tr.children.filter((c) => c.tag === "th" || c.tag === "td");
+        const name = nodeText(src, cells[0] || tr);
+        if (cells.length !== options + 2) { out.push(`<bh-matrix> row "${name}" has ${cells.length - 2} scores for ${options} options`); continue; }
+        cells.slice(1).forEach((c, k) => {
+          const v = nodeText(src, c);
+          if (!/^[0-5]$/.test(v)) out.push(`<bh-matrix> row "${name}": ${k === 0 ? "weight" : "score"} "${v}" must be a whole number 0–5`);
+        });
+      }
+    }
     if (n.tag === "bh-stepper" && !nodeAttr(n, "id") && !nodeAttr(n, "for")) {
       out.push("<bh-stepper> needs for=\"figure-id\" (or an id) so its steps can be linked to");
     }

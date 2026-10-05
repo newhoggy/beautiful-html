@@ -95,6 +95,20 @@
       <p>We will use PostgreSQL with read replicas, because transactional integrity outweighs elastic scaling at our current size.</p>
       <p class="muted">Revisit when write volume exceeds 5k/s.</p>
     </div>
+    <p>When the choice depends on how much each criterion matters, show the scoring with <code>&lt;bh-matrix&gt;</code>. Readers can move the weights and watch whether the leader changes.</p>
+    <bh-matrix class="wide" id="database-matrix">
+      <table>
+        <caption>Scores 1–5, higher is better. Weights 0–5 say how much each criterion matters.</caption>
+        <thead><tr><th>Criterion</th><th>Weight</th><th>PostgreSQL</th><th>DynamoDB</th><th>CockroachDB</th></tr></thead>
+        <tbody>
+          <tr><th>Multi-table transactions</th><td>4</td><td>5</td><td>2</td><td>5</td></tr>
+          <tr><th>Team familiarity</th><td>3</td><td>5</td><td>2</td><td>2</td></tr>
+          <tr><th>Elastic scaling</th><td>2</td><td>3</td><td>5</td><td>4</td></tr>
+          <tr><th>Cost at current scale</th><td>3</td><td>4</td><td>3</td><td>2</td></tr>
+          <tr><th>Vendor independence</th><td>2</td><td>5</td><td>1</td><td>4</td></tr>
+        </tbody>
+      </table>
+    </bh-matrix>
 
     <!-- ================================================================ -->
     <h2 id="sequences">Steps &amp; timelines</h2>
