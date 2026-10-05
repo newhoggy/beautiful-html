@@ -32,6 +32,16 @@ window.BH_SITE = {
    "supersededBy": ""
   },
   {
+   "href": "docs/edge-rate-limiting-design.html",
+   "title": "Moving rate limiting to the edge",
+   "kind": "design",
+   "status": "review",
+   "date": "2026-10-05",
+   "description": "Replace per-service limiters with one token bucket per client in the gateway, backed by Redis, so a client's limit holds however far we scale.",
+   "supersedes": "",
+   "supersededBy": ""
+  },
+  {
    "href": "docs/glossary.html",
    "title": "Glossary",
    "kind": "reference",
@@ -65,11 +75,32 @@ window.BH_SITE = {
     "section": ""
    }
   ],
+  "docs/edge-rate-limiting-design.html": [
+   {
+    "href": "docs/adr-002-rate-limit-at-the-edge.html#context",
+    "title": "ADR-002: Rate limit at the edge gateway",
+    "section": "Context"
+   }
+  ],
   "docs/glossary.html": [
    {
     "href": "docs/component-gallery.html#glossary-terms",
     "title": "Component gallery",
     "section": "Glossary terms"
+   }
+  ],
+  "docs/adr-001-rate-limit-in-each-service.html": [
+   {
+    "href": "docs/edge-rate-limiting-design.html#context",
+    "title": "Moving rate limiting to the edge",
+    "section": "Context & problem"
+   }
+  ],
+  "docs/adr-002-rate-limit-at-the-edge.html": [
+   {
+    "href": "docs/edge-rate-limiting-design.html#decision",
+    "title": "Moving rate limiting to the edge",
+    "section": "Decision"
    }
   ]
  }

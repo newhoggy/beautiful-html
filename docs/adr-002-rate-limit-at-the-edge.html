@@ -32,7 +32,7 @@
     </div>
 
     <h2 id="context">Context</h2>
-    <p>Under the per-service limits of ADR-001, one client sent 9× its contracted rate during the September incident without hitting a single limit: their traffic was spread across 3 services with 3 replicas each. We now have a gateway that runs plugins and a managed Redis cluster with p99 under 2 ms in-region. The <a href="token-bucket-rate-limiting.html">token bucket explainer</a> covers the algorithm.</p>
+    <p>Under the per-service limits of ADR-001, one client sent 9× its contracted rate during the September incident without hitting a single limit: their traffic was spread across 3 services with 3 replicas each. We now have a gateway that runs plugins and a managed Redis cluster with p99 under 2 ms in-region. The <a href="token-bucket-rate-limiting.html">token bucket explainer</a> covers the algorithm, and the <a href="edge-rate-limiting-design.html">design document</a> covers the request path, the script and the canary results.</p>
 
     <h2 id="options">Options considered</h2>
     <div class="compare">

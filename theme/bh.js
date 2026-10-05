@@ -547,6 +547,11 @@
       const r = parseRef(ref.dataset.ref);
       if (!r) return null;
       restore();
+      // A reference into one version of a <bh-versions> diagram shows that version.
+      const versions = r.fig.closest("bh-versions");
+      if (versions && versions.show && versions.figures && !r.fig.classList.contains("is-current")) {
+        versions.show(versions.figures.indexOf(r.fig));
+      }
       const nodes = [...r.fig.querySelectorAll("[data-id]")];
       const saved = nodes.map((n) => [n, n.classList.contains("is-lit"), n.classList.contains("is-dim")]);
       for (const n of nodes) {
