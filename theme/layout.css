@@ -223,7 +223,7 @@
   opacity: 0;
   transition: opacity var(--dur-1);
 }
-:is(h2, h3):hover > .heading-anchor, .heading-anchor:focus-visible { opacity: 1; }
+:is(h2, h3, h4):hover > .heading-anchor, .heading-anchor:focus-visible { opacity: 1; }
 
 /* ---- Hero ------------------------------------------------------------------------ */
 
@@ -346,3 +346,71 @@
     transition-delay: calc(var(--reveal-i, 0) * 60ms);
   }
 }
+
+/* ---- Deep links: copy-link controls, toast, arrival highlight -----------------------
+   Every section heading, figure, glossary entry and [data-linkable] block has a stable
+   id. Headings and entries show "#" on hover; figures show a link button in the corner.
+   Clicking either copies the URL (bh.js). On touch screens the controls stay visible. */
+
+.bh-article figure[id],
+.bh-article [data-linkable][id] { position: relative; }
+
+.bh-link-btn {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur-1), color var(--dur-1), border-color var(--dur-1);
+}
+:is(figure, [data-linkable]):hover > .bh-link-btn,
+:is(figure, [data-linkable]):focus-within > .bh-link-btn,
+.bh-link-btn:focus-visible { opacity: 1; }
+.bh-link-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+dl.glossary > dt:hover > .heading-anchor { opacity: 1; }
+
+@media (hover: none) {
+  .bh-link-btn { opacity: 0.8; }
+  .heading-anchor { opacity: 0.45; }
+}
+
+.bh-toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(var(--space-5), env(safe-area-inset-bottom));
+  z-index: 70;
+  max-width: min(36rem, calc(100vw - 2 * var(--space-4)));
+  padding: 0.55em 1em;
+  border-radius: var(--radius);
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: var(--shadow-2);
+  font-size: var(--step--1);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 8px);
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+}
+.bh-toast.is-shown { opacity: 1; transform: translate(-50%, 0); }
+
+/* Arrival at #id: a brief ring on blocks, a brief tint on headings and entries. */
+.is-target-flash { animation: bh-target-ring 1.8s var(--ease-out); }
+:is(h2, h3, h4, dt).is-target-flash { animation-name: bh-target-tint; border-radius: 4px; }
+@keyframes bh-target-ring {
+  from { box-shadow: 0 0 0 3px var(--accent); }
+  to   { box-shadow: 0 0 0 3px transparent; }
+}
+@keyframes bh-target-tint { from { background: var(--accent-soft); } }

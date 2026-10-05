@@ -6,7 +6,7 @@
   :root { color-scheme: light; }
   body { background: #fff; font-size: 11pt; }
 
-  .bh-topbar, .bh-toc, .skip-link, .bh-gloss-pop, .glossary-az, .bh-stepper-bar, .bh-tablist, .copy-btn, .heading-anchor, .sidenote-ref { display: none !important; }
+  .bh-topbar, .bh-toc, .skip-link, .bh-gloss-pop, .glossary-az, .bh-link-btn, .bh-toast, .bh-stepper-bar, .bh-tablist, .copy-btn, .heading-anchor, .sidenote-ref { display: none !important; }
 
   .bh-page { display: block; padding: 0; }
   .bh-article { display: block; }

@@ -30,7 +30,24 @@ after editing `docs/glossary.html`. Index also compiles `theme/glossary.js`.
 - Use exactly one `<h1>`, inside `.bh-hero`.
 - Content lives as **direct children** of `<article class="bh-article">`. Don't wrap
   sections in `<section>` or `<div>`. The TOC, eyebrows and breakout grid all rely on this.
-- Every `<h2>` gets an explicit, stable `id` (kebab-case), so deep links survive edits.
+- **Everything a reader might want to share must be linkable.** That means each of these
+  gets an explicit, stable, kebab-case `id` (`a-z`, `0-9`, hyphens):
+  - every section heading (`h2`, `h3` and `h4` placed directly in `.bh-article`)
+  - every `<figure>`, which includes every diagram
+  - every glossary `<dt>`
+  - any other block you'd want to point at (a table, a playground, a callout): add
+    `data-linkable` and an `id`.
+  - `npm run check` fails when one of these is missing an id or uses a non-kebab id.
+    Headings inside components (cards, options) are not sections and are exempt.
+- The theme provides the "copy link" controls, so never hand-roll them:
+  - Headings and glossary entries show `#` on hover.
+  - Figures and `data-linkable` blocks show a link button in the corner.
+  - Clicking either copies the full URL, puts `#id` in the address bar, and confirms with
+    a toast. Arriving at `#id` opens any `<details>`, tab or stepper step that hides the
+    target, scrolls to it and briefly highlights it.
+- **Ids are permanent once published.** Pick ids that name the concept, not the wording:
+  `#rollout`, not `#how-we-plan-to-roll-this-out`. If you must rename one, keep the old
+  id working with an empty `<span id="old-id"></span>` placed right before the target.
 - Width: the default is the reading column. Use `.wide` for figures, tables,
   comparisons and playgrounds. Use `.full` rarely.
 - Put page-specific CSS in one `<style>` in `<head>`, scoped by id. Put
@@ -183,6 +200,10 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
 
 - **Render it.** Lint and syntax checks passed while the page rendered completely unstyled.
   Look at the result in a browser (`npm run serve`) in both themes and at 375px wide.
+- **Follow your own links.** Open the page at `#id` for a section and for a figure, and
+  confirm each target lands just below the top bar and is visible, not still fading in.
+  Click a heading's `#` and a figure's link button: the toast should confirm, the address
+  bar should change, and the page should not jump.
 - **Zoom in on details.** Problems like a blunted arrow tip, a line hitting an arrowhead off
   centre, or a label crossing a line are invisible at page scale. Use a zoomed screenshot
   of each diagram, in both its normal and its stepper-lit state.

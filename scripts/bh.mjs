@@ -319,6 +319,72 @@ function tipProblems(segs, end, rects) {
   return []; // touching its node, or aimed at a non-rect shape (not verifiable)
 }
 
+// ---- HTML element tree (tolerant; enough for nesting-aware lint rules) -------------
+
+const VOID_TAGS = new Set("area base br col embed hr img input link meta source track wbr".split(" "));
+const AUTO_CLOSE = { p: ["p"], li: ["li"], dt: ["dt", "dd"], dd: ["dt", "dd"], tr: ["tr", "td", "th"], td: ["td", "th"], th: ["td", "th"], option: ["option"] };
+// A start tag whose quoted attribute values may contain ">" (e.g. data-bind expressions).
+const TAG_RE = /<(\/?)([a-zA-Z][\w-]*)((?:\s+[^\s=>/]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?)*)\s*(\/?)>/g;
+
+function parseTree(html) {
+  const src = stripComments(html).replace(/<(script|style)\b([^>]*)>[\s\S]*?<\/\1>/gi, "<$1$2></$1>");
+  const root = { tag: "#root", attrs: "", children: [], parent: null, start: 0, end: src.length };
+  let cur = root;
+  for (const m of src.matchAll(TAG_RE)) {
+    const [, closing, name, attrs, selfClosing] = m;
+    const tag = name.toLowerCase();
+    if (closing) {
+      let n = cur;
+      while (n !== root && n.tag !== tag) n = n.parent;
+      if (n !== root) { n.end = m.index; cur = n.parent; }
+      continue;
+    }
+    if (AUTO_CLOSE[tag]) while (cur !== root && AUTO_CLOSE[tag].includes(cur.tag)) { cur.end = m.index; cur = cur.parent; }
+    const node = { tag, attrs, children: [], parent: cur, start: m.index + m[0].length, end: src.length };
+    cur.children.push(node);
+    if (!selfClosing && !VOID_TAGS.has(tag)) cur = node;
+  }
+  return { root, src };
+}
+
+const nodeAttr = (n, name) => (n.attrs.match(new RegExp(`\\s${name}\\s*=\\s*"([^"]*)"`)) || [])[1];
+const hasClass = (n, c) => (nodeAttr(n, "class") || "").split(/\s+/).includes(c);
+function walkTree(n, fn) { for (const c of n.children) { fn(c); walkTree(c, fn); } }
+function findNode(n, pred) { let hit = null; walkTree(n, (c) => { if (!hit && pred(c)) hit = c; }); return hit; }
+const nodeText = (src, n) => src.slice(n.start, n.end).replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+
+const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * Every link target must carry an explicit, stable, kebab-case id: section headings
+ * (h2–h4 directly in the article), every figure, every glossary entry, and any
+ * [data-linkable] block. Auto-generated ids would change whenever the text changes.
+ */
+function linkTargetProblems(html) {
+  const { root, src } = parseTree(html);
+  const article = findNode(root, (n) => hasClass(n, "bh-article"));
+  if (!article) return [];
+  const out = [];
+  const require = (n, what) => {
+    const id = nodeAttr(n, "id");
+    if (!id) out.push(`${what} has no id, so it can't be linked to; add a stable kebab-case id`);
+    else if (!KEBAB.test(id)) out.push(`${what} id="${id}" must be kebab-case (a-z, 0-9, hyphens)`);
+  };
+  const short = (t) => (t.length > 50 ? t.slice(0, 47) + "…" : t);
+  for (const c of article.children) {
+    if (/^h[2-4]$/.test(c.tag)) require(c, `<${c.tag}> "${short(nodeText(src, c))}"`);
+  }
+  walkTree(article, (n) => {
+    if (n.tag === "figure") {
+      const cap = findNode(n, (x) => x.tag === "figcaption");
+      require(n, `<figure>${cap ? ` "${short(nodeText(src, cap))}"` : ""}`);
+    }
+    if (n.tag === "dt" && n.parent.tag === "dl" && hasClass(n.parent, "glossary")) require(n, `glossary entry "${short(nodeText(src, n))}"`);
+    if (/\sdata-linkable\b/.test(n.attrs)) require(n, `<${n.tag} data-linkable>`);
+  });
+  return out;
+}
+
 // ---- check ------------------------------------------------------------------------
 
 function cmdCheck() {
@@ -363,9 +429,7 @@ function cmdCheck() {
       if (h1s !== 1) err(`expected exactly one <h1>, found ${h1s}`);
       if (!/class="bh-article"/.test(html)) err('missing <article class="bh-article">');
       if (!/theme\/bh\.css/.test(html)) err("does not link theme/bh.css");
-      for (const m of html.matchAll(/<h2(?![^>]*\sid=)[^>]*>([\s\S]*?)<\/h2>/g)) {
-        warn(`<h2> without explicit id: "${m[1].replace(/<[^>]+>/g, "").trim()}" (ids keep deep links stable)`);
-      }
+      for (const p of linkTargetProblems(raw)) err(p);
     }
 
     // Duplicate ids

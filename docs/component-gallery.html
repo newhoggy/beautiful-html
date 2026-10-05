@@ -117,7 +117,7 @@
       <dt>Owner</dt><dd>Payments platform</dd>
       <dt>Runtime</dt><dd>Rust 1.90, Tokio, Axum</dd>
     </dl>
-    <div class="table-wrap wide">
+    <div class="table-wrap wide" id="latency-by-region" data-linkable>
       <table>
         <caption>Latency by region, last 7 days.</caption>
         <thead><tr><th>Region</th><th class="num">p50</th><th class="num">p99</th><th>Meets SLO</th></tr></thead>
@@ -258,8 +258,8 @@ else { reject(retry_after(cost - tokens)) }<span class="marker">3</span></code><
     <!-- ================================================================ -->
     <h2 id="layout">Layout</h2>
     <p>Children of <code>.bh-article</code> sit in the reading column. Add <code>.wide</code> to use the gutters, or <code>.full</code> to go edge to edge.</p>
-    <figure class="frame wide"><p class="muted" style="text-align:center">.wide — figures, tables, comparisons</p></figure>
-    <figure class="frame full" style="border-radius:0; border-inline:0"><p class="muted" style="text-align:center">.full — hero visuals, big diagrams</p></figure>
+    <figure class="frame wide" id="layout-wide"><p class="muted" style="text-align:center">.wide — figures, tables, comparisons</p></figure>
+    <figure class="frame full" id="layout-full" style="border-radius:0; border-inline:0"><p class="muted" style="text-align:center">.full — hero visuals, big diagrams</p></figure>
 
     <footer class="bh-footer">
       <span><a href="../index.html">← All documents</a></span>

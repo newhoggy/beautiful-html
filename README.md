@@ -64,7 +64,8 @@ dist/                   Bundled single-file outputs (git-ignored)
   - skip link
   - table of contents with scroll-spy, as a sidebar on wide screens and a drop-down on narrow ones
   - `§n` section eyebrows
-  - heading anchors
+  - copy-link controls on every section, figure and glossary entry; arriving at a
+    `#id` link opens whatever hides the target and highlights it
   - meta row (status, date, authors, reading time) filled from `<meta name="bh:*">`
 - **Components** (see `docs/component-gallery.html`):
   - `.tldr`, `.callout`, `.badge`

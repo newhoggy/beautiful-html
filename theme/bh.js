@@ -5,6 +5,8 @@
    Page chrome:   top bar, theme toggle, reading progress, skip link, TOC +
                   scroll-spy, heading anchors & eyebrows, auto meta, sidenotes,
                   code-block copy buttons, scroll reveal, SVG arrow markers.
+   Deep links:    every section heading, figure, glossary entry and [data-linkable]
+                  block offers "copy link"; arriving at #id reveals and highlights it.
    Lazy libs:     Prism (if code has language-*), Mermaid (if pre.mermaid).
    Components:    <bh-tabs>, <bh-stepper>/<bh-step>, <bh-playground>, <bh-filter>.
    Glossary:      auto-marks glossary terms in prose; hover/focus/tap shows a
@@ -68,6 +70,34 @@
   }
 
   function storage(fn) { try { return fn(); } catch (_) { return null; } }
+
+  /** Copy text to the clipboard; resolves true on success. Falls back to execCommand. */
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; }
+    catch (_) {
+      const ta = el("textarea", { style: "position:fixed;opacity:0", "aria-hidden": "true" });
+      ta.value = text;
+      doc.body.append(ta);
+      ta.select();
+      let ok = false;
+      try { ok = doc.execCommand("copy"); } catch (_) { ok = false; }
+      ta.remove();
+      return ok;
+    }
+  }
+
+  let toastEl = null, toastTimer = 0;
+  /** Brief status message at the bottom of the viewport (announced to screen readers). */
+  function toast(message, ms = 1800) {
+    if (!toastEl) {
+      toastEl = el("div", { class: "bh-toast", role: "status", "aria-live": "polite" });
+      doc.body.append(toastEl);
+    }
+    toastEl.textContent = message;
+    toastEl.classList.add("is-shown");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove("is-shown"), ms);
+  }
 
   // ---- Theme -----------------------------------------------------------------
 
@@ -176,9 +206,10 @@
     const article = doc.querySelector(".bh-article");
     if (!article) return [];
     const used = new Set([...doc.querySelectorAll("[id]")].map((n) => n.id));
-    const heads = [...article.querySelectorAll(":scope > h2, :scope > h3")].filter((h) => !h.classList.contains("no-toc"));
+    const all = [...article.querySelectorAll(":scope > h2, :scope > h3, :scope > h4")];
+    const heads = all.filter((h) => h.tagName !== "H4" && !h.classList.contains("no-toc"));
     let n = 0;
-    for (const h of heads) {
+    for (const h of all) {
       if (!h.id) {
         let id = slugify(h.textContent), i = 2;
         while (used.has(id)) id = `${slugify(h.textContent)}-${i++}`;
@@ -189,9 +220,105 @@
         n += 1;
         if (!h.dataset.eyebrow && doc.body.dataset.eyebrows !== "off") h.dataset.eyebrow = `§${n}`;
       }
-      h.append(el("a", { class: "heading-anchor", href: "#" + h.id, "aria-label": "Link to this section", text: "#" }));
+      h.append(linkAnchor(h.id, "section"));
     }
     return heads;
+  }
+
+  // ---- Deep links: copy a link to any section, figure or glossary entry ---------------------
+
+  const LINK_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+
+  function linkLabel(target) {
+    if (target.tagName === "FIGURE" && target.querySelector(":scope > figcaption")) {
+      const figs = [...doc.querySelectorAll(".bh-article figure")].filter((f) => f.querySelector(":scope > figcaption"));
+      return `Figure ${figs.indexOf(target) + 1}`;
+    }
+    const clone = target.cloneNode(true);
+    clone.querySelectorAll(".heading-anchor, .bh-link-btn, figcaption").forEach((x) => x.remove());
+    const text = clone.textContent.replace(/\s+/g, " ").trim();
+    return text.length > 60 ? text.slice(0, 57) + "…" : text || "this block";
+  }
+
+  /** Copy the page URL with #id, put it in the address bar without jumping, and confirm. */
+  async function copyLink(id) {
+    const hash = "#" + encodeURIComponent(id);
+    const url = location.href.split("#")[0] + hash;
+    try { history.replaceState(history.state, "", hash); } catch (_) { /* sandboxed */ }
+    const target = doc.getElementById(id);
+    const ok = await copyText(url);
+    toast(ok ? `Link copied: ${target ? linkLabel(target) : id}` : url, ok ? 1800 : 6000);
+  }
+
+  /** "#" anchor for headings and glossary entries: a real link, but click copies it. */
+  function linkAnchor(id, what) {
+    const a = el("a", { class: "heading-anchor", href: "#" + id, title: `Copy link to this ${what}`, "aria-label": `Copy link to this ${what}`, text: "#" });
+    a.addEventListener("click", (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; // let modified clicks open/new-tab
+      e.preventDefault();
+      copyLink(id);
+    });
+    return a;
+  }
+
+  /** Link buttons on figures and [data-linkable] blocks; anchors on glossary entries. */
+  function buildLinkTargets() {
+    doc.querySelectorAll(".bh-article figure[id], .bh-article [data-linkable][id]").forEach((t) => {
+      if (t.querySelector(":scope > .bh-link-btn")) return;
+      const what = t.tagName === "FIGURE" ? "figure" : "block";
+      const btn = el("button", { class: "bh-link-btn", type: "button", title: `Copy link to this ${what}`, "aria-label": `Copy link to this ${what}`, html: LINK_ICON });
+      btn.addEventListener("click", () => copyLink(t.id));
+      t.append(btn);
+    });
+    doc.querySelectorAll("dl.glossary > dt[id]").forEach((dt) => {
+      if (!dt.querySelector(".heading-anchor")) dt.append(linkAnchor(dt.id, "entry"));
+    });
+  }
+
+  /** Bring the #target into view: open collapsed details, select its tab or step, highlight it. */
+  function revealTarget(instant) {
+    let id;
+    try { id = decodeURIComponent(location.hash.slice(1)); } catch (_) { return; }
+    const target = id && doc.getElementById(id);
+    if (!target) return;
+    for (let p = target; p && p !== doc.body; p = p.parentElement) {
+      if (p.tagName === "DETAILS" && !p.open) p.open = true;
+      const host = p.parentElement;
+      if (p.tagName === "SECTION" && host && host.tagName === "BH-TABS" && p.hidden && host.select) {
+        host.select([...host.querySelectorAll(":scope > section")].indexOf(p));
+      }
+      if (p.tagName === "BH-STEP") {
+        const stepper = p.closest("bh-stepper");
+        if (stepper && stepper.go && stepper.steps) stepper.go(stepper.steps.indexOf(p));
+      }
+    }
+    // The linked target is shown at once: no scroll-reveal fade on (or around) it.
+    for (const n of [target, ...target.querySelectorAll(".reveal-pending")]) n.classList.remove("reveal-pending");
+    for (let p = target.parentElement; p; p = p.parentElement) p.classList.remove("reveal-pending");
+    target.scrollIntoView({ block: "start", behavior: instant || reducedMotion.matches ? "instant" : "smooth" });
+    target.classList.remove("is-target-flash");
+    void target.offsetWidth;
+    target.classList.add("is-target-flash");
+    setTimeout(() => target.classList.remove("is-target-flash"), 2000);
+  }
+
+  function setupDeepLinks() {
+    buildLinkTargets();
+    addEventListener("hashchange", () => revealTarget(false));
+    if (!location.hash) return;
+    // On arrival the browser scrolled before the chrome and fonts settled: scroll again,
+    // and once more after web fonts load, unless the reader has started scrolling.
+    let interacted = false;
+    const mark = () => { interacted = true; };
+    ["wheel", "touchstart", "keydown", "pointerdown"].forEach((t) => addEventListener(t, mark, { once: true, passive: true }));
+    revealTarget(true);
+    if (doc.fonts && doc.fonts.ready) {
+      doc.fonts.ready.then(() => {
+        if (interacted) return;
+        const t = doc.getElementById(decodeURIComponent(location.hash.slice(1)));
+        if (t) t.scrollIntoView({ block: "start", behavior: "instant" });
+      });
+    }
   }
 
   function buildToc(heads) {
@@ -257,12 +384,7 @@
       const label = pre.dataset.title || lang || "";
       const btn = el("button", { class: "btn copy-btn", type: "button", text: "Copy" });
       btn.addEventListener("click", async () => {
-        const text = code.innerText.replace(/\n$/, "");
-        try { await navigator.clipboard.writeText(text); }
-        catch (_) {
-          const ta = el("textarea", { style: "position:fixed;opacity:0" });
-          ta.value = text; doc.body.append(ta); ta.select(); doc.execCommand("copy"); ta.remove();
-        }
+        await copyText(code.innerText.replace(/\n$/, ""));
         btn.textContent = "Copied"; btn.classList.add("copied");
         setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("copied"); }, 1600);
       });
@@ -627,7 +749,9 @@
     doc.querySelectorAll("dl.glossary > dt[id]").forEach((dt) => {
       const dd = dt.nextElementSibling;
       if (!dd || dd.tagName !== "DD") return;
-      out.push({ id: dt.id, term: dt.textContent.trim(), aliases: splitList(dt.dataset.aliases), html: dd.innerHTML, href: "#" + dt.id, local: true });
+      const name = dt.cloneNode(true);
+      name.querySelectorAll(".heading-anchor").forEach((x) => x.remove());
+      out.push({ id: dt.id, term: name.textContent.trim(), aliases: splitList(dt.dataset.aliases), html: dd.innerHTML, href: "#" + dt.id, local: true });
     });
     return out;
   }
@@ -903,7 +1027,8 @@
     buildMermaid();
     buildReveal();
     buildGlossary();
+    setupDeepLinks();
   });
 
-  window.bh = { applyTheme, whenReady, el, format };
+  window.bh = { applyTheme, whenReady, el, format, copyText, copyLink, toast };
 })();
