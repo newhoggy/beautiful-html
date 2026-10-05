@@ -207,7 +207,10 @@ async function launchChrome() {
     const exited = new Promise((resolve) => { if (proc.exitCode !== null) resolve(); else proc.once("exit", resolve); });
     proc.kill();
     await Promise.race([exited, sleep(5000)]);
-    fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    // Best effort: Chrome's helper processes (notably on Linux) can still be writing to the
+    // profile after the browser exits. A leftover temp dir must never fail the run.
+    try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); }
+    catch (e) { console.warn(c.dim(`(could not remove Chrome profile ${profile}: ${e.code})`)); }
   };
   return { send, close };
 }
