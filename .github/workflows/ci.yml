@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, check and bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Syntax-check scripts
+        run: |
+          node --check theme/bh.js
+          for f in theme/modules/*.js scripts/*.mjs; do node --check "$f"; done
+
+      # Links, ids, arrows, labels, contrast, glossary, decision links, and that the
+      # generated files (index, glossary, site data, search index) are up to date.
+      - name: npm run check
+        run: npm run check
+
+      - name: Bundle every document into a single file
+        run: npm run bundle:all
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: single-file-documents
+          path: dist/
+          if-no-files-found: error
+
+  render:
+    name: Render every page in Chrome
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Baselines are machine-specific and live outside git, so CI renders without
+      # comparing: the run fails if any page throws before signalling data-bh-ready.
+      - name: Render light, dark and phone layouts
+        run: npm run visual -- --system-fonts
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: renders
+          path: .visual/system-fonts/

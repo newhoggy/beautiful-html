@@ -170,6 +170,9 @@ async function launchChrome() {
     // GPU rasterization varies between Chrome processes (glyph edges antialias differently);
     // software rendering makes repeated runs pixel-identical.
     "--disable-gpu", "--disable-gpu-compositing", "--disable-gpu-rasterization", "--force-device-scale-factor=1",
+    // Ubuntu 24.04 CI runners restrict the user namespaces Chrome's sandbox needs; it only
+    // ever loads this repo's own pages, so CI runs it unsandboxed.
+    ...(process.env.CI ? ["--no-sandbox"] : []),
     "about:blank",
   ], { stdio: ["ignore", "ignore", "pipe"] });
   const wsUrl = await new Promise((resolve, reject) => {

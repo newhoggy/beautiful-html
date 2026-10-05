@@ -22,6 +22,17 @@ npm run visual                                      # screenshot diff vs your ba
 
 Node ≥ 20 is the only requirement. There are no npm dependencies.
 
+## Continuous integration & publishing
+
+- **CI** (`.github/workflows/ci.yml`) runs on every push and pull request. It
+  syntax-checks every script, runs `npm run check`, uploads all documents bundled as
+  single files, and renders every page in Chrome (light, dark and phone layouts).
+- **GitHub Pages** (`.github/workflows/pages.yml`) publishes the repo as it stands, with
+  no build step. It stays off until you opt in:
+  1. Go to Settings → Pages and set the source to **GitHub Actions**.
+  2. Add the repository variable `PAGES_ENABLED=true`.
+  Pages work under a project sub-path such as `/beautiful-html/`.
+
 ## Layout
 
 ```
