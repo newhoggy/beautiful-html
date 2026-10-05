@@ -230,6 +230,11 @@
   const LINK_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
 
   function linkLabel(target) {
+    if (target.tagName === "BH-STEP" && target.dataset.n) {
+      const stepper = target.closest("bh-stepper");
+      const fig = stepper && stepper.target;
+      return `Step ${target.dataset.n} of ${target.dataset.total}${fig ? ` (${linkLabel(fig)})` : ""}`;
+    }
     if (target.tagName === "FIGURE" && target.querySelector(":scope > figcaption")) {
       const figs = [...doc.querySelectorAll(".bh-article figure")].filter((f) => f.querySelector(":scope > figcaption"));
       return `Figure ${figs.indexOf(target) + 1}`;
@@ -292,10 +297,15 @@
         if (stepper && stepper.go && stepper.steps) stepper.go(stepper.steps.indexOf(p));
       }
     }
-    // The linked target is shown at once: no scroll-reveal fade on (or around) it.
-    for (const n of [target, ...target.querySelectorAll(".reveal-pending")]) n.classList.remove("reveal-pending");
-    for (let p = target.parentElement; p; p = p.parentElement) p.classList.remove("reveal-pending");
-    target.scrollIntoView({ block: "start", behavior: instant || reducedMotion.matches ? "instant" : "smooth" });
+    // A step is read together with its diagram: bring the diagram into view, flash the step.
+    const stepper = target.tagName === "BH-STEP" && target.closest("bh-stepper");
+    const scrollTo = (stepper && stepper.target) || target;
+    // What we land on is shown at once: no scroll-reveal fade on (or around) it.
+    for (const t of new Set([target, scrollTo])) {
+      for (const n of [t, ...t.querySelectorAll(".reveal-pending")]) n.classList.remove("reveal-pending");
+      for (let p = t.parentElement; p; p = p.parentElement) p.classList.remove("reveal-pending");
+    }
+    scrollTo.scrollIntoView({ block: "start", behavior: instant || reducedMotion.matches ? "instant" : "smooth" });
     target.classList.remove("is-target-flash");
     void target.offsetWidth;
     target.classList.add("is-target-flash");
@@ -316,7 +326,9 @@
       doc.fonts.ready.then(() => {
         if (interacted) return;
         const t = doc.getElementById(decodeURIComponent(location.hash.slice(1)));
-        if (t) t.scrollIntoView({ block: "start", behavior: "instant" });
+        const stepper = t && t.tagName === "BH-STEP" && t.closest("bh-stepper");
+        const scrollTo = (stepper && stepper.target) || t;
+        if (scrollTo) scrollTo.scrollIntoView({ block: "start", behavior: "instant" });
       });
     }
   }
@@ -537,6 +549,8 @@
    *   <bh-step highlight="client req">Narration…</bh-step>
    * </bh-stepper>
    * Highlights [data-id] elements inside #diagram-id: listed ids get .is-lit, the rest .is-dim.
+   * Each step is linkable as #<stepper id or for>-step-<n> (unless it has its own id); the
+   * bar's link button copies a link to the current step.
    */
   class BhStepper extends HTMLElement {
     connectedCallback() { whenReady(() => this.init()); }
@@ -546,7 +560,12 @@
       this.steps = [...this.querySelectorAll(":scope > bh-step")];
       if (!this.steps.length) return;
       this.target = this.getAttribute("for") ? doc.getElementById(this.getAttribute("for")) : null;
-      this.steps.forEach((s, i) => { s.dataset.n = i + 1; s.dataset.total = this.steps.length; });
+      const base = this.id || this.getAttribute("for");
+      this.steps.forEach((s, i) => {
+        s.dataset.n = i + 1;
+        s.dataset.total = this.steps.length;
+        if (!s.id && base) s.id = `${base}-step-${i + 1}`;
+      });
 
       const live = el("div", { "aria-live": "polite" });
       this.steps[0].before(live);
@@ -556,7 +575,8 @@
       this.nextBtn = el("button", { class: "btn primary", type: "button", text: "Next →", onclick: () => this.go(this.index + 1) });
       this.playBtn = el("button", { class: "btn ghost", type: "button", text: "▶ Play", onclick: () => this.togglePlay() });
       this.dots = this.steps.map((_, i) => el("button", { type: "button", "aria-label": `Go to step ${i + 1}`, onclick: () => this.go(i) }));
-      this.append(el("div", { class: "bh-stepper-bar" }, [this.prevBtn, el("div", { class: "bh-stepper-dots" }, this.dots), this.playBtn, this.nextBtn]));
+      const linkBtn = base ? el("button", { class: "btn ghost icon bh-step-link", type: "button", title: "Copy link to this step", "aria-label": "Copy link to this step", html: LINK_ICON, onclick: () => copyLink(this.steps[this.index].id) }) : null;
+      this.append(el("div", { class: "bh-stepper-bar" }, [this.prevBtn, el("div", { class: "bh-stepper-dots" }, this.dots), linkBtn, this.playBtn, this.nextBtn]));
 
       this.tabIndex = 0;
       this.setAttribute("role", "group");

@@ -381,6 +381,9 @@ function linkTargetProblems(html) {
     }
     if (n.tag === "dt" && n.parent.tag === "dl" && hasClass(n.parent, "glossary")) require(n, `glossary entry "${short(nodeText(src, n))}"`);
     if (/\sdata-linkable\b/.test(n.attrs)) require(n, `<${n.tag} data-linkable>`);
+    if (n.tag === "bh-stepper" && !nodeAttr(n, "id") && !nodeAttr(n, "for")) {
+      out.push("<bh-stepper> needs for=\"figure-id\" (or an id) so its steps can be linked to");
+    }
   });
   return out;
 }
@@ -436,6 +439,13 @@ function cmdCheck() {
     const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
     const seen = new Set();
     for (const id of ids) { if (seen.has(id)) err(`duplicate id="${id}"`); seen.add(id); }
+
+    // Ids bh.js generates at runtime: stepper steps (#<for or id>-step-N).
+    for (const m of html.matchAll(/<bh-stepper\b([^>]*)>([\s\S]*?)<\/bh-stepper>/g)) {
+      const base = attrOf(m[1], "id") || attrOf(m[1], "for");
+      const steps = (m[2].match(/<bh-step\b/g) || []).length;
+      for (let i = 1; base && i <= steps; i++) seen.add(`${base}-step-${i}`);
+    }
 
     // In-page anchors (heading ids may also be generated at runtime: warn, not error)
     for (const m of html.matchAll(/href="#([^"]+)"/g)) {

@@ -37,6 +37,8 @@ after editing `docs/glossary.html`. Index also compiles `theme/glossary.js`.
   - every glossary `<dt>`
   - any other block you'd want to point at (a table, a playground, a callout): add
     `data-linkable` and an `id`.
+  - every stepper step, automatically: `<bh-stepper for="figure-id">` makes each step
+    linkable as `#figure-id-step-N`. A stepper must therefore have `for` (or an `id`).
   - `npm run check` fails when one of these is missing an id or uses a non-kebab id.
     Headings inside components (cards, options) are not sections and are exempt.
 - The theme provides the "copy link" controls, so never hand-roll them:
@@ -220,6 +222,10 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
 - **When testing the checker with injected faults, assert the injection happened.** A
   replacement anchored on stale text matched nothing, and the "test" passed while
   checking nothing.
+- **Screenshots can re-lay out the page.** The screenshot tool may capture at a different
+  viewport width than the page sees, which reflows text above the target and moves it.
+  Verify scroll positions by sampling `getBoundingClientRect()` inside the page, not from a
+  screenshot.
 - **Browser automation can mislead.** `requestAnimationFrame` is throttled while a script
   awaits in a background or automated tab, so live readouts can show stale zeros. Trust a
   screenshot over a value read during an `await`.
