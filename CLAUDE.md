@@ -13,9 +13,12 @@ from it rather than inventing new markup.
 2. Replace every placeholder section. Delete sections that don't earn their place.
 3. `npm run check`. It must report 0 errors. Fix the warnings unless there is a reason not to.
 4. Open the page in a browser and check both themes and a narrow (phone) width.
+   A clean `check` says nothing about rendering, so never skip this step. See
+   [Verifying changes](#verifying-changes).
 5. For sharing outside the repo, run `npm run bundle -- docs/<slug>.html` and send `dist/<slug>.html`.
 
-Run `npm run index` after changing any page's title, description or `bh:*` meta.
+Run `npm run index` after changing any page's title, description or `bh:*` meta, and
+after editing `docs/glossary.html`. Index also compiles `theme/glossary.js`.
 
 ## Page contract
 
@@ -85,10 +88,39 @@ beats five decorative ones.
   - `npm run check` enforces this. It projects each arrow tip and fails when a tip pokes into
     a node, or stops more than 2 units short of the node it points at. Tips aimed at
     non-rectangular shapes can't be verified, so check those by eye.
+- **Labels never touch a line or arrowhead.** Place each label in open space beside its edge,
+  not on the edge's path. Whenever you move an edge, re-check every label near it: moved
+  curves have run straight through labels that used to be clear.
 - Pad the `viewBox` by at least 16 (`viewBox="-16 -16 W+32 H+32"`) so strokes and labels never clip.
 - Every diagram's `<svg>` gets `role="img"` and an `aria-label` describing what it shows.
 - A figcaption says what to *notice*, not what the picture is.
 - Mermaid (`<pre class="mermaid">`) is a fallback for quick sequence or state diagrams only.
+
+## Glossary
+
+- **`docs/glossary.html` is the only place terms are defined.** It holds one
+  `<dt id="kebab-id" data-aliases="plural, other spelling">Term</dt><dd>…</dd>` per term,
+  kept A–Z. `npm run index` compiles it into `theme/glossary.js`. That file is generated,
+  so never edit it by hand.
+- Defined words are underlined automatically in article prose: the first occurrence per
+  page, and the first per definition on the glossary page itself. Hover, focus or tap
+  shows the definition.
+- Change the marking per page with `<body data-glossary="page|section|every|off">`.
+  Force a mark with `data-term="id"`; keep a passage unmarked with `class="no-glossary"`.
+  Headings, links, code, labels, `summary` and diagrams are never marked.
+- Definitions: one to three plain sentences a newcomer can follow, then a link to go
+  deeper. Write relative links relative to `docs/`; they are rebased for other pages.
+- List every plural and alternate spelling in `data-aliases`, because matching is
+  whole-word and case-insensitive. Never let a name or alias belong to two terms;
+  `check` fails on that.
+- A page may add its own terms with a local `<dl class="glossary">`. These override
+  shared terms with the same id on that page only.
+- **Popup behaviour is a contract. Keep it when changing `bh.js`:**
+  - It is placed once when it opens and never follows the pointer.
+  - The pointer can cross the gap into it (an invisible bridge plus a hide delay).
+  - Pressing inside it, clicking the term, or Enter/Space pins it until Esc or a click
+    elsewhere.
+  - Esc returns focus to the term without reopening the popup.
 
 ## Motion & interaction
 
@@ -100,9 +132,75 @@ beats five decorative ones.
   correctly with JavaScript disabled.
 - Controls are real `<button>` and `<input>` elements, with visible labels and the keyboard working.
 
+## Page scripts & simulations
+
+- If a simulation pauses while offscreen (it should, via `IntersectionObserver`), then on
+  resume reschedule future events from *now*. Otherwise the events that piled up while
+  paused all fire in one frame: a token bucket drained in one burst this way.
+- Advance the model's state up to each event's own timestamp before handling that event,
+  rather than once per frame. Batch updates give results the real algorithm never would.
+- Read inputs from the DOM, or listen for `bh-change` events. Don't assume a component has
+  already initialised when your script runs.
+
 ## Accessibility & quality bar
 
 - Text contrast is at least 4.5:1 in **both** themes. Use only the theme tokens (`var(--text)`, `var(--c2)`…).
 - Never use colour alone to carry meaning: pair it with a label, an icon or a position.
 - Every `<img>` has an `alt`, and every `<svg>` diagram has an accessible name.
 - Check the page at 375px wide: no horizontal page scroll. Wide tables scroll inside `.table-wrap`.
+
+## Changing the theme
+
+Theme files (`theme/*`) are shared by every page. These rules come from bugs already hit here:
+
+- **In `bh.css`, the `@layer` statement must come before every `@import`.** An `@import`
+  that follows any other rule is silently ignored, and the whole theme vanished that way.
+- **`!important` reverses inside cascade layers:** an important declaration in an *earlier*
+  layer beats one in a later layer. Prefer specificity or layer order; use `!important`
+  only to beat the generic article spacing rules.
+- **CSS counters skip `display: none` elements.** Anything numbered while hidden (stepper
+  steps, tabs) must take its number from a `data-*` attribute that JS sets.
+- **Generic article rules leak into components.** `.bh-article li + li` and the flow
+  margins apply to every list and child. A component built from lists or grid items must
+  reset `margin` on its own items. A missing reset knocked cards out of line.
+- **Grids of cards use `auto-fit`, not `auto-fill`.** `auto-fill` leaves empty tracks, so
+  a short row doesn't stretch to fill the width.
+- **Components must work when `bh.js` runs before the body is parsed.** Bundled pages
+  inline the script, so `connectedCallback` must defer to `whenReady()` before reading its
+  children.
+- **Keep geometry constants in sync.** The arrowhead size in `bh.js` markers must equal
+  `ARROW_LEN` in `scripts/bh.mjs`. The popup's `--gap` in `glossary.css` must equal
+  `GAP` in `bh.js`.
+- **Moving focus fires focus handlers synchronously.** Code that closes a popup and then
+  focuses its trigger must stop the trigger's focus handler from reopening it. Esc once
+  did nothing for exactly this reason.
+- **Resetting a component's margins can remove the article flow spacing.** Reset only the
+  sides the flow doesn't own; for example, use `margin-inline: 0`, not `margin: 0`.
+- After any theme change, re-check `docs/component-gallery.html`. It is the regression page
+  for every component.
+
+## Verifying changes
+
+- **Render it.** Lint and syntax checks passed while the page rendered completely unstyled.
+  Look at the result in a browser (`npm run serve`) in both themes and at 375px wide.
+- **Zoom in on details.** Problems like a blunted arrow tip, a line hitting an arrowhead off
+  centre, or a label crossing a line are invisible at page scale. Use a zoomed screenshot
+  of each diagram, in both its normal and its stepper-lit state.
+- **Exercise interactions:** step through steppers, switch tabs, move sliders, and leave a
+  simulation offscreen and come back.
+  - For the glossary popup:
+    - Hover a term.
+    - Move into the popup, onto its link.
+    - Drag-select text and then move away; the popup should stay pinned.
+    - Press Esc after the selection.
+    - Use the keyboard: Tab to a term, then Enter, Tab and Esc.
+    - Hover a term near the bottom-right corner; the popup should flip above it and stay
+      inside the window.
+- **When testing the checker with injected faults, assert the injection happened.** A
+  replacement anchored on stale text matched nothing, and the "test" passed while
+  checking nothing.
+- **Browser automation can mislead.** `requestAnimationFrame` is throttled while a script
+  awaits in a background or automated tab, so live readouts can show stale zeros. Trust a
+  screenshot over a value read during an `await`.
+- Leave no test state behind: clear a forced theme (`localStorage` key `bh-theme`), close
+  test tabs, stop `serve`, and delete throwaway pages, then run `npm run index` again.

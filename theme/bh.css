@@ -15,4 +15,5 @@
 @import url("layout.css") layer(layout);
 @import url("components.css") layer(components);
 @import url("diagrams.css") layer(diagrams);
+@import url("glossary.css") layer(components);
 @import url("print.css") layer(print);

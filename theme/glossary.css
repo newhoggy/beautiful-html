@@ -1,0 +1,150 @@
+/* ==========================================================================
+   Glossary — inline terms, the definition popup, and glossary lists.
+   Terms are marked by bh.js from docs/glossary.html (compiled to
+   theme/glossary.js) plus any <dl class="glossary"> on the page.
+   ========================================================================== */
+
+/* ---- Inline term: a quiet dotted underline, stronger while its popup is open ---- */
+
+.term {
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1.5px;
+  text-decoration-color: color-mix(in oklab, var(--accent) 60%, transparent);
+  text-underline-offset: 0.22em;
+  cursor: help;
+  border-radius: 3px;
+  transition: background var(--dur-1), text-decoration-color var(--dur-1);
+}
+.term:hover,
+.term[aria-expanded="true"] {
+  background: var(--accent-soft);
+  text-decoration-color: var(--accent);
+}
+.term:focus-visible { outline-offset: 1px; }
+
+/* ---- Popup: absolutely positioned once per open (document coordinates) ---------- */
+
+.bh-gloss-pop {
+  --gap: 10px; /* must match GAP in bh.js */
+  position: absolute;
+  z-index: 60;
+  width: max-content;
+  max-width: min(24rem, calc(100vw - 16px));
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  font-weight: 400;
+  line-height: 1.55;
+  text-align: left;
+  user-select: text;
+}
+.bh-gloss-pop[hidden] { display: none; }
+.bh-gloss-pop:focus { outline: none; }
+.bh-gloss-pop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bh-gloss-pop.is-pinned { border-color: var(--accent); }
+
+/* Invisible bridge over the gap, so travelling from term to popup never "leaves" it. */
+.bh-gloss-pop::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: calc(var(--gap) + 2px);
+}
+.bh-gloss-pop[data-side="below"]::before { bottom: 100%; }
+.bh-gloss-pop[data-side="above"]::before { top: 100%; }
+
+/* Caret pointing at the term */
+.bh-gloss-pop::after {
+  content: "";
+  position: absolute;
+  left: calc(var(--caret-x, 50%) - 5px);
+  width: 10px;
+  height: 10px;
+  background: inherit;
+  border: 1px solid;
+  border-color: inherit;
+  transform: rotate(45deg);
+}
+.bh-gloss-pop[data-side="below"]::after { top: -6px; border-right: 0; border-bottom: 0; }
+.bh-gloss-pop[data-side="above"]::after { bottom: -6px; border-left: 0; border-top: 0; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .bh-gloss-pop.is-in { animation: bh-gloss-in var(--dur-2) var(--ease-out); }
+  .bh-gloss-pop.is-in[data-side="above"] { animation-name: bh-gloss-in-above; }
+}
+@keyframes bh-gloss-in { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes bh-gloss-in-above { from { opacity: 0; transform: translateY(4px); } }
+
+.bh-gloss-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-1);
+}
+.bh-gloss-term { font-family: var(--font-display); font-size: var(--step-0); font-weight: 600; }
+.bh-gloss-kicker {
+  font-size: var(--step--2);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.bh-gloss-body > * + * { margin-top: var(--space-2); }
+.bh-gloss-more {
+  display: inline-block;
+  margin-top: var(--space-2);
+  font-size: var(--step--2);
+  font-weight: 600;
+}
+
+/* ---- Glossary lists (docs/glossary.html, or a page-local glossary section) ------- */
+
+/* Only reset the browser's dl margins that the article flow doesn't own (it sets margin-top). */
+dl.glossary { margin-inline: 0; margin-bottom: 0; }
+dl.glossary > dt {
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+}
+dl.glossary > dt:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+dl.glossary > dt[data-aliases]::after {
+  content: "Also: " attr(data-aliases);
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-body);
+  font-size: var(--step--2);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+dl.glossary > dd { margin: var(--space-2) 0 0; }
+dl.glossary > dd > * + * { margin-top: var(--space-2); }
+dl.glossary > dt:target,
+dl.glossary > dt:target + dd { animation: bh-gloss-target 2.4s var(--ease-out); border-radius: 4px; }
+@keyframes bh-gloss-target { from { background: var(--accent-soft); } }
+
+.glossary-az { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.glossary-az a {
+  display: grid;
+  place-items: center;
+  min-width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  font-size: var(--step--1);
+  font-weight: 600;
+  text-decoration: none;
+}
+.glossary-az a:hover { border-color: var(--accent); }

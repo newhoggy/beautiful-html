@@ -7,6 +7,8 @@
                   code-block copy buttons, scroll reveal, SVG arrow markers.
    Lazy libs:     Prism (if code has language-*), Mermaid (if pre.mermaid).
    Components:    <bh-tabs>, <bh-stepper>/<bh-step>, <bh-playground>, <bh-filter>.
+   Glossary:      auto-marks glossary terms in prose; hover/focus/tap shows a
+                  stationary popup the pointer can move into (select, copy, links).
 
    Everything degrades to readable static HTML when JavaScript is off.
    ========================================================================== */
@@ -15,6 +17,9 @@
 
   const doc = document;
   const root = doc.documentElement;
+  // Site root, derived from this script's URL (theme/bh.js → ../). Null when inlined by `bundle`.
+  const SCRIPT_SRC = doc.currentScript && doc.currentScript.src;
+  const SITE_ROOT = SCRIPT_SRC ? new URL("../", SCRIPT_SRC) : null;
   const THEME_KEY = "bh-theme";
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -588,6 +593,304 @@
   customElements.define("bh-playground", BhPlayground);
   customElements.define("bh-filter", BhFilter);
 
+  // =====================================================================================
+  //  Glossary
+  //
+  //  Data: window.BH_GLOSSARY (theme/glossary.js, compiled from docs/glossary.html by
+  //  `npm run index`) merged with any <dl class="glossary"> on the page (local wins).
+  //  Marking: first occurrence per page in article prose (body[data-glossary] =
+  //  page | section | every | off); inside a glossary list, first per definition. Force with data-term="id"; opt out with .no-glossary.
+  //  Popup: placed once on open, anchored to the term (never follows the pointer); an
+  //  invisible bridge spans the gap so the pointer can move into it; pressing inside it,
+  //  clicking the term, or Enter/Space pins it until Esc or a click elsewhere.
+  // =====================================================================================
+
+  const GLOSSARY_SKIP = [
+    "h1", "h2", "h3", "h4", "h5", "h6", "a", "code", "pre", "kbd", "samp", "svg", "button",
+    "input", "select", "textarea", "label", "summary", "script", "style", "[data-term]",
+    ".term", ".no-glossary", ".bh-hero", ".bh-footer", ".bh-toc", ".bh-tablist",
+    ".code-block", ".mermaid", ".badge", ".eyebrow", "dl.glossary > dt",
+  ].join(",");
+
+  const splitList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  function loadGlossaryData() {
+    if (Array.isArray(window.BH_GLOSSARY)) return Promise.resolve(window.BH_GLOSSARY);
+    if (!SITE_ROOT) return Promise.resolve([]);
+    return loadScript(new URL("theme/glossary.js", SITE_ROOT).href)
+      .then(() => window.BH_GLOSSARY || [], () => []);
+  }
+
+  function localGlossary() {
+    const out = [];
+    doc.querySelectorAll("dl.glossary > dt[id]").forEach((dt) => {
+      const dd = dt.nextElementSibling;
+      if (!dd || dd.tagName !== "DD") return;
+      out.push({ id: dt.id, term: dt.textContent.trim(), aliases: splitList(dt.dataset.aliases), html: dd.innerHTML, href: "#" + dt.id, local: true });
+    });
+    return out;
+  }
+
+  function decorateTerm(node, id) {
+    node.classList.add("term");
+    node.dataset.term = id;
+    if (!node.hasAttribute("tabindex")) node.tabIndex = 0;
+    node.setAttribute("role", "button");
+    node.setAttribute("aria-expanded", "false");
+    node.setAttribute("aria-controls", "bh-gloss-pop");
+  }
+
+  /** Wrap glossary words found in article prose. Returns nothing; mutates the DOM. */
+  function markTerms(byId) {
+    const scope = doc.querySelector(".bh-article");
+    const mode = doc.body.dataset.glossary || "page";
+    if (!scope || mode === "off" || !byId.size) return;
+
+    const lookup = new Map();
+    for (const e of byId.values()) for (const name of [e.term, ...e.aliases]) lookup.set(name.toLowerCase(), e.id);
+    const names = [...lookup.keys()].sort((a, b) => b.length - a.length).map(escapeRe);
+    const re = new RegExp(`(?<![\\p{L}\\p{N}_-])(${names.join("|")})(?![\\p{L}\\p{N}_-])`, "giu");
+
+    const seen = new Set();
+    const jobs = [];
+    const walker = doc.createTreeWalker(scope, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+      acceptNode(n) {
+        if (n.nodeType === 3) return n.data.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+        if (mode === "section" && n.tagName === "H2" && n.parentElement === scope) seen.clear();
+        // Each glossary definition is its own section, so cross-references appear in every entry.
+        if (n.tagName === "DD" && n.parentElement.matches("dl.glossary")) seen.clear();
+        return n.matches(GLOSSARY_SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_SKIP;
+      },
+    });
+    for (let node; (node = walker.nextNode());) {
+      // A definition never links to itself.
+      const dd = node.parentElement.closest("dl.glossary > dd");
+      let self = null;
+      for (let p = dd && dd.previousElementSibling; p; p = p.previousElementSibling) if (p.tagName === "DT") { self = p.id; break; }
+      const hits = [];
+      re.lastIndex = 0;
+      for (let m; (m = re.exec(node.data));) {
+        const id = lookup.get(m[1].toLowerCase());
+        if (!id || id === self) continue;
+        if (mode !== "every") { if (seen.has(id)) continue; seen.add(id); }
+        hits.push({ start: m.index, end: m.index + m[1].length, id });
+      }
+      if (hits.length) jobs.push({ node, hits });
+    }
+    for (const { node, hits } of jobs) {
+      const frag = doc.createDocumentFragment();
+      let at = 0;
+      for (const h of hits) {
+        frag.append(node.data.slice(at, h.start));
+        const span = el("span", { text: node.data.slice(h.start, h.end) });
+        decorateTerm(span, h.id);
+        frag.append(span);
+        at = h.end;
+      }
+      frag.append(node.data.slice(at));
+      node.replaceWith(frag);
+    }
+  }
+
+  /** A–Z jump bar above long glossary lists. */
+  function buildGlossaryIndex() {
+    doc.querySelectorAll("dl.glossary").forEach((dl) => {
+      const dts = [...dl.querySelectorAll(":scope > dt[id]")];
+      if (dts.length < 8) return;
+      const firsts = new Map();
+      for (const dt of dts) {
+        const letter = dt.textContent.trim().charAt(0).toUpperCase();
+        if (!firsts.has(letter)) firsts.set(letter, dt.id);
+      }
+      const width = ["wide", "full"].filter((c) => dl.classList.contains(c)).join(" ");
+      dl.before(el("nav", { class: `glossary-az ${width}`.trim(), "aria-label": "Glossary index" },
+        [...firsts].map(([letter, id]) => el("a", { href: "#" + id, text: letter }))));
+    });
+  }
+
+  function setupGlossaryPopup(byId) {
+    if (!doc.querySelector(".term[data-term]")) return;
+    const pop = el("div", { class: "bh-gloss-pop", id: "bh-gloss-pop", role: "dialog", "aria-modal": "false", tabindex: "-1", hidden: true });
+    doc.body.append(pop);
+
+    const OPEN_DELAY = 220, HIDE_DELAY = 300, MARGIN = 8, GAP = 10;
+    let current = null, pinned = false, openTimer = 0, hideTimer = 0, lastPoint = null;
+    let restoringFocus = false; // returning focus to a term after Esc must not reopen it
+    let lastWidth = innerWidth;
+
+    const termOf = (n) => (n && n.closest ? n.closest(".term[data-term]") : null);
+    const inPop = (n) => !!n && pop.contains(n);
+
+    function absolutise(container) {
+      container.querySelectorAll("[href], [src]").forEach((n) => {
+        const attr = n.hasAttribute("href") ? "href" : "src";
+        const v = n.getAttribute(attr);
+        if (/^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(v)) return;
+        if (SITE_ROOT) n.setAttribute(attr, new URL(v, SITE_ROOT).href);
+        else if (attr === "href") n.replaceWith(...n.childNodes); // bundled: site pages don't exist
+      });
+    }
+
+    function render(entry) {
+      pop.setAttribute("aria-label", `Glossary: ${entry.term}`);
+      const body = el("div", { class: "bh-gloss-body", html: entry.html });
+      if (!entry.local) absolutise(body);
+      let more = null;
+      if (entry.local) more = el("a", { class: "bh-gloss-more", href: entry.href, text: "Jump to definition ↓" });
+      else if (SITE_ROOT) more = el("a", { class: "bh-gloss-more", href: new URL(entry.href, SITE_ROOT).href, text: "Open in glossary →" });
+      pop.replaceChildren(
+        el("div", { class: "bh-gloss-head" }, [el("span", { class: "bh-gloss-term", text: entry.term }), el("span", { class: "bh-gloss-kicker", text: "Glossary" })]),
+        body, more);
+    }
+
+    // Placed once per open, in document coordinates: it scrolls with its term and never
+    // follows the pointer.
+    function place(term) {
+      const rects = [...term.getClientRects()];
+      let r = rects[0];
+      if (!r) return false;
+      if (lastPoint) {
+        r = rects.find((x) => lastPoint.x >= x.left - 2 && lastPoint.x <= x.right + 2 && lastPoint.y >= x.top - 2 && lastPoint.y <= x.bottom + 2) || r;
+      }
+      pop.style.left = "0px";
+      pop.style.top = "0px";
+      pop.hidden = false;
+      const w = pop.offsetWidth, h = pop.offsetHeight, vw = root.clientWidth;
+      const left = Math.max(MARGIN, Math.min(r.left + r.width / 2 - w / 2, vw - w - MARGIN));
+      const below = r.bottom + GAP + h <= innerHeight - MARGIN || r.top - GAP - h < MARGIN + 52;
+      pop.dataset.side = below ? "below" : "above";
+      pop.style.left = `${left + scrollX}px`;
+      pop.style.top = `${(below ? r.bottom + GAP : r.top - GAP - h) + scrollY}px`;
+      pop.style.setProperty("--caret-x", `${Math.max(14, Math.min(w - 14, r.left + r.width / 2 - left))}px`);
+      return true;
+    }
+
+    function open(term, pin) {
+      clearTimeout(openTimer);
+      clearTimeout(hideTimer);
+      const entry = byId.get(term.dataset.term);
+      if (!entry) return;
+      if (current !== term || pop.hidden) {
+        if (current) current.setAttribute("aria-expanded", "false");
+        render(entry);
+        if (!place(term)) { pop.hidden = true; return; }
+        pop.classList.remove("is-in");
+        void pop.offsetWidth; // restart the entry animation
+        pop.classList.add("is-in");
+        pinned = false;
+      }
+      current = term;
+      pinned = pinned || !!pin;
+      pop.classList.toggle("is-pinned", pinned);
+      term.setAttribute("aria-expanded", "true");
+    }
+
+    function close() {
+      clearTimeout(openTimer);
+      clearTimeout(hideTimer);
+      if (pop.hidden) return;
+      pop.hidden = true;
+      pop.classList.remove("is-in", "is-pinned");
+      pinned = false;
+      if (current) current.setAttribute("aria-expanded", "false");
+      current = null;
+    }
+
+    function scheduleOpen(term) {
+      clearTimeout(hideTimer);
+      if (pinned || (term === current && !pop.hidden)) return;
+      clearTimeout(openTimer);
+      openTimer = setTimeout(() => open(term, false), OPEN_DELAY);
+    }
+
+    function scheduleHide() {
+      if (pinned || pop.hidden) return;
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(close, HIDE_DELAY);
+    }
+
+    // ---- Pointer (mouse & pen). Touch uses click/tap only.
+    doc.addEventListener("pointerover", (e) => {
+      if (e.pointerType === "touch") return;
+      lastPoint = { x: e.clientX, y: e.clientY };
+      const t = termOf(e.target);
+      if (t && !inPop(t)) scheduleOpen(t);
+      else if (inPop(e.target)) clearTimeout(hideTimer);
+    });
+    doc.addEventListener("pointerout", (e) => {
+      if (e.pointerType === "touch") return;
+      const fromTerm = termOf(e.target), fromPop = inPop(e.target), to = e.relatedTarget;
+      if (!fromTerm && !fromPop) return;
+      if ((fromTerm && to && fromTerm.contains(to)) || (fromPop && inPop(to))) return; // moving within
+      if (fromTerm) clearTimeout(openTimer);
+      if (inPop(to) || (current && to && current.contains(to))) return; // term ↔ its popup
+      scheduleHide();
+    });
+    // Pressing inside the popup (to select, copy, or right-click) pins it.
+    pop.addEventListener("pointerdown", () => { pinned = true; pop.classList.add("is-pinned"); });
+
+    doc.addEventListener("click", (e) => {
+      const t = termOf(e.target);
+      if (t && !inPop(t)) {
+        e.preventDefault();
+        if (current === t && pinned) close();
+        else { lastPoint = { x: e.clientX, y: e.clientY }; open(t, true); }
+        return;
+      }
+      if (!pop.hidden && !inPop(e.target)) close();
+    });
+
+    // ---- Keyboard & focus
+    doc.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !pop.hidden) {
+        const back = current, refocus = inPop(doc.activeElement) || doc.activeElement === back;
+        close();
+        if (back && refocus) {
+          restoringFocus = true;
+          back.focus();
+          restoringFocus = false;
+        }
+        return;
+      }
+      const t = termOf(e.target);
+      if (t && !inPop(t) && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        lastPoint = null;
+        open(t, true);
+        pop.focus({ preventScroll: true }); // Tab now reaches the popup's links
+      }
+    });
+    doc.addEventListener("focusin", (e) => {
+      const t = termOf(e.target);
+      if (t && !inPop(t) && t !== current && !restoringFocus) { lastPoint = null; open(t, false); }
+      else if (inPop(e.target)) clearTimeout(hideTimer);
+    });
+    doc.addEventListener("focusout", (e) => {
+      const to = e.relatedTarget;
+      if (!(termOf(e.target) || inPop(e.target))) return;
+      if (inPop(to) || (current && to === current)) return;
+      scheduleHide();
+    });
+
+    addEventListener("resize", () => { if (innerWidth !== lastWidth) { lastWidth = innerWidth; close(); } });
+  }
+
+  function buildGlossary() {
+    loadGlossaryData().then((global) => {
+      const byId = new Map();
+      for (const e of global) byId.set(e.id, { ...e, aliases: e.aliases || [], local: false });
+      for (const e of localGlossary()) byId.set(e.id, e);
+      doc.querySelectorAll("[data-term]").forEach((n) => {
+        if (byId.has(n.dataset.term)) decorateTerm(n, n.dataset.term);
+        else console.warn(`[bh] unknown glossary term "${n.dataset.term}"`, n);
+      });
+      buildGlossaryIndex();
+      markTerms(byId);
+      setupGlossaryPopup(byId);
+    });
+  }
+
   // ---- Boot ------------------------------------------------------------------------------------
 
   whenReady(() => {
@@ -599,6 +902,7 @@
     injectMarkers();
     buildMermaid();
     buildReveal();
+    buildGlossary();
   });
 
   window.bh = { applyTheme, whenReady, el, format };

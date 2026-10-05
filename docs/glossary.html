@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glossary</title>
+  <meta name="description" content="Shared definitions for the terms used across these documents. Words defined here are underlined on every page; hover or tap one to see its definition.">
+  <meta name="bh:kind" content="reference">
+  <meta name="bh:status" content="accepted">
+  <meta name="bh:date" content="2026-10-05">
+  <meta name="bh:authors" content="John Ky">
+  <meta name="bh:tags" content="glossary, reference">
+  <script>try{var t=localStorage.getItem("bh-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+  <link rel="stylesheet" href="../theme/bh.css">
+  <script src="../theme/bh.js" defer></script>
+</head>
+<body data-home="../index.html">
+<main class="bh-page">
+  <article class="bh-article">
+
+    <!-- GLOSSARY: the single source for term popups on every page.
+         - One <dt id="kebab-id" data-aliases="plural, other spelling"> + <dd> per term, A–Z.
+         - Definition: 1–3 sentences a newcomer can follow, then links to go deeper.
+         - Relative links are relative to this page (docs/).
+         - After editing, run `npm run index` (compiles theme/glossary.js); `npm run check` verifies. -->
+
+    <header class="bh-hero">
+      <p class="eyebrow">Reference</p>
+      <h1>Glossary</h1>
+      <p class="lede">Shared definitions for terms used across these documents. Defined words are underlined wherever they appear. Hover over one, or tap it, to read its definition without leaving the page.</p>
+      <dl class="bh-meta" data-auto></dl>
+    </header>
+
+    <dl class="glossary wide">
+      <dt id="adr" data-aliases="ADRs, architecture decision record, architecture decision records">ADR</dt>
+      <dd><p>An architecture decision record: a short, permanent note of one significant decision, covering its context, the options considered and the consequences. ADRs are superseded by new records rather than edited.</p></dd>
+
+      <dt id="backoff" data-aliases="exponential backoff">Backoff</dt>
+      <dd><p>Waiting longer after each failed attempt before retrying, usually doubling the delay each time. Without <a href="#jitter">jitter</a>, clients that failed together retry together.</p></dd>
+
+      <dt id="burst" data-aliases="bursts">Burst</dt>
+      <dd><p>A short spike of requests above the average rate. In a token bucket, the largest burst allowed is the bucket's capacity <em>b</em>.</p></dd>
+
+      <dt id="cache-miss" data-aliases="cache misses">Cache miss</dt>
+      <dd><p>A lookup that finds nothing in the cache, so the request falls through to the slower source of truth and usually back-fills the cache.</p></dd>
+
+      <dt id="gcra" data-aliases="generic cell rate algorithm">GCRA</dt>
+      <dd><p>The generic cell rate algorithm. It is equivalent to a token bucket, but stores one timestamp per key: the theoretical arrival time of the next conforming request.</p>
+        <p><a href="https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm">Generic cell rate algorithm (Wikipedia)</a></p></dd>
+
+      <dt id="jitter">Jitter</dt>
+      <dd><p>Randomness added to retry or polling delays, so many clients that start together don't keep acting in lock-step and overload a recovering service.</p></dd>
+
+      <dt id="leaky-bucket" data-aliases="leaky buckets">Leaky bucket</dt>
+      <dd><p>A queue that drains at a fixed rate. It smooths output to a constant pace instead of allowing bursts; compare with a <a href="#token-bucket">token bucket</a>.</p></dd>
+
+      <dt id="monotonic-clock" data-aliases="monotonic clocks">Monotonic clock</dt>
+      <dd><p>A clock that only moves forwards. Use it to measure elapsed time, because the wall clock can jump backwards when NTP corrects it.</p></dd>
+
+      <dt id="p99" data-aliases="99th percentile">p99</dt>
+      <dd><p>The 99th-percentile latency: 99% of requests complete at least this fast. Tail latency like this, rather than the average, is what users notice.</p></dd>
+
+      <dt id="rate-limiting" data-aliases="rate limit, rate limits, rate limiter, rate limiters">Rate limiting</dt>
+      <dd><p>Capping how many requests a client may make in a period of time, to protect a service and share its capacity fairly.</p>
+        <p><a href="token-bucket-rate-limiting.html">Token bucket rate limiting</a> explains the most common algorithm.</p></dd>
+
+      <dt id="read-replica" data-aliases="read replicas">Read replica</dt>
+      <dd><p>A copy of a database that serves reads and follows the primary asynchronously, so it can lag slightly behind.</p></dd>
+
+      <dt id="retry-after">Retry-After</dt>
+      <dd><p>An HTTP response header that tells the client how long to wait before retrying, sent with <code>429</code> or <code>503</code>.</p>
+        <p><a href="https://www.rfc-editor.org/rfc/rfc9110#field.retry-after">RFC 9110 §10.2.3</a></p></dd>
+
+      <dt id="retry-budget" data-aliases="retry budgets">Retry budget</dt>
+      <dd><p>A cap on retries as a fraction of normal traffic (for example 10%). It stops retries from multiplying load during an outage.</p></dd>
+
+      <dt id="slo" data-aliases="SLOs, service level objective, service level objectives">SLO</dt>
+      <dd><p>A service level objective: a reliability target, such as 99.9% of requests succeeding over 30 days. It is set below 100% on purpose, leaving an error budget.</p></dd>
+
+      <dt id="tls" data-aliases="transport layer security">TLS</dt>
+      <dd><p>Transport Layer Security: the protocol that encrypts and authenticates a connection, as in HTTPS. A gateway that "terminates TLS" decrypts traffic there.</p></dd>
+
+      <dt id="token-bucket" data-aliases="token buckets">Token bucket</dt>
+      <dd><p>A rate limiter that refills tokens at rate <em>r</em> up to a capacity <em>b</em>, and admits each request only by spending a token. It allows bursts up to <em>b</em> but enforces <em>r</em> on average.</p>
+        <p><a href="token-bucket-rate-limiting.html">Token bucket rate limiting</a></p></dd>
+    </dl>
+
+    <footer class="bh-footer">
+      <span><a href="../index.html">← All documents</a></span>
+      <span>Updated 2026-10-05</span>
+    </footer>
+  </article>
+</main>
+</body>
+</html>
