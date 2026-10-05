@@ -73,6 +73,7 @@ after editing `docs/glossary.html`. Index also compiles `theme/glossary.js`.
 | A decision                        | `.decision` (one sentence: "We will … because …")          |
 | A process the reader performs     | `ol.steps`                                                 |
 | A process a system performs       | SVG diagram + `<bh-stepper for>`                           |
+| Messages between parties over time | `<bh-sequence>` in a `figure.diagram` (+ `<bh-stepper for>`) |
 | Events in time                    | `ol.timeline` (`.danger` / `.warn` / `.ok` on items)       |
 | Numbers that matter               | `.metrics` tiles; tables for anything with more than one dimension |
 | Parallel variants (languages, APIs) | `<bh-tabs>`                                              |
@@ -119,7 +120,10 @@ beats five decorative ones.
   - Include the edges that make the point, not just the nodes.
   - `npm run check` fails when the figure or a part id doesn't exist.
 - A figcaption says what to *notice*, not what the picture is.
-- Mermaid (`<pre class="mermaid">`) is a fallback for quick sequence or state diagrams only.
+- For message exchanges, use `<bh-sequence>` (actors, `bh-msg from/to [reply]`,
+  `bh-note over`), not Mermaid. Give every part a `data-id` that a stepper or a
+  `data-ref` can use. It renders at natural size (1 unit = 1px), so keep labels short.
+- Mermaid (`<pre class="mermaid">`) is a fallback for quick state or flow sketches only.
 
 ## Glossary
 

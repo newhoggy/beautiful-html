@@ -242,6 +242,31 @@ else { reject(retry_after(cost - tokens)) }<span class="marker">3</span></code><
       </figure>
     </bh-versions>
 
+    <h3 id="sequence-diagrams">Sequence diagrams</h3>
+    <p>Describe actors and messages, and <code>&lt;bh-sequence&gt;</code> lays them out with the theme's vocabulary. Replies are dashed, notes sit over one or more lifelines, and every part keeps its <code>data-id</code>, so a stepper can walk through the exchange.</p>
+    <figure class="diagram wide" id="seq-limited-request">
+      <bh-sequence aria-label="A request passes through the rate limiter to the service, or is rejected">
+        <bh-actor data-id="client" class="c3">Client</bh-actor>
+        <bh-actor data-id="limiter" class="c5">Limiter</bh-actor>
+        <bh-actor data-id="service" class="c1">Service</bh-actor>
+        <bh-msg data-id="m-req" from="client" to="limiter">GET /orders</bh-msg>
+        <bh-msg data-id="m-refill" from="limiter" to="limiter">refill tokens</bh-msg>
+        <bh-note data-id="n-take" over="limiter">take 1 token</bh-note>
+        <bh-msg data-id="m-fwd" from="limiter" to="service">GET /orders</bh-msg>
+        <bh-msg data-id="m-ok" from="service" to="client" reply>200 OK</bh-msg>
+        <bh-note data-id="n-empty" over="client limiter">later: bucket empty</bh-note>
+        <bh-msg data-id="m-req2" from="client" to="limiter">GET /orders</bh-msg>
+        <bh-msg data-id="m-429" from="limiter" to="client" reply>429 · Retry-After: 0.5</bh-msg>
+      </bh-sequence>
+      <figcaption>The limiter answers rejected requests itself; the service never sees them.</figcaption>
+    </figure>
+    <bh-stepper for="seq-limited-request">
+      <bh-step highlight="client m-req limiter"><p>The client calls the limiter.</p></bh-step>
+      <bh-step highlight="limiter m-refill n-take"><p>The limiter refills lazily, then takes a token.</p></bh-step>
+      <bh-step highlight="limiter m-fwd service m-ok"><p>Admitted: the request reaches the service, which replies.</p></bh-step>
+      <bh-step highlight="n-empty client m-req2 limiter m-429"><p>When the bucket is empty, the limiter replies <code>429</code> without bothering the service.</p></bh-step>
+    </bh-stepper>
+
     <h3 id="mermaid">Mermaid (fallback)</h3>
     <p>For quick sequence or state diagrams, a <code>&lt;pre class="mermaid"&gt;</code> renders with theme colours (loaded from a CDN only when present). Prefer hand-placed SVG for anything central to the argument.</p>
     <pre class="mermaid">sequenceDiagram

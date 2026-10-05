@@ -81,6 +81,8 @@ dist/                   Bundled single-file outputs (git-ignored)
   across every page. Hovering, focusing or tapping one shows its definition in a popup
   that stays put. You can move the pointer into the popup to select and copy text or
   follow its links. Clicking or pressing Enter pins it.
+- **Sequence diagrams:** `<bh-sequence>` draws actors, messages, replies and notes in the
+  theme, and can be stepped through like any diagram.
 - **Current vs proposed:** `<bh-versions>` switches between versions of a diagram, or
   compares two with a draggable divider, and highlights `data-change` parts.
 - **Diagram references:** `data-ref="figure-id:part-id"` on a phrase lights that part of

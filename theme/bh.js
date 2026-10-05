@@ -476,8 +476,8 @@
 
   // ---- SVG arrow markers (shared defs referenced by .edge in diagrams.css) -------------------
 
-  function injectMarkers() {
-    if (!doc.querySelector(".diagram svg, svg .edge") || doc.getElementById("bh-arrow")) return;
+  function injectMarkers(force) {
+    if (doc.getElementById("bh-arrow") || (!force && !doc.querySelector(".diagram svg, svg .edge"))) return;
     const ns = "http://www.w3.org/2000/svg";
     const svg = doc.createElementNS(ns, "svg");
     svg.setAttribute("width", "0");
@@ -1143,6 +1143,7 @@
 
   const MODULES = [
     ["versions.js", "bh-versions"],
+    ["sequence.js", "bh-sequence"],
   ];
 
   function loadModule(file) {
@@ -1185,6 +1186,6 @@
 
   window.bh = {
     applyTheme, whenReady, el, format, copyText, copyLink, toast, linkLabel, settle,
-    reducedMotion, LINK_ICON,
+    reducedMotion, LINK_ICON, ensureMarkers: () => injectMarkers(true),
   };
 })();

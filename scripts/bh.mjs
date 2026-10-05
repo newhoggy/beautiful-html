@@ -390,6 +390,16 @@ function linkTargetProblems(html) {
       const change = nodeAttr(n, "data-change");
       if (change !== undefined && !["added", "changed", "removed"].includes(change)) out.push(`data-change="${change}" must be added, changed or removed`);
     }
+    if (n.tag === "bh-sequence") {
+      const actors = new Set(n.children.filter((c) => c.tag === "bh-actor").map((c) => nodeAttr(c, "data-id")));
+      if (!actors.size) out.push("<bh-sequence> has no <bh-actor data-id=…>");
+      if (actors.has(undefined)) out.push("every <bh-actor> needs a data-id");
+      if (n.parent.tag !== "figure") out.push("<bh-sequence> must sit inside a <figure class=\"diagram\" id=…> so it can be linked and captioned");
+      for (const c of n.children) {
+        const refs = c.tag === "bh-msg" ? [nodeAttr(c, "from"), nodeAttr(c, "to")] : c.tag === "bh-note" ? (nodeAttr(c, "over") || "").split(/[\s,]+/) : [];
+        for (const a of refs) if (!actors.has(a)) out.push(`<${c.tag}> refers to unknown actor "${a}"`);
+      }
+    }
     if (n.tag === "bh-stepper" && !nodeAttr(n, "id") && !nodeAttr(n, "for")) {
       out.push("<bh-stepper> needs for=\"figure-id\" (or an id) so its steps can be linked to");
     }

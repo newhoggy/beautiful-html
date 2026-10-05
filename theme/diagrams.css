@@ -181,3 +181,24 @@
 .legend .change-added   { --tone: var(--ok); }
 .legend .change-changed { --tone: var(--warn); }
 .legend .change-removed { --tone: var(--danger); }
+
+/* ---- Sequence diagrams (module: theme/modules/sequence.js) -------------------------------- */
+
+.seq-lifeline { fill: none; stroke: var(--border-strong); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.seq-lifeline.is-lit { stroke: var(--accent); }
+.node.seq-note { --tone: var(--warn); }
+
+bh-sequence { display: block; }
+bh-sequence:not(.is-ready) { font-size: var(--step--1); }
+bh-sequence:not(.is-ready) bh-actor {
+  display: inline-block;
+  margin: 0 var(--space-2) var(--space-3) 0;
+  padding: 0.2em 0.7em;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  font-weight: 600;
+}
+bh-sequence:not(.is-ready) :is(bh-msg, bh-note) { display: list-item; margin-left: 1.5em; list-style: decimal; }
+bh-sequence:not(.is-ready) bh-msg::before { content: attr(from) " → " attr(to) ": "; color: var(--text-muted); }
+bh-sequence:not(.is-ready) bh-note::before { content: "Note (" attr(over) "): "; color: var(--text-muted); }
+bh-sequence.is-ready svg { margin-inline: auto; }
