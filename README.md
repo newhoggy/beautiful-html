@@ -40,6 +40,8 @@ theme/
   diagrams.css          Inline-SVG vocabulary: .node .edge .zone .label + stepper states
   glossary.css          Glossary terms, definition popup, glossary lists
   glossary.js           GENERATED from docs/glossary.html by `npm run index`
+  site.js               GENERATED: page metadata and backlinks
+  search-index.js       GENERATED: full-text search index (loaded on first search)
   print.css             Print: chrome removed, all steps and tabs expanded
   bh.js                 Runtime: chrome, TOC/scroll-spy, web components, lazy Prism/Mermaid
 theme/modules/          On-demand components (loaded only by pages that use them)
@@ -77,6 +79,8 @@ dist/                   Bundled single-file outputs (git-ignored)
   - annotated code markers, diffs
   - sidenotes
   - `<bh-tabs>`, `<bh-stepper>`, `<bh-playground>`
+- **Search and backlinks:** ⌘K/Ctrl+K searches every section of every page and the
+  glossary; each page lists the pages that link to it ("Referenced by").
 - **Presentation mode:** any page becomes slides (one per section) from the top bar or
   `?present`, with keyboard and swipe navigation and the URL following the slide.
 - **Glossary:** terms defined once in `docs/glossary.html` are underlined automatically

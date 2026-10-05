@@ -467,3 +467,63 @@ html.bh-presenting { font-size: clamp(16px, 0.55vw + 11px, 24px); scroll-padding
 }
 .bh-present-bar:hover, .bh-present-bar:focus-within { opacity: 1; }
 .bh-present-count { min-width: 4.5ch; text-align: center; font-size: var(--step--1); font-variant-numeric: tabular-nums; color: var(--text-muted); }
+
+/* ---- Search (module: theme/modules/search.js) & backlinks ------------------------------------ */
+
+.bh-search-btn { gap: var(--space-2); color: var(--text-muted); }
+.bh-search-btn kbd { font-size: 0.72em; padding: 0 0.35em; }
+@media (max-width: 640px) { .bh-search-btn span, .bh-search-btn kbd { display: none; } }
+
+.bh-search {
+  width: min(40rem, calc(100vw - 2rem));
+  max-height: min(72vh, 42rem);
+  margin: 10vh auto auto;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+  overflow: hidden;
+}
+.bh-search[open] { display: flex; flex-direction: column; }
+.bh-search::backdrop { background: color-mix(in oklab, var(--bg) 55%, transparent); backdrop-filter: blur(3px); }
+.bh-search-head { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); }
+.bh-search-input { width: 100%; padding: 0.3em 0 !important; border: 0 !important; background: none !important; font-size: var(--step-1); outline: none; }
+.bh-search-results { flex: 1; margin: 0; padding: var(--space-2); overflow: auto; list-style: none; }
+.bh-search-results li { margin: 0 !important; }
+.bh-search-results a {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  color: var(--text);
+  text-decoration: none;
+}
+.bh-search-results li[aria-selected="true"] a { background: var(--accent-soft); }
+.bh-search-title { font-weight: 600; }
+.bh-search-kind { margin-right: var(--space-2); text-transform: capitalize; }
+.bh-search-section { color: var(--text-muted); font-weight: 500; }
+.bh-search-snippet { font-size: var(--step--1); color: var(--text-muted); line-height: 1.45; }
+.bh-search-results mark { background: color-mix(in oklab, var(--accent) 22%, transparent); color: inherit; }
+.bh-search-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--border);
+  font-size: var(--step--2);
+}
+.bh-search-status { color: var(--text-muted); }
+
+.bh-backlinks {
+  margin-top: var(--space-8) !important;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.bh-backlinks ul { display: grid; gap: var(--space-1); margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+.bh-backlinks li { margin: 0 !important; }
+.bh-backlinks a { color: var(--text); text-decoration: none; }
+.bh-backlinks a:hover strong { color: var(--accent); text-decoration: underline; }

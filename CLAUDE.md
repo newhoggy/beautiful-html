@@ -17,8 +17,9 @@ from it rather than inventing new markup.
    [Verifying changes](#verifying-changes).
 5. For sharing outside the repo, run `npm run bundle -- docs/<slug>.html` and send `dist/<slug>.html`.
 
-Run `npm run index` after changing any page's title, description or `bh:*` meta, and
-after editing `docs/glossary.html`. Index also compiles `theme/glossary.js`.
+Run `npm run index` after **any** change to a document. It regenerates the catalogue,
+`theme/glossary.js`, `theme/site.js` (backlinks) and `theme/search-index.js`. `check`
+fails while any of these are stale. Never edit the generated files by hand.
 
 ## Page contract
 
