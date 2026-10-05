@@ -81,6 +81,8 @@ dist/                   Bundled single-file outputs (git-ignored)
   across every page. Hovering, focusing or tapping one shows its definition in a popup
   that stays put. You can move the pointer into the popup to select and copy text or
   follow its links. Clicking or pressing Enter pins it.
+- **Charts:** `<bh-chart type="line|bar">` turns a table into a themed chart, with a
+  crosshair tooltip, keyboard reading, and the table kept under "Show data".
 - **Decision matrices:** `<bh-matrix>` turns a scoring table into adjustable weights with
   live weighted totals and the current leader marked.
 - **Code walkthroughs:** `<bh-codewalk>` pins the code beside the prose; scrolling

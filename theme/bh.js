@@ -1150,6 +1150,7 @@
     ["sequence.js", "bh-sequence"],
     ["codewalk.js", "bh-codewalk"],
     ["matrix.js", "bh-matrix"],
+    ["chart.js", "bh-chart"],
   ];
 
   function loadModule(file) {

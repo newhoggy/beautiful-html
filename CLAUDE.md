@@ -77,6 +77,7 @@ after editing `docs/glossary.html`. Index also compiles `theme/glossary.js`.
 | Messages between parties over time | `<bh-sequence>` in a `figure.diagram` (+ `<bh-stepper for>`) |
 | Events in time                    | `ol.timeline` (`.danger` / `.warn` / `.ok` on items)       |
 | Numbers that matter               | `.metrics` tiles; tables for anything with more than one dimension |
+| A trend over time, or a comparison across categories | `<bh-chart type="line|bar">` around a table, in a `figure` with an id |
 | Parallel variants (languages, APIs) | `<bh-tabs>`                                              |
 | How an implementation works, step by step | `<bh-codewalk id>`: one `pre>code` + `bh-cw-step lines="3-8"` |
 | A relationship between parameters | `<bh-playground>` with `data-expr` / `data-bind`           |
@@ -152,6 +153,20 @@ beats five decorative ones.
   - Pressing inside it, clicking the term, or Enter/Space pins it until Esc or a click
     elsewhere.
   - Esc returns focus to the term without reopening the popup.
+
+## Charts
+
+- **Pick the form before any colour.** One number → a `.metric` tile, not a chart. A trend
+  → `type="line"`. Categories compared → `type="bar"`. When one series is the story, use
+  `emphasis="Name"` (accent for it, grey for the rest) rather than many colours.
+- **Never two y-axes.** Two measures on different scales get two charts.
+- Series colours are the validated `--series-1…6` tokens, assigned by column order, never
+  by rank. Don't reuse `--c1…6` (the diagram meanings) or the status colours for series.
+- At most 6 series; past that, fold the tail into "Other" or use small multiples. `check`
+  enforces the shape of the table and that its values are numbers.
+- The table is the accessible twin: keep real headers and units (`unit="ms"`, `y-label`).
+- If you change the series palette, re-run the dataviz validator for **both** modes
+  against `--surface`, and record the result in `tokens.css`.
 
 ## Motion & interaction
 

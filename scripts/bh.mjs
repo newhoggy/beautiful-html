@@ -432,6 +432,25 @@ function linkTargetProblems(html) {
         });
       }
     }
+    if (n.tag === "bh-chart") {
+      const type = nodeAttr(n, "type") || "line";
+      if (!["line", "bar"].includes(type)) out.push(`<bh-chart type="${type}"> must be line or bar`);
+      if (n.parent.tag !== "figure") out.push("<bh-chart> must sit inside a <figure id=…> so it can be linked and captioned");
+      const table = findNode(n, (x) => x.tag === "table");
+      const thead = table && findNode(table, (x) => x.tag === "thead");
+      const heads = thead ? findNode(thead, (x) => x.tag === "tr").children.filter((c) => c.tag === "th" || c.tag === "td").map((c) => nodeText(src, c)) : [];
+      const seriesCount = heads.length - 1;
+      if (seriesCount < 1) out.push("<bh-chart> table needs a header row: x label, then one column per series");
+      if (seriesCount > 6) out.push(`<bh-chart> has ${seriesCount} series; past 6, fold the tail into "Other" or use small multiples`);
+      const emph = nodeAttr(n, "emphasis");
+      if (emph && !heads.slice(1).includes(emph)) out.push(`<bh-chart emphasis="${emph}"> is not a series name`);
+      const tbody = table && findNode(table, (x) => x.tag === "tbody");
+      for (const tr of tbody ? tbody.children.filter((c) => c.tag === "tr") : []) {
+        const cells = tr.children.filter((c) => c.tag === "th" || c.tag === "td").map((c) => nodeText(src, c));
+        if (cells.length !== heads.length) { out.push(`<bh-chart> row "${cells[0]}" has ${cells.length - 1} values for ${seriesCount} series`); continue; }
+        for (const v of cells.slice(1)) if (v !== "" && !/^-?[\d,]*\.?\d+$/.test(v)) out.push(`<bh-chart> row "${cells[0]}": "${v}" is not a number`);
+      }
+    }
     if (n.tag === "bh-stepper" && !nodeAttr(n, "id") && !nodeAttr(n, "for")) {
       out.push("<bh-stepper> needs for=\"figure-id\" (or an id) so its steps can be linked to");
     }

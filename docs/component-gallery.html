@@ -75,6 +75,40 @@
       <div class="metric"><span class="value">0</span><span class="label">Open incidents</span></div>
     </div>
 
+    <h3 id="charts">Charts</h3>
+    <p>Write the numbers as a table inside <code>&lt;bh-chart&gt;</code> to get a themed line or column chart. Hover, or focus the chart and use the arrow keys, to read every series at a point. The table stays one click away under “Show data”.</p>
+    <figure class="frame wide" id="p99-before-after">
+      <bh-chart type="line" unit="ms" y-label="p99 latency" emphasis="After">
+        <table>
+          <thead><tr><th>Day</th><th>Before</th><th>After</th></tr></thead>
+          <tbody>
+            <tr><td>Mon</td><td>412</td><td>402</td></tr>
+            <tr><td>Tue</td><td>398</td><td>260</td></tr>
+            <tr><td>Wed</td><td>430</td><td>190</td></tr>
+            <tr><td>Thu</td><td>405</td><td>176</td></tr>
+            <tr><td>Fri</td><td>441</td><td>181</td></tr>
+            <tr><td>Sat</td><td>390</td><td>172</td></tr>
+            <tr><td>Sun</td><td>420</td><td>168</td></tr>
+          </tbody>
+        </table>
+      </bh-chart>
+      <figcaption>Tail latency fell by more than half once the edge limiter shed abusive bursts. <code>emphasis</code> puts the story in colour and the context in grey.</figcaption>
+    </figure>
+    <figure class="frame wide" id="rejections-by-region">
+      <bh-chart type="bar" unit="%" y-label="Requests rejected">
+        <table>
+          <thead><tr><th>Region</th><th>Per service</th><th>At the edge</th></tr></thead>
+          <tbody>
+            <tr><td>us-east</td><td>4.1</td><td>1.2</td></tr>
+            <tr><td>eu-west</td><td>3.6</td><td>1.1</td></tr>
+            <tr><td>ap-south</td><td>6.8</td><td>1.9</td></tr>
+            <tr><td>sa-east</td><td>2.2</td><td>0.8</td></tr>
+          </tbody>
+        </table>
+      </bh-chart>
+      <figcaption>Column charts group series per category. Only the extreme value is labelled; the axis, tooltip and table carry the rest.</figcaption>
+    </figure>
+
     <!-- ================================================================ -->
     <h2 id="comparisons">Comparisons &amp; decisions</h2>
     <div class="compare wide">

@@ -72,13 +72,27 @@
   --warn:   light-dark(#9a5800, #f2b450);  --warn-soft:   light-dark(#fdf1dc, #2e2210);
   --danger: light-dark(#c4262e, #ff7b80);  --danger-soft: light-dark(#fde6e7, #351416);
 
-  /* ---- Colour: categorical (diagrams, charts). Assign by meaning, keep consistent. */
+  /* ---- Colour: diagram categories. Assigned by meaning, consistent across the repo.
+     Not for charts: as a chart palette these fail the dataviz checks (slate reads as
+     gray; dark steps sit above the lightness band) — charts use --series-* below. */
   --c1: light-dark(#4338ca, #a5a8ff); /* indigo — primary actor / our system */
   --c2: light-dark(#0f766e, #4fd1c5); /* teal   — data, storage */
   --c3: light-dark(#b45309, #f6ad55); /* amber  — external, third-party */
   --c4: light-dark(#be185d, #f687b3); /* rose   — failure path, contention */
   --c5: light-dark(#0369a1, #63b3ed); /* sky    — network, transport */
   --c6: light-dark(#475569, #a0aec0); /* slate  — infrastructure, neutral */
+
+  /* ---- Colour: chart series (categorical, fixed order — never cycled, never by rank).
+     Validated with the dataviz palette checks against --surface in both modes:
+     light passes with a contrast WARN on slots 3–5, so every chart ships a legend,
+     direct labels and its data table. Diagrams use --c1…--c6 (meaning), not these. */
+  --series-1: light-dark(#2a78d6, #3987e5); /* blue */
+  --series-2: light-dark(#eb6834, #d95926); /* orange */
+  --series-3: light-dark(#1baf7a, #199e70); /* aqua */
+  --series-4: light-dark(#eda100, #c98500); /* yellow */
+  --series-5: light-dark(#e87ba4, #d55181); /* magenta */
+  --series-6: light-dark(#008300, #008300); /* green */
+  --series-muted: light-dark(#b8bfcc, #4a5160); /* de-emphasised series */
 
   /* ---- Elevation ------------------------------------------------------------ */
   --shadow-1: 0 1px 2px light-dark(rgb(16 24 40 / 0.06), rgb(0 0 0 / 0.5)),
