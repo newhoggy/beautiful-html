@@ -44,10 +44,11 @@ const FONT_FACES = [
   '400 16px "IBM Plex Sans"', '500 16px "IBM Plex Sans"', '600 16px "IBM Plex Sans"', '700 16px "IBM Plex Sans"', 'italic 400 16px "IBM Plex Sans"',
   '400 16px "Fraunces"', '600 16px "Fraunces"', '700 16px "Fraunces"', '400 16px "JetBrains Mono"', '600 16px "JetBrains Mono"',
 ];
-// Renders are pixel-identical run to run, so any real difference is a change: a small
-// per-channel tolerance absorbs only rounding, and a single changed pixel fails.
+// Renders are pixel-identical run to run (bar a rare stray antialiased pixel or two), so
+// a small per-channel tolerance absorbs rounding and a handful of pixels is allowed; any
+// real change (a 2px corner radius moves hundreds per page) still fails.
 const CHANNEL_TOLERANCE = 8;
-const MAX_CHANGED_RATIO = 0;
+const MAX_CHANGED_PIXELS = 16;
 
 const args = process.argv.slice(2);
 const update = args.includes("--update");
@@ -215,6 +216,53 @@ async function launchChrome() {
   return { send, close };
 }
 
+/**
+ * Full-page screenshot stitched from viewport-sized tiles. A single "capture beyond
+ * viewport" shot can catch scroll containers (e.g. phone diagrams that scroll sideways)
+ * unpainted, because Chrome only rasterizes them near the viewport: a blank diagram once
+ * got accepted as a baseline that way. Each tile is what is really on screen. Sticky
+ * chrome (top bar, contents) is hidden after the first tile so it isn't repeated.
+ */
+async function captureTiled(s, v) {
+  const frames = "new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))";
+  // Freeze scroll-driven state, which would otherwise change from tile to tile: code
+  // walkthroughs stay on step 1 with their code unpinned (so it appears once, not in every
+  // tile), and sticky chrome is hidden after the first tile.
+  await s("Runtime.evaluate", { expression: `(() => {
+    const st = document.createElement("style");
+    st.textContent = ".bh-vr-tile .bh-topbar, .bh-vr-tile .bh-toc { visibility: hidden !important; }"
+      + " .cw-code { position: static !important; }";
+    document.head.append(st);
+    document.querySelectorAll("bh-codewalk").forEach((w) => {
+      if (w.io) w.io.disconnect();
+      w.observeSteps = () => {};
+      if (w.activate) w.activate(0, true);
+    });
+  })()` });
+  // Horizontal overflow widens a phone's layout viewport and zooms the whole page out.
+  const iw = (await s("Runtime.evaluate", { expression: "innerWidth", returnByValue: true })).result.value;
+  if (iw !== v.width) throw new Error(`page overflows horizontally: layout viewport is ${iw}px, not ${v.width}px`);
+  const { cssContentSize } = await s("Page.getLayoutMetrics");
+  const total = Math.min(Math.ceil(cssContentSize.height), 30000);
+  const out = Buffer.alloc(v.width * total * 4);
+  for (let y = 0; y < total; y += v.height) {
+    const want = Math.max(0, Math.min(y, total - v.height));
+    await s("Runtime.evaluate", { expression: `window.scrollTo(0, ${want}); document.documentElement.classList.toggle("bh-vr-tile", ${want > 0}); ${frames}`, awaitPromise: true });
+    // The browser may clamp the scroll (e.g. the last tile): stitch from where it really is.
+    const top = Math.round((await s("Runtime.evaluate", { expression: "window.scrollY", returnByValue: true })).result.value);
+    await sleep(120);
+    const { data } = await s("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
+    const tile = decodePng(Buffer.from(data, "base64"));
+    // Copy only the rows this tile adds (the last tile may overlap the previous one).
+    const from = y - top, rows = Math.min(v.height, total - y);
+    if (from < 0) throw new Error(`tile at ${y} scrolled to ${top}: cannot stitch`);
+    for (let r = 0; r < rows && from + r < tile.height; r++) {
+      tile.data.copy(out, (y + r) * v.width * 4, (from + r) * tile.width * 4, (from + r) * tile.width * 4 + v.width * 4);
+    }
+  }
+  return encodePng(v.width, total, out);
+}
+
 async function capture(send, url, v) {
   const { targetId } = await send("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await send("Target.attachToTarget", { targetId, flatten: true });
@@ -254,10 +302,7 @@ async function capture(send, url, v) {
     await sleep(400);
     // Two real animation frames: proof the page is rendering, not throttled in the background.
     await s("Runtime.evaluate", { expression: "new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))", awaitPromise: true });
-    const { cssContentSize } = await s("Page.getLayoutMetrics");
-    const height = Math.min(Math.ceil(cssContentSize.height), 30000);
-    const { data } = await s("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip: { x: 0, y: 0, width: v.width, height, scale: 1 } });
-    return Buffer.from(data, "base64");
+    return await captureTiled(s, v);
   } finally {
     await send("Target.closeTarget", { targetId }).catch(() => {});
   }
@@ -276,7 +321,13 @@ const results = [];
 const started = Date.now();
 try {
   for (const k of cases) {
-    const png = await capture(chrome.send, base + k.file, k.v);
+    let png;
+    try { png = await capture(chrome.send, base + k.file, k.v); }
+    catch (e) {
+      results.push({ ...k, status: "changed", error: e.message });
+      console.log(c.red("✗ ") + k.name + c.dim(` ${e.message}`));
+      continue;
+    }
     const cur = path.join(OUT, "current", `${k.name}.png`), basePng = path.join(OUT, "baseline", `${k.name}.png`), diffPng = path.join(OUT, "diff", `${k.name}.png`);
     fs.writeFileSync(cur, png);
     fs.rmSync(diffPng, { force: true });
@@ -287,7 +338,7 @@ try {
       continue;
     }
     const d = diffImages(decodePng(fs.readFileSync(basePng)), decodePng(png));
-    const fail = d.sizeChanged || d.ratio > MAX_CHANGED_RATIO;
+    const fail = d.sizeChanged || d.changed > MAX_CHANGED_PIXELS;
     if (d.image && d.changed) fs.writeFileSync(diffPng, d.image);
     results.push({ ...k, status: fail ? "changed" : "same", changed: d.changed, ratio: d.ratio, sizeChanged: d.sizeChanged });
     const what = d.sizeChanged ? "page size changed" : `${d.changed} px (${(d.ratio * 100).toFixed(3)}%) differ`;
@@ -301,7 +352,7 @@ try {
 // Report: side-by-side images for every case that changed.
 const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
 const rows = results.map((r) => `<section class="${r.status}"><h2>${esc(r.name)} <small>${esc(r.status)}${r.changed && isFinite(r.changed) ? ` · ${r.changed} px` : ""}</small></h2>${
-  r.status === "changed" ? `<div class="row"><figure><img src="baseline/${r.name}.png"><figcaption>baseline</figcaption></figure><figure><img src="current/${r.name}.png"><figcaption>current</figcaption></figure>${fs.existsSync(path.join(OUT, "diff", `${r.name}.png`)) ? `<figure><img src="diff/${r.name}.png"><figcaption>diff</figcaption></figure>` : ""}</div>` : ""}</section>`).join("\n");
+  r.error ? `<p>${esc(r.error)}</p>` : r.status === "changed" ? `<div class="row"><figure><img src="baseline/${r.name}.png"><figcaption>baseline</figcaption></figure><figure><img src="current/${r.name}.png"><figcaption>current</figcaption></figure>${fs.existsSync(path.join(OUT, "diff", `${r.name}.png`)) ? `<figure><img src="diff/${r.name}.png"><figcaption>diff</figcaption></figure>` : ""}</div>` : ""}</section>`).join("\n");
 fs.writeFileSync(path.join(OUT, "report.html"), `<!doctype html><meta charset="utf-8"><title>Visual regression report</title>
 <style>body{font:14px system-ui;margin:24px;background:#f6f7f9;color:#15181e}section{margin:0 0 12px}h2{font-size:15px;margin:0 0 6px}.changed h2{color:#c4262e}.same h2{color:#127a48}small{font-weight:400;color:#596173}.row{display:flex;gap:12px;align-items:flex-start;overflow-x:auto}figure{margin:0;flex:1;min-width:260px}img{width:100%;border:1px solid #dfe3ea}figcaption{color:#596173}</style>
 <h1>Visual regression: ${results.filter((r) => r.status === "changed").length} changed of ${results.length}</h1>

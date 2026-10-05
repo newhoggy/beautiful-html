@@ -308,6 +308,9 @@
 /* ---- Tables ------------------------------------------------------------------------------------ */
 
 .table-wrap {
+  /* Positioned so it contains absolutely positioned descendants (e.g. .visually-hidden
+     labels); otherwise they escape the scroll clip and widen the page on phones. */
+  position: relative;
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);

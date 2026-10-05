@@ -292,9 +292,14 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
 - **When testing the checker with injected faults, assert the injection happened.** A
   replacement anchored on stale text matched nothing, and the "test" passed while
   checking nothing.
-- **`scrollWidth` over-reports overflow.** With `overflow-x: clip` on `body`, it still
-  counts clipped content and content inside scroll containers. To test for sideways
-  scrolling, try `scrollTo(250, …)` and confirm `scrollX` stays 0.
+- **Horizontal overflow zooms a phone page out.** If anything is wider than the screen,
+  mobile browsers widen the layout viewport (`innerWidth` grows) and shrink the whole
+  page, even though `body { overflow-x: clip }` stops it scrolling. So a `scrollX` that
+  stays 0 proves nothing; `npm run visual` fails when a phone render's `innerWidth`
+  isn't 390.
+- **Absolutely positioned elements escape scroll containers** unless the container is
+  positioned. `.visually-hidden` labels in a wide table once widened every page with a
+  decision matrix. Scroll containers such as `.table-wrap` get `position: relative`.
 - **Check diagrams at phone width for legibility, not just fit.** An SVG that shrinks to
   375px makes its labels about 5px tall. Below 640px, diagrams keep a 520px minimum and
   scroll inside their figure.
