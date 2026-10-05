@@ -79,6 +79,8 @@ dist/                   Bundled single-file outputs (git-ignored)
   - annotated code markers, diffs
   - sidenotes
   - `<bh-tabs>`, `<bh-stepper>`, `<bh-playground>`
+- **Decision lifecycle:** ADRs link with `bh:supersedes` / `bh:superseded-by`; superseded
+  ones carry a banner pointing at their replacement, and `check` keeps both sides in step.
 - **Search and backlinks:** ⌘K/Ctrl+K searches every section of every page and the
   glossary; each page lists the pages that link to it ("Referenced by").
 - **Presentation mode:** any page becomes slides (one per section) from the top bar or

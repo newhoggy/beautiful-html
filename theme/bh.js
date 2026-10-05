@@ -1198,6 +1198,29 @@
     ]));
   }
 
+  /** Decision lifecycle: banner on a superseded page; Supersedes / Superseded by in the meta. */
+  function buildLifecycle(site) {
+    const pages = new Map(((site && site.pages) || []).map((p) => [p.href, p]));
+    const link = (value) => {
+      if (!value) return null;
+      if (!SITE_ROOT) return el("span", { text: value }); // bundled: the other page isn't here
+      const url = new URL(value, location.href);
+      const rel = decodeURIComponent(url.pathname.slice(SITE_ROOT.pathname.length));
+      return el("a", { href: url.href, text: (pages.get(rel) || {}).title || value });
+    };
+    const by = link(meta("bh:superseded-by")), sup = link(meta("bh:supersedes"));
+    const dl = doc.querySelector("dl.bh-meta[data-auto]");
+    if (dl && sup) dl.append(el("div", {}, [el("dt", { text: "Supersedes" }), el("dd", {}, [sup])]));
+    if (dl && by) dl.append(el("div", {}, [el("dt", { text: "Superseded by" }), el("dd", {}, [by.cloneNode(true)])]));
+    const hero = doc.querySelector(".bh-article > .bh-hero");
+    if (by && hero) {
+      hero.after(el("aside", { class: "callout warn bh-superseded", role: "note" }, [
+        el("p", { class: "callout-title", text: "Superseded" }),
+        el("p", {}, ["This decision has been replaced by ", by, ". It is kept as the record of why things were once done this way."]),
+      ]));
+    }
+  }
+
   // ---- On-demand modules ------------------------------------------------------------------------
   //
   // Larger components live in theme/modules/<file> and load only when the page contains
@@ -1239,7 +1262,7 @@
     buildReveal();
     buildDiagramRefs();
     settle(buildGlossary());
-    settle(loadSiteData().then(buildBacklinks));
+    settle(loadSiteData().then((site) => { buildBacklinks(site); buildLifecycle(site); }));
     // Deep-link arrival waits for modules, so a link into a module-managed view works.
     const modules = settle(loadModules());
     modules.then(() => {

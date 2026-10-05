@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ADR-001: Rate limit inside each service</title>
+  <meta name="description" content="Each service enforces its own per-client token bucket in process, so we can ship limits before launch without new infrastructure.">
+  <meta name="bh:kind" content="decision">
+  <meta name="bh:status" content="superseded">
+  <meta name="bh:date" content="2025-11-12">
+  <meta name="bh:authors" content="John Ky">
+  <meta name="bh:tags" content="rate limiting, architecture">
+  <meta name="bh:superseded-by" content="adr-002-rate-limit-at-the-edge.html">
+  <script>try{var t=localStorage.getItem("bh-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+  <link rel="stylesheet" href="../theme/bh.css">
+  <script src="../theme/bh.js" defer></script>
+</head>
+<body data-home="../index.html">
+<main class="bh-page">
+  <article class="bh-article">
+
+    <header class="bh-hero">
+      <p class="eyebrow">Architecture decision record</p>
+      <h1>ADR-001: Rate limit inside each service</h1>
+      <p class="lede">Each service enforces its own per-client token bucket in process, so we can ship limits before launch without new infrastructure.</p>
+      <dl class="bh-meta" data-auto></dl>
+    </header>
+
+    <div class="decision">
+      <p>We will embed a per-client token bucket in every service, keyed by API key, because launch is three weeks away and this needs no shared infrastructure.</p>
+    </div>
+
+    <h2 id="context">Context</h2>
+    <p>The public API launches on 2 December. Two design partners have scripted clients that retry aggressively, and nothing today stops one of them saturating a service. We have no gateway able to run custom logic, and no shared low-latency store in production.</p>
+
+    <h2 id="options">Options considered</h2>
+    <div class="compare">
+      <div class="option chosen">
+        <h3>In-process limiter per service</h3>
+        <ul class="pros"><li>Ships with a library and a config file</li><li>No new runtime dependency</li></ul>
+        <ul class="cons"><li>Limits multiply with replicas and services</li></ul>
+      </div>
+      <div class="option">
+        <h3>Central limiter service</h3>
+        <ul class="pros"><li>One accurate limit per client</li></ul>
+        <ul class="cons"><li>New service, new on-call, before launch</li></ul>
+      </div>
+    </div>
+
+    <h2 id="consequences">Consequences</h2>
+    <div class="compare">
+      <div class="option"><h3>What gets easier</h3><ul class="pros"><li>Each team tunes limits for its own endpoints</li></ul></div>
+      <div class="option"><h3>What gets harder</h3><ul class="cons"><li>A client's real limit is <em>per-service limit × replicas × services</em>, so it grows as we scale</li><li>Limits drift between services</li></ul></div>
+    </div>
+
+    <footer class="bh-footer">
+      <span><a href="../index.html">← All documents</a></span>
+      <span>Updated 2025-11-12</span>
+    </footer>
+  </article>
+</main>
+</body>
+</html>

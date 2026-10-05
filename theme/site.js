@@ -2,12 +2,34 @@
 window.BH_SITE = {
  "pages": [
   {
+   "href": "docs/adr-001-rate-limit-in-each-service.html",
+   "title": "ADR-001: Rate limit inside each service",
+   "kind": "decision",
+   "status": "superseded",
+   "date": "2025-11-12",
+   "description": "Each service enforces its own per-client token bucket in process, so we can ship limits before launch without new infrastructure.",
+   "supersedes": "",
+   "supersededBy": "docs/adr-002-rate-limit-at-the-edge.html"
+  },
+  {
+   "href": "docs/adr-002-rate-limit-at-the-edge.html",
+   "title": "ADR-002: Rate limit at the edge gateway",
+   "kind": "decision",
+   "status": "accepted",
+   "date": "2026-10-05",
+   "description": "Enforce one per-client token bucket in the gateway, with state in Redis, so limits hold however many services and replicas run behind it.",
+   "supersedes": "docs/adr-001-rate-limit-in-each-service.html",
+   "supersededBy": ""
+  },
+  {
    "href": "docs/component-gallery.html",
    "title": "Component gallery",
    "kind": "reference",
    "status": "accepted",
    "date": "2026-10-05",
-   "description": "Every building block in the theme, with the markup to use it. The visual reference for authors and agents."
+   "description": "Every building block in the theme, with the markup to use it. The visual reference for authors and agents.",
+   "supersedes": "",
+   "supersededBy": ""
   },
   {
    "href": "docs/glossary.html",
@@ -15,7 +37,9 @@ window.BH_SITE = {
    "kind": "reference",
    "status": "accepted",
    "date": "2026-10-05",
-   "description": "Shared definitions for the terms used across these documents. Words defined here are underlined on every page; hover or tap one to see its definition."
+   "description": "Shared definitions for the terms used across these documents. Words defined here are underlined on every page; hover or tap one to see its definition.",
+   "supersedes": "",
+   "supersededBy": ""
   },
   {
    "href": "docs/token-bucket-rate-limiting.html",
@@ -23,22 +47,29 @@ window.BH_SITE = {
    "kind": "explainer",
    "status": "accepted",
    "date": "2026-10-05",
-   "description": "How a token bucket admits bursts but enforces an average rate — with a live simulation, implementations, and the mistakes that bite in production."
+   "description": "How a token bucket admits bursts but enforces an average rate — with a live simulation, implementations, and the mistakes that bite in production.",
+   "supersedes": "",
+   "supersededBy": ""
   }
  ],
  "backlinks": {
+  "docs/token-bucket-rate-limiting.html": [
+   {
+    "href": "docs/adr-002-rate-limit-at-the-edge.html#context",
+    "title": "ADR-002: Rate limit at the edge gateway",
+    "section": "Context"
+   },
+   {
+    "href": "docs/glossary.html",
+    "title": "Glossary",
+    "section": ""
+   }
+  ],
   "docs/glossary.html": [
    {
     "href": "docs/component-gallery.html#glossary-terms",
     "title": "Component gallery",
     "section": "Glossary terms"
-   }
-  ],
-  "docs/token-bucket-rate-limiting.html": [
-   {
-    "href": "docs/glossary.html",
-    "title": "Glossary",
-    "section": ""
    }
   ]
  }

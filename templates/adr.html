@@ -19,7 +19,11 @@
   <article class="bh-article">
 
     <!-- ADR: short and permanent. Status: proposed | accepted | rejected | superseded.
-         When superseded, link the replacement at the top; never delete an ADR. -->
+         Never delete an ADR. To replace one, link both ways in the <head>:
+           new ADR:  <meta name="bh:supersedes" content="adr-001-old-decision.html">
+           old ADR:  <meta name="bh:superseded-by" content="adr-002-new-decision.html">
+                     and set bh:status to "superseded" (a banner then points readers on).
+         `npm run check` fails if the two don't agree. -->
 
     <header class="bh-hero">
       <p class="eyebrow">Architecture decision record</p>

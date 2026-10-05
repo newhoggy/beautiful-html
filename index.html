@@ -22,6 +22,14 @@
 
     <ul class="cards wide" id="doc-list">
       <!-- bh:index:start -->
+      <li class="card doc-card" data-kind="decision" data-search="adr-002: rate limit at the edge gateway enforce one per-client token bucket in the gateway, with state in redis, so limits hold however many services and replicas run behind it. rate limiting, architecture decision">
+        <a class="card-link" href="docs/adr-002-rate-limit-at-the-edge.html">
+          <span class="eyebrow">Decision</span>
+          <h3>ADR-002: Rate limit at the edge gateway</h3>
+          <p>Enforce one per-client token bucket in the gateway, with state in Redis, so limits hold however many services and replicas run behind it.</p>
+        </a>
+        <span class="card-meta"><span class="badge accepted">accepted</span><time datetime="2026-10-05">2026-10-05</time></span>
+      </li>
       <li class="card doc-card" data-kind="reference" data-search="component gallery every building block in the theme, with the markup to use it. the visual reference for authors and agents. theme, components, reference reference">
         <a class="card-link" href="docs/component-gallery.html">
           <span class="eyebrow">Reference</span>
@@ -45,6 +53,15 @@
           <p>How a token bucket admits bursts but enforces an average rate — with a live simulation, implementations, and the mistakes that bite in production.</p>
         </a>
         <span class="card-meta"><span class="badge accepted">accepted</span><time datetime="2026-10-05">2026-10-05</time></span>
+      </li>
+      <li class="card doc-card is-superseded" data-kind="decision" data-search="adr-001: rate limit inside each service each service enforces its own per-client token bucket in process, so we can ship limits before launch without new infrastructure. rate limiting, architecture decision">
+        <a class="card-link" href="docs/adr-001-rate-limit-in-each-service.html">
+          <span class="eyebrow">Decision</span>
+          <h3>ADR-001: Rate limit inside each service</h3>
+          <p>Each service enforces its own per-client token bucket in process, so we can ship limits before launch without new infrastructure.</p>
+        </a>
+        <span class="card-meta"><span class="badge superseded">superseded</span><time datetime="2025-11-12">2025-11-12</time></span>
+        <p class="card-replaced">Replaced by <a href="docs/adr-002-rate-limit-at-the-edge.html">ADR-002: Rate limit at the edge gateway</a></p>
       </li>
       <!-- bh:index:end -->
     </ul>

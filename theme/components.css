@@ -949,3 +949,8 @@ bh-chart { display: block; }
 .chart-tip-row strong { font-variant-numeric: tabular-nums; }
 .chart-tip-name { color: var(--text-muted); }
 .chart-data { margin-top: var(--space-3); }
+
+/* ---- Decision lifecycle ----------------------------------------------------------------- */
+.doc-card.is-superseded { opacity: 0.72; }
+.doc-card.is-superseded h3 { text-decoration: line-through; text-decoration-color: color-mix(in oklab, var(--text) 40%, transparent); }
+.card-replaced { position: relative; z-index: 1; margin-top: var(--space-2) !important; font-size: var(--step--2); color: var(--text-muted); }

@@ -64,7 +64,7 @@ function docFiles() {
 }
 
 function readDoc(file) {
-  const html = fs.readFileSync(file, "utf8");
+  const html = stripComments(fs.readFileSync(file, "utf8")); // example <meta> in comments must not count
   return {
     file,
     href: path.relative(ROOT, file).split(path.sep).join("/"),
@@ -74,7 +74,16 @@ function readDoc(file) {
     status: getMeta(html, "bh:status"),
     date: getMeta(html, "bh:date"),
     tags: getMeta(html, "bh:tags"),
+    // Lifecycle links (relative to the doc in the source; root-relative here).
+    supersedes: resolveDocLink(file, getMeta(html, "bh:supersedes")),
+    supersededBy: resolveDocLink(file, getMeta(html, "bh:superseded-by")),
   };
+}
+
+/** A doc-relative link from a meta tag as a root-relative path ("docs/x.html"), or "". */
+function resolveDocLink(file, value) {
+  if (!value) return "";
+  return path.relative(ROOT, path.resolve(path.dirname(file), value)).split(path.sep).join("/");
 }
 
 // ---- new --------------------------------------------------------------------------
@@ -203,7 +212,7 @@ function extractSections(html) {
 function buildSiteData() {
   const docs = docFiles().map((f) => ({ ...readDoc(f), html: fs.readFileSync(f, "utf8") }));
   const known = new Set(docs.map((d) => d.href));
-  const pages = docs.map(({ href, title, kind, status, date, description }) => ({ href, title, kind, status, date, description }));
+  const pages = docs.map(({ href, title, kind, status, date, description, supersedes, supersededBy }) => ({ href, title, kind, status, date, description, supersedes, supersededBy }));
   const backlinks = {};
   const search = [];
   for (const d of docs) {
@@ -236,15 +245,17 @@ function buildSiteData() {
 function cmdIndex() {
   const docs = docFiles().map(readDoc)
     .sort((a, b) => (b.date || "").localeCompare(a.date || "") || a.title.localeCompare(b.title));
+  const titles = new Map(docs.map((d) => [d.href, d.title]));
   const cards = docs.map((d) => {
     const search = [d.title, d.description, d.tags, d.kind].join(" ").toLowerCase();
-    return `      <li class="card doc-card" data-kind="${escapeHtml(d.kind)}" data-search="${escapeHtml(search)}">
+    const replaced = d.supersededBy ? `\n        <p class="card-replaced">Replaced by <a href="${escapeHtml(d.supersededBy)}">${escapeHtml(titles.get(d.supersededBy) || d.supersededBy)}</a></p>` : "";
+    return `      <li class="card doc-card${d.supersededBy ? " is-superseded" : ""}" data-kind="${escapeHtml(d.kind)}" data-search="${escapeHtml(search)}">
         <a class="card-link" href="${escapeHtml(d.href)}">
           <span class="eyebrow">${escapeHtml(KIND_LABELS[d.kind] || d.kind)}</span>
           <h3>${escapeHtml(d.title)}</h3>
           <p>${escapeHtml(d.description)}</p>
         </a>
-        <span class="card-meta">${d.status ? `<span class="badge ${escapeHtml(d.status.toLowerCase())}">${escapeHtml(d.status)}</span>` : ""}${d.date ? `<time datetime="${escapeHtml(d.date)}">${escapeHtml(d.date)}</time>` : ""}</span>
+        <span class="card-meta">${d.status ? `<span class="badge ${escapeHtml(d.status.toLowerCase())}">${escapeHtml(d.status)}</span>` : ""}${d.date ? `<time datetime="${escapeHtml(d.date)}">${escapeHtml(d.date)}</time>` : ""}</span>${replaced}
       </li>`;
   }).join("\n");
   const html = fs.readFileSync(INDEX, "utf8");
@@ -539,7 +550,21 @@ function cmdCheck() {
     for (const [file, text] of [[SITE_OUT, site.site], [SEARCH_OUT, site.search]]) {
       if (!fs.existsSync(file) || fs.readFileSync(file, "utf8") !== text) problems.push(`${path.relative(ROOT, file)} is stale: run \`npm run index\``);
     }
-    console.log((problems.length ? c.red("✗ ") : c.green("✓ ")) + `glossary (${glossary.entries.length} terms)`);
+    // Decision lifecycle: supersedes / superseded-by must agree in both directions.
+    const all = docFiles().map(readDoc);
+    const byHref = new Map(all.map((d) => [d.href, d]));
+    for (const d of all) {
+      if (d.status.toLowerCase() === "superseded" && !d.supersededBy) problems.push(`${d.href}: status "superseded" needs <meta name="bh:superseded-by">`);
+      if (d.supersededBy && d.status.toLowerCase() !== "superseded") problems.push(`${d.href}: has bh:superseded-by, so bh:status must be "superseded"`);
+      for (const [rel, back, target] of [["bh:superseded-by", "supersedes", d.supersededBy], ["bh:supersedes", "supersededBy", d.supersedes]]) {
+        if (!target) continue;
+        const t = byHref.get(target);
+        if (target === d.href) problems.push(`${d.href}: ${rel} points at itself`);
+        else if (!t) problems.push(`${d.href}: ${rel} → ${target} does not exist`);
+        else if (t[back] !== d.href) problems.push(`${d.href}: ${rel} → ${target}, but that page's ${back === "supersedes" ? "bh:supersedes" : "bh:superseded-by"} doesn't point back`);
+      }
+    }
+    console.log((problems.length ? c.red("✗ ") : c.green("✓ ")) + `generated data & decision links (${glossary.entries.length} glossary terms)`);
     problems.forEach((p) => console.log(c.red("  error  ") + p));
     errors += problems.length;
   }

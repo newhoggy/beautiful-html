@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ADR-002: Rate limit at the edge gateway</title>
+  <meta name="description" content="Enforce one per-client token bucket in the gateway, with state in Redis, so limits hold however many services and replicas run behind it.">
+  <meta name="bh:kind" content="decision">
+  <meta name="bh:status" content="accepted">
+  <meta name="bh:date" content="2026-10-05">
+  <meta name="bh:authors" content="John Ky">
+  <meta name="bh:tags" content="rate limiting, architecture">
+  <meta name="bh:supersedes" content="adr-001-rate-limit-in-each-service.html">
+  <script>try{var t=localStorage.getItem("bh-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+  <link rel="stylesheet" href="../theme/bh.css">
+  <script src="../theme/bh.js" defer></script>
+</head>
+<body data-home="../index.html">
+<main class="bh-page">
+  <article class="bh-article">
+
+    <header class="bh-hero">
+      <p class="eyebrow">Architecture decision record</p>
+      <h1>ADR-002: Rate limit at the edge gateway</h1>
+      <p class="lede">Enforce one per-client token bucket in the gateway, with state in Redis, so limits hold however many services and replicas run behind it.</p>
+      <dl class="bh-meta" data-auto></dl>
+    </header>
+
+    <div class="decision">
+      <p>We will enforce client rate limits once, in the gateway, using a token bucket updated atomically in Redis, because per-service limits no longer bound what a client can send.</p>
+      <p class="muted">Services keep only a coarse safety limit against runaway internal callers.</p>
+    </div>
+
+    <h2 id="context">Context</h2>
+    <p>Under the per-service limits of ADR-001, one client sent 9× its contracted rate during the September incident without hitting a single limit: their traffic was spread across 3 services with 3 replicas each. We now have a gateway that runs plugins and a managed Redis cluster with p99 under 2 ms in-region. The <a href="token-bucket-rate-limiting.html">token bucket explainer</a> covers the algorithm.</p>
+
+    <h2 id="options">Options considered</h2>
+    <div class="compare">
+      <div class="option">
+        <h3>Keep per-service limits</h3>
+        <ul class="pros"><li>No migration</li></ul>
+        <ul class="cons"><li>The limit still multiplies as we scale</li></ul>
+      </div>
+      <div class="option chosen">
+        <h3>Gateway + Redis token bucket</h3>
+        <ul class="pros"><li>One accurate limit per client</li><li>Rejections never reach services</li></ul>
+        <ul class="cons"><li>Redis on the request path: +1–2 ms, needs a fail-open policy</li></ul>
+      </div>
+      <div class="option">
+        <h3>CDN provider limiting</h3>
+        <ul class="pros"><li>Absorbs floods before our network</li></ul>
+        <ul class="cons"><li>Can't see API keys or weight endpoints</li></ul>
+      </div>
+    </div>
+
+    <h2 id="consequences">Consequences</h2>
+    <div class="compare">
+      <div class="option"><h3>What gets easier</h3><ul class="pros"><li>Limits are contractual numbers that hold</li><li>One place to tune, observe and explain a 429</li></ul></div>
+      <div class="option"><h3>What gets harder</h3><ul class="cons"><li>Redis becomes part of every request; if it's down we fail open and lean on service safety limits</li></ul></div>
+    </div>
+
+    <footer class="bh-footer">
+      <span><a href="../index.html">← All documents</a></span>
+      <span>Updated 2026-10-05</span>
+    </footer>
+  </article>
+</main>
+</body>
+</html>

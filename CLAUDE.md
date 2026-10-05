@@ -48,6 +48,10 @@ fails while any of these are stale. Never edit the generated files by hand.
   - Clicking either copies the full URL, puts `#id` in the address bar, and confirms with
     a toast. Arriving at `#id` opens any `<details>`, tab or stepper step that hides the
     target, scrolls to it and briefly highlights it.
+- **Decisions are never deleted, only superseded.** Link a replacement both ways in
+  the `<head>`: `bh:supersedes` on the new ADR, and `bh:superseded-by` plus
+  `bh:status` "superseded" on the old one. The old page then shows a banner, and the
+  index dims it. `check` fails if the links don't agree.
 - **Ids are permanent once published.** Pick ids that name the concept, not the wording:
   `#rollout`, not `#how-we-plan-to-roll-this-out`. If you must rename one, keep the old
   id working with an empty `<span id="old-id"></span>` placed right before the target.
