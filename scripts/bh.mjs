@@ -381,6 +381,15 @@ function linkTargetProblems(html) {
     }
     if (n.tag === "dt" && n.parent.tag === "dl" && hasClass(n.parent, "glossary")) require(n, `glossary entry "${short(nodeText(src, n))}"`);
     if (/\sdata-linkable\b/.test(n.attrs)) require(n, `<${n.tag} data-linkable>`);
+    if (n.tag === "bh-versions") {
+      const figs = n.children.filter((c) => c.tag === "figure");
+      if (figs.length < 2) out.push("<bh-versions> needs at least two <figure> versions");
+      for (const f of figs) if (!nodeAttr(f, "data-label")) out.push(`<bh-versions> figure id="${nodeAttr(f, "id") || "?"}" needs data-label (e.g. "Current", "Proposed")`);
+    }
+    {
+      const change = nodeAttr(n, "data-change");
+      if (change !== undefined && !["added", "changed", "removed"].includes(change)) out.push(`data-change="${change}" must be added, changed or removed`);
+    }
     if (n.tag === "bh-stepper" && !nodeAttr(n, "id") && !nodeAttr(n, "for")) {
       out.push("<bh-stepper> needs for=\"figure-id\" (or an id) so its steps can be linked to");
     }
@@ -562,6 +571,13 @@ function bundleOne(file) {
       scripts.push(fs.readFileSync(GLOSSARY_OUT, "utf8").replace(/<\/script/gi, "<\\/script"));
     }
     scripts.push(fs.readFileSync(abs, "utf8").replace(/<\/script/gi, "<\\/script"));
+    // On-demand modules can't be fetched from a standalone file: inline them all after bh.js.
+    if (abs === path.join(ROOT, "theme", "bh.js")) {
+      const dir = path.join(ROOT, "theme", "modules");
+      if (fs.existsSync(dir)) for (const f of fs.readdirSync(dir).filter((x) => x.endsWith(".js")).sort()) {
+        scripts.push(fs.readFileSync(path.join(dir, f), "utf8").replace(/<\/script/gi, "<\\/script"));
+      }
+    }
     return "";
   });
 

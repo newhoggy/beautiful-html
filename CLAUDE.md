@@ -78,6 +78,7 @@ after editing `docs/glossary.html`. Index also compiles `theme/glossary.js`.
 | Parallel variants (languages, APIs) | `<bh-tabs>`                                              |
 | A relationship between parameters | `<bh-playground>` with `data-expr` / `data-bind`           |
 | Facts about a thing               | `dl.kv`                                                    |
+| A change to a system (before/after) | `<bh-versions>` with one `figure` per version (`data-label`), parts marked `data-change` |
 
 **One centrepiece interactive per page.** One interaction that changes understanding
 beats five decorative ones.
@@ -192,6 +193,16 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
 - **Components must work when `bh.js` runs before the body is parsed.** Bundled pages
   inline the script, so `connectedCallback` must defer to `whenReady()` before reading its
   children.
+- **Larger components are on-demand modules** in `theme/modules/*.js`, registered in
+  `MODULES` in `bh.js` with the selector that triggers them. A module must be a classic
+  script that uses `window.bh` and sets `window.bhModules[file] = true`. `bundle`
+  inlines every module.
+- **Readiness:** async work (scripts, rendering) must be wrapped in `bh.settle(promise)`,
+  so that `<html data-bh-ready>` only appears once the page has truly settled.
+  Screenshot tests rely on it.
+- **Diagram colour overrides belong in `diagrams.css`.** Layers beat specificity, so a
+  stroke rule in `components.css` loses to `.node.cN` in the later diagrams layer.
+  `data-change` marks once rendered in the wrong colour for exactly this reason.
 - **Keep geometry constants in sync.** The arrowhead size in `bh.js` markers must equal
   `ARROW_LEN` in `scripts/bh.mjs`. The popup's `--gap` in `glossary.css` must equal
   `GAP` in `bh.js`.

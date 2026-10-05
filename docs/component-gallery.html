@@ -207,6 +207,41 @@ else { reject(retry_after(cost - tokens)) }<span class="marker">3</span></code><
       <bh-step highlight="svc e-svc-queue queue"><p>Side effects are published to the <strong>queue</strong> asynchronously.</p></bh-step>
     </bh-stepper>
 
+    <h3 id="current-vs-proposed">Current vs proposed</h3>
+    <p>Wrap two versions of a diagram in <code>&lt;bh-versions&gt;</code> to switch between them, or press <strong>Compare</strong> and drag the divider. Mark parts with <code>data-change="added|changed|removed"</code> to show what the proposal changes.</p>
+    <bh-versions class="wide">
+      <figure class="diagram" id="limits-current" data-label="Current">
+        <svg viewBox="-16 -16 672 222" role="img" aria-label="Current: each service runs its own rate limiter behind the gateway">
+          <g class="node c3" data-id="client"><rect x="0" y="72" width="130" height="48" rx="10"/><text x="65" y="96">Client</text></g>
+          <g class="node c5" data-id="gw"><rect x="180" y="72" width="130" height="48" rx="10"/><text x="245" y="96">Gateway</text></g>
+          <g class="node c1" data-id="svc-a"><rect x="400" y="10" width="130" height="48" rx="10"/><text x="465" y="34">Service A</text></g>
+          <g class="node c1" data-id="svc-b"><rect x="400" y="134" width="130" height="48" rx="10"/><text x="465" y="158">Service B</text></g>
+          <g class="node c1" data-id="lim-a" data-change="removed"><rect x="570" y="16" width="70" height="36" rx="8"/><text class="sub" x="605" y="34">limiter</text></g>
+          <g class="node c1" data-id="lim-b" data-change="removed"><rect x="570" y="140" width="70" height="36" rx="8"/><text class="sub" x="605" y="158">limiter</text></g>
+          <path class="edge" data-id="e-client-gw" d="M130 96 H169"/>
+          <path class="edge" data-id="e-gw-a" d="M310 86 C350 86 350 34 389 34"/>
+          <path class="edge" data-id="e-gw-b" d="M310 106 C350 106 350 158 389 158"/>
+          <path class="edge no-arrow" data-id="e-a-lim" data-change="removed" d="M530 34 H570"/>
+          <path class="edge no-arrow" data-id="e-b-lim" data-change="removed" d="M530 158 H570"/>
+        </svg>
+        <figcaption>Every service enforces its own limit, so a client's real limit grows with the number of services.</figcaption>
+      </figure>
+      <figure class="diagram" id="limits-proposed" data-label="Proposed">
+        <svg viewBox="-16 -16 672 222" role="img" aria-label="Proposed: one rate limiter at the gateway in front of all services">
+          <g class="node c3" data-id="client"><rect x="0" y="72" width="130" height="48" rx="10"/><text x="65" y="96">Client</text></g>
+          <g class="node c5" data-id="gw" data-change="changed"><rect x="180" y="72" width="130" height="48" rx="10"/><text x="245" y="96">Gateway</text></g>
+          <g class="node c1" data-id="lim-gw" data-change="added"><rect x="200" y="150" width="90" height="36" rx="8"/><text class="sub" x="245" y="168">limiter</text></g>
+          <g class="node c1" data-id="svc-a"><rect x="400" y="10" width="130" height="48" rx="10"/><text x="465" y="34">Service A</text></g>
+          <g class="node c1" data-id="svc-b"><rect x="400" y="134" width="130" height="48" rx="10"/><text x="465" y="158">Service B</text></g>
+          <path class="edge" data-id="e-client-gw" d="M130 96 H169"/>
+          <path class="edge no-arrow" data-id="e-gw-lim" data-change="added" d="M245 120 V150"/>
+          <path class="edge" data-id="e-gw-a" d="M310 86 C350 86 350 34 389 34"/>
+          <path class="edge" data-id="e-gw-b" d="M310 106 C350 106 350 158 389 158"/>
+        </svg>
+        <figcaption>One limiter at the gateway sees all of a client's traffic, so the limit holds however many services there are.</figcaption>
+      </figure>
+    </bh-versions>
+
     <h3 id="mermaid">Mermaid (fallback)</h3>
     <p>For quick sequence or state diagrams, a <code>&lt;pre class="mermaid"&gt;</code> renders with theme colours (loaded from a CDN only when present). Prefer hand-placed SVG for anything central to the argument.</p>
     <pre class="mermaid">sequenceDiagram

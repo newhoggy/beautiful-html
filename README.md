@@ -42,6 +42,7 @@ theme/
   glossary.js           GENERATED from docs/glossary.html by `npm run index`
   print.css             Print: chrome removed, all steps and tabs expanded
   bh.js                 Runtime: chrome, TOC/scroll-spy, web components, lazy Prism/Mermaid
+theme/modules/          On-demand components (loaded only by pages that use them)
 scripts/bh.mjs          CLI: new · index · check · bundle · serve
 dist/                   Bundled single-file outputs (git-ignored)
 ```
@@ -80,6 +81,8 @@ dist/                   Bundled single-file outputs (git-ignored)
   across every page. Hovering, focusing or tapping one shows its definition in a popup
   that stays put. You can move the pointer into the popup to select and copy text or
   follow its links. Clicking or pressing Enter pins it.
+- **Current vs proposed:** `<bh-versions>` switches between versions of a diagram, or
+  compares two with a draggable divider, and highlights `data-change` parts.
 - **Diagram references:** `data-ref="figure-id:part-id"` on a phrase lights that part of
   the diagram on hover and brings the diagram into view on click.
 - **Diagrams:** inline SVG using theme classes. Arrowheads are automatic, and every

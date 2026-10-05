@@ -666,3 +666,133 @@ bh-playground output { font-variant-numeric: tabular-nums; }
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: none; }
 }
+
+/* ---- bh-versions: current vs proposed (module: theme/modules/versions.js) ---------------- */
+
+bh-versions { display: block; }
+bh-versions > figure[data-label]::before,
+bh-versions:not(.is-ready) > figure[data-label]::before {
+  content: attr(data-label);
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--step--2);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+bh-versions:not(.is-ready) > figure + figure { margin-top: var(--space-4); }
+
+bh-versions.is-ready {
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+}
+.bh-versions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.bh-versions-tabs {
+  display: flex;
+  gap: var(--space-1);
+  padding: 3px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.bh-versions-tabs [role="tab"] {
+  padding: 0.4em 1em;
+  border: 0;
+  border-radius: calc(var(--radius) - 3px);
+  background: none;
+  color: var(--text-muted);
+  font-size: var(--step--1);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--dur-2), color var(--dur-2), box-shadow var(--dur-2);
+}
+.bh-versions-tabs [role="tab"][aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
+bh-versions.is-comparing .bh-versions-tabs [role="tab"] { background: none; color: var(--text-muted); box-shadow: none; }
+.bh-versions-compare[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+
+/* Every version shares one grid cell: switching never changes the height. */
+.bh-versions-stage { position: relative; display: grid; }
+.bh-versions-stage > figure {
+  grid-area: 1 / 1;
+  margin: 0 !important;
+  padding: 0;
+  border: 0;
+  background: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--dur-3) var(--ease-out), visibility 0s linear var(--dur-3);
+}
+.bh-versions-stage > figure.is-current { opacity: 1; visibility: visible; transition-delay: 0s; }
+.bh-versions-stage > figure::before,
+.bh-versions-stage > figure > figcaption { display: none; }
+
+.bh-versions-caption { margin-top: var(--space-3); font-size: var(--step--1); color: var(--text-muted); line-height: 1.5; }
+.bh-versions-caption strong { color: var(--text); font-weight: 600; }
+
+/* Compare: both versions visible, split at --pos (current left, proposed right). */
+bh-versions.is-comparing .bh-versions-stage { cursor: ew-resize; touch-action: pan-y; user-select: none; }
+bh-versions.is-comparing .bh-versions-stage > figure { opacity: 1; visibility: visible; transition: none; }
+bh-versions.is-comparing .bh-versions-stage > figure:first-of-type { clip-path: inset(0 calc(100% - var(--pos, 50%)) 0 0); }
+bh-versions.is-comparing .bh-versions-stage > figure:last-of-type { clip-path: inset(0 0 0 var(--pos, 50%)); }
+
+.bh-versions-divider, .bh-versions-tag, .bh-versions-range { display: none; }
+bh-versions.is-comparing .bh-versions-divider {
+  display: block;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--pos, 50%);
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.bh-versions-handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: var(--shadow-2);
+  transform: translate(-50%, -50%);
+}
+.bh-versions-handle::after {
+  content: "⇆";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--accent-contrast);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+bh-versions.is-comparing .bh-versions-tag {
+  display: block;
+  position: absolute;
+  top: 0;
+  padding: 0.1em 0.6em;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: var(--step--2);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.bh-versions-tag.left { left: 0; }
+.bh-versions-tag.right { right: 0; }
+bh-versions.is-comparing .bh-versions-range { display: block; margin-top: var(--space-3); }
+/* While comparing, the corner tags take the figures' link-button spot. */
+bh-versions.is-comparing .bh-versions-stage .bh-link-btn { display: none; }

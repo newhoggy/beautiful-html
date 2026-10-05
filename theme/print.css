@@ -20,6 +20,10 @@
   details::details-content { block-size: auto !important; content-visibility: visible !important; }
 
   .term { background: none !important; }
+  .bh-versions-bar, .bh-versions-divider, .bh-versions-tag, .bh-versions-range, .bh-versions-caption { display: none !important; }
+  .bh-versions-stage { display: block !important; }
+  .bh-versions-stage > figure { opacity: 1 !important; visibility: visible !important; clip-path: none !important; margin-top: 1em !important; }
+  .bh-versions-stage > figure::before, .bh-versions-stage > figure > figcaption { display: block !important; }
   .reveal-pending { opacity: 1 !important; transform: none !important; }
   .diagram .is-dim { opacity: 1 !important; }
 

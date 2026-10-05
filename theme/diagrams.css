@@ -165,3 +165,19 @@
   background: color-mix(in oklab, var(--ref-tone) 14%, transparent);
   border-bottom-color: var(--ref-tone);
 }
+
+/* ---- Change marks: data-change="added|changed|removed" on diagram parts ------------------
+   In the diagrams layer so they win over node/edge colours (cascade layers beat specificity). */
+
+.diagram .node[data-change] > :is(rect, circle, ellipse, polygon, path) { stroke-width: 2.5; }
+.diagram .node[data-change="added"] > :is(rect, circle, ellipse, polygon, path) { stroke: var(--ok); }
+.diagram .node[data-change="changed"] > :is(rect, circle, ellipse, polygon, path) { stroke: var(--warn); }
+.diagram .node[data-change="removed"] > :is(rect, circle, ellipse, polygon, path) { stroke: var(--danger); stroke-dasharray: 5 4; }
+.diagram .node[data-change="removed"] { opacity: 0.75; }
+.diagram .edge[data-change="added"] { stroke: var(--ok); }
+.diagram .edge[data-change="changed"] { stroke: var(--warn); }
+.diagram .edge[data-change="removed"] { stroke: var(--danger); stroke-dasharray: 5 4; }
+.diagram [data-change="added"] { filter: drop-shadow(0 0 5px color-mix(in oklab, var(--ok) 55%, transparent)); }
+.legend .change-added   { --tone: var(--ok); }
+.legend .change-changed { --tone: var(--warn); }
+.legend .change-removed { --tone: var(--danger); }

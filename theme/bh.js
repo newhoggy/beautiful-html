@@ -10,6 +10,8 @@
                   block offers "copy link"; arriving at #id reveals and highlights it.
    Lazy libs:     Prism (if code has language-*), Mermaid (if pre.mermaid).
    Components:    <bh-tabs>, <bh-stepper>/<bh-step>, <bh-playground>, <bh-filter>.
+   Modules:       larger components load on demand from theme/modules/ (bundle inlines them).
+   Ready signal:  <html data-bh-ready> once glossary, modules, Prism, Mermaid and fonts settle.
    Glossary:      auto-marks glossary terms in prose; hover/focus/tap shows a
                   stationary popup the pointer can move into (select, copy, links).
 
@@ -121,6 +123,15 @@
   // Apply stored theme immediately (templates also inline this in <head> to avoid a flash).
   const stored = storage(() => localStorage.getItem(THEME_KEY));
   if (stored && stored !== "auto") root.dataset.theme = stored;
+  // ?theme=dark|light|auto previews a theme for this view only (not saved): handy for
+  // sharing a link in a given theme and for screenshot tests.
+  const themeParam = new URLSearchParams(location.search).get("theme");
+  if (themeParam === "light" || themeParam === "dark") root.dataset.theme = themeParam;
+  else if (themeParam === "auto") delete root.dataset.theme;
+
+  /** Async work the page waits on before it is "ready" (see data-bh-ready). */
+  const pending = [];
+  const settle = (p) => { pending.push(Promise.resolve(p).catch(() => {})); return p; };
 
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
     if (currentTheme() === "auto") doc.dispatchEvent(new CustomEvent("bh-themechange", { detail: { theme: "auto" } }));
@@ -293,6 +304,10 @@
       if (p.tagName === "SECTION" && host && host.tagName === "BH-TABS" && p.hidden && host.select) {
         host.select([...host.querySelectorAll(":scope > section")].indexOf(p));
       }
+      if (p.tagName === "FIGURE" && host && host.classList.contains("bh-versions-stage")) {
+        const versions = host.closest("bh-versions");
+        if (versions && versions.show) versions.show(versions.figures.indexOf(p));
+      }
       if (p.tagName === "BH-STEP") {
         const stepper = p.closest("bh-stepper");
         if (stepper && stepper.go && stepper.steps) stepper.go(stepper.steps.indexOf(p));
@@ -300,7 +315,8 @@
     }
     // A step is read together with its diagram: bring the diagram into view, flash the step.
     const stepper = target.tagName === "BH-STEP" && target.closest("bh-stepper");
-    const scrollTo = (stepper && stepper.target) || target;
+    // A version is read with its switcher: land on the whole <bh-versions>.
+    const scrollTo = (stepper && stepper.target) || target.closest("bh-versions") || target;
     // What we land on is shown at once: no scroll-reveal fade on (or around) it.
     for (const t of new Set([target, scrollTo])) {
       for (const n of [t, ...t.querySelectorAll(".reveal-pending")]) n.classList.remove("reveal-pending");
@@ -328,7 +344,7 @@
         if (interacted) return;
         const t = doc.getElementById(decodeURIComponent(location.hash.slice(1)));
         const stepper = t && t.tagName === "BH-STEP" && t.closest("bh-stepper");
-        const scrollTo = (stepper && stepper.target) || t;
+        const scrollTo = (stepper && stepper.target) || (t && t.closest("bh-versions")) || t;
         if (scrollTo) scrollTo.scrollIntoView({ block: "start", behavior: "instant" });
       });
     }
@@ -407,16 +423,21 @@
       wrap.append(el("div", { class: "code-head" }, [el("span", { text: label }), btn]), pre);
     }
 
-    if (doc.querySelector('code[class*="language-"]')) {
+    const codes = doc.querySelectorAll('code[class*="language-"]');
+    if (codes.length) {
       const base = "https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/";
       window.Prism = window.Prism || { manual: true };
-      loadScript(base + "components/prism-core.min.js")
+      settle(loadScript(base + "components/prism-core.min.js")
         .then(() => loadScript(base + "plugins/autoloader/prism-autoloader.min.js"))
-        .then(() => {
+        .then(() => new Promise((resolve) => {
+          // Languages load asynchronously: settle once every block has highlighted (or 4s).
+          let done = 0;
+          window.Prism.hooks.add("complete", () => { if (++done >= codes.length) resolve(); });
+          setTimeout(resolve, 4000);
           window.Prism.plugins.autoloader.languages_path = base + "components/";
           window.Prism.highlightAll();
-        })
-        .catch(() => { /* offline: plain monospace is fine */ });
+        }))
+        .catch(() => { /* offline: plain monospace is fine */ }));
     }
   }
 
@@ -446,11 +467,11 @@
         },
       });
       nodes.forEach((n) => { n.removeAttribute("data-processed"); n.textContent = n.dataset.src; });
-      m.run({ nodes });
+      return m.run({ nodes });
     };
-    loadScript("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js")
-      .then(() => { render(); doc.addEventListener("bh-themechange", () => requestAnimationFrame(render)); })
-      .catch(() => {});
+    settle(loadScript("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js")
+      .then(() => { doc.addEventListener("bh-themechange", () => requestAnimationFrame(render)); return render(); })
+      .catch(() => {}));
   }
 
   // ---- SVG arrow markers (shared defs referenced by .edge in diagrams.css) -------------------
@@ -1100,7 +1121,7 @@
   }
 
   function buildGlossary() {
-    loadGlossaryData().then((global) => {
+    return loadGlossaryData().then((global) => {
       const byId = new Map();
       for (const e of global) byId.set(e.id, { ...e, aliases: e.aliases || [], local: false });
       for (const e of localGlossary()) byId.set(e.id, e);
@@ -1112,6 +1133,29 @@
       markTerms(byId);
       setupGlossaryPopup(byId);
     });
+  }
+
+  // ---- On-demand modules ------------------------------------------------------------------------
+  //
+  // Larger components live in theme/modules/<file> and load only when the page contains
+  // their selector. Each module is a classic script that uses window.bh and marks itself in
+  // window.bhModules. `bundle` inlines every module, so standalone files never fetch one.
+
+  const MODULES = [
+    ["versions.js", "bh-versions"],
+  ];
+
+  function loadModule(file) {
+    window.bhModules = window.bhModules || {};
+    if (window.bhModules[file]) return Promise.resolve();
+    if (!SITE_ROOT) return Promise.resolve(); // bundled: already inlined (or unavailable)
+    window.bhModules[file] = "loading";
+    return loadScript(new URL("theme/modules/" + file, SITE_ROOT).href)
+      .catch((e) => console.warn("[bh] module failed to load:", file, e));
+  }
+
+  function loadModules() {
+    return Promise.all(MODULES.filter(([, selector]) => doc.querySelector(selector)).map(([file]) => loadModule(file)));
   }
 
   // ---- Boot ------------------------------------------------------------------------------------
@@ -1126,9 +1170,21 @@
     buildMermaid();
     buildReveal();
     buildDiagramRefs();
-    buildGlossary();
-    setupDeepLinks();
+    settle(buildGlossary());
+    // Deep-link arrival waits for modules, so a link into a module-managed view works.
+    const modules = settle(loadModules());
+    modules.then(setupDeepLinks);
+    if (doc.fonts && doc.fonts.ready) settle(doc.fonts.ready);
+    // Wait for everything queued so far (and anything queued while waiting), then signal.
+    (async () => {
+      for (let seen = 0; seen < pending.length;) { const batch = pending.slice(seen); seen = pending.length; await Promise.all(batch); }
+      root.dataset.bhReady = "";
+      doc.dispatchEvent(new CustomEvent("bh-ready"));
+    })();
   });
 
-  window.bh = { applyTheme, whenReady, el, format, copyText, copyLink, toast };
+  window.bh = {
+    applyTheme, whenReady, el, format, copyText, copyLink, toast, linkLabel, settle,
+    reducedMotion, LINK_ICON,
+  };
 })();
