@@ -77,6 +77,8 @@ dist/                   Bundled single-file outputs (git-ignored)
   - annotated code markers, diffs
   - sidenotes
   - `<bh-tabs>`, `<bh-stepper>`, `<bh-playground>`
+- **Presentation mode:** any page becomes slides (one per section) from the top bar or
+  `?present`, with keyboard and swipe navigation and the URL following the slide.
 - **Glossary:** terms defined once in `docs/glossary.html` are underlined automatically
   across every page. Hovering, focusing or tapping one shows its definition in a popup
   that stays put. You can move the pointer into the popup to select and copy text or

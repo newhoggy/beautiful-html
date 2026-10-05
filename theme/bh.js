@@ -169,8 +169,16 @@
     });
     syncThemeBtn();
 
+    // Present: any page with sections can become slides (module loaded on first use).
+    const canPresent = doc.querySelector(".bh-article > h2") && doc.body.dataset.present !== "off";
+    const presentBtn = canPresent ? el("button", {
+      class: "btn ghost icon", type: "button", title: "Present as slides", "aria-label": "Present as slides",
+      html: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/></svg>',
+      onclick: () => loadModule("present.js").then(() => window.bh.present && window.bh.present.enter()),
+    }) : null;
+
     const progress = el("div", { class: "bh-progress", "aria-hidden": "true" });
-    const bar = el("header", { class: "bh-topbar" }, [brand, title, el("div", { class: "bh-topbar-actions" }, [themeBtn]), progress]);
+    const bar = el("header", { class: "bh-topbar" }, [brand, title, el("div", { class: "bh-topbar-actions" }, [presentBtn, themeBtn].filter(Boolean)), progress]);
     doc.querySelector(".skip-link").after(bar);
 
     // Show the page title in the bar once the h1 scrolls away.
@@ -294,6 +302,7 @@
 
   /** Bring the #target into view: open collapsed details, select its tab or step, highlight it. */
   function revealTarget(instant) {
+    if (root.classList.contains("bh-presenting")) return; // present.js picks the slide instead
     let id;
     try { id = decodeURIComponent(location.hash.slice(1)); } catch (_) { return; }
     const target = id && doc.getElementById(id);
@@ -345,7 +354,7 @@
     revealTarget(true);
     if (doc.fonts && doc.fonts.ready) {
       doc.fonts.ready.then(() => {
-        if (interacted) return;
+        if (interacted || root.classList.contains("bh-presenting")) return; // slides own the scroll
         const t = doc.getElementById(decodeURIComponent(location.hash.slice(1)));
         const stepper = t && t.tagName === "BH-STEP" && t.closest("bh-stepper");
         const scrollTo = (stepper && stepper.target) || (t && t.closest("bh-versions")) || t;
@@ -1181,7 +1190,13 @@
     settle(buildGlossary());
     // Deep-link arrival waits for modules, so a link into a module-managed view works.
     const modules = settle(loadModules());
-    modules.then(setupDeepLinks);
+    modules.then(() => {
+      // ?present opens straight into slides (at the slide holding #id, if any).
+      if (new URLSearchParams(location.search).has("present") && doc.querySelector(".bh-article > h2")) {
+        return loadModule("present.js").then(() => { setupDeepLinks(); window.bh.present && window.bh.present.enter(); });
+      }
+      setupDeepLinks();
+    });
     if (doc.fonts && doc.fonts.ready) settle(doc.fonts.ready);
     // Wait for everything queued so far (and anything queued while waiting), then signal.
     (async () => {

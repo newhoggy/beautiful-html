@@ -414,3 +414,56 @@ dl.glossary > dt:hover > .heading-anchor { opacity: 1; }
   to   { box-shadow: 0 0 0 3px transparent; }
 }
 @keyframes bh-target-tint { from { background: var(--accent-soft); } }
+
+/* ---- Presentation mode (module: theme/modules/present.js) ------------------------------- */
+
+html.bh-presenting { font-size: clamp(16px, 0.55vw + 11px, 24px); scroll-padding-top: 0; }
+.bh-presenting .bh-topbar,
+.bh-presenting .bh-toc,
+.bh-presenting .skip-link,
+.bh-presenting .bh-footer { display: none !important; }
+.bh-presenting .bh-page { display: block; max-width: none; padding: 0; }
+.bh-presenting .bh-article {
+  min-height: 100dvh;
+  align-content: center;
+  padding-block: 6vh 14vh;
+  --measure: 72ch;
+}
+.bh-presenting .bh-article > .slide-off { display: none !important; }
+.bh-presenting .bh-article > .slide-first { margin-top: 0 !important; }
+.bh-presenting .bh-article > h2 { border-top: 0; padding-top: 0; font-size: var(--step-4); }
+.bh-presenting .bh-hero { border-bottom: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .bh-presenting .slide-in { animation: bh-fade-up var(--dur-3) var(--ease-out) both; }
+}
+
+.bh-present-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  height: 3px;
+  width: calc(var(--slide-progress, 0) * 100%);
+  background: var(--accent);
+  transition: width var(--dur-3) var(--ease-out);
+}
+.bh-present-bar {
+  position: fixed;
+  left: 50%;
+  bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--surface) 90%, transparent);
+  box-shadow: var(--shadow-2);
+  backdrop-filter: blur(8px);
+  transform: translateX(-50%);
+  opacity: 0.55;
+  transition: opacity var(--dur-2);
+}
+.bh-present-bar:hover, .bh-present-bar:focus-within { opacity: 1; }
+.bh-present-count { min-width: 4.5ch; text-align: center; font-size: var(--step--1); font-variant-numeric: tabular-nums; color: var(--text-muted); }

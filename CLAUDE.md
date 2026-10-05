@@ -58,6 +58,11 @@ after editing `docs/glossary.html`. Index also compiles `theme/glossary.js`.
 
 ## Writing
 
+- **Every page doubles as a slide deck** (Present button or `?present`): the title and
+  TL;DR form slide 1, and each `h2` section is one slide. So keep sections short enough to
+  present, and give a stepper or `data-ref` a figure id. A figure that lives on another
+  slide is shown alongside automatically. Opt a page out with `<body data-present="off">`.
+
 - Order the content: **orientation → mental model → mechanism → hands-on → details → edge cases → further reading.**
 - Open with a `.tldr` of no more than 3 bullets: the answer, why it matters, and the common mistake.
 - Explain *why* at every step, not only *what*. Use real numbers, units and names.
