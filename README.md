@@ -17,6 +17,7 @@ open index.html                                     # or: npm run serve → http
 npm run new -- explainer consistent-hashing "Consistent hashing"
 npm run check                                       # lint links, ids, stepper refs, a11y basics
 npm run bundle -- docs/consistent-hashing.html      # → dist/consistent-hashing.html
+npm run visual                                      # screenshot diff vs your baselines (Node ≥ 22 + Chrome)
 ```
 
 Node ≥ 20 is the only requirement. There are no npm dependencies.
@@ -46,6 +47,7 @@ theme/
   bh.js                 Runtime: chrome, TOC/scroll-spy, web components, lazy Prism/Mermaid
 theme/modules/          On-demand components (loaded only by pages that use them)
 scripts/bh.mjs          CLI: new · index · check · bundle · serve
+scripts/visual.mjs      Visual regression: Chrome via DevTools protocol, PNG diff, HTML report
 dist/                   Bundled single-file outputs (git-ignored)
 ```
 

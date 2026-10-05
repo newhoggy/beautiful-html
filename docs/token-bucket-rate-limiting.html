@@ -103,7 +103,7 @@
         <label class="control"><span>Background traffic (req/s) <output data-expr="load" data-digits="1"></output></span>
           <input type="range" name="load" min="0" max="12" step="0.5" value="1"></label>
       </div>
-      <svg id="sim-svg" viewBox="0 0 720 190" role="img" aria-label="Live simulation: token slots and a ten-second strip of admitted and rejected requests">
+      <svg id="sim-svg" data-vr-mask viewBox="0 0 720 190" role="img" aria-label="Live simulation: token slots and a ten-second strip of admitted and rejected requests">
         <text class="label strong" x="0" y="12">Bucket</text>
         <rect class="bucket-outline" id="sim-outline" x="0" y="26" width="270" height="60" rx="10"/>
         <g id="sim-slots"></g>
@@ -121,7 +121,7 @@
         <button class="btn" type="button" data-sim="10">Burst ×10</button>
         <button class="btn ghost" type="button" data-sim="reset">Reset</button>
       </div>
-      <p class="readout">
+      <p class="readout" data-vr-mask>
         Tokens <output id="sim-tokens">0</output> ·
         admitted <output id="sim-ok">0</output> ·
         rejected <output id="sim-no">0</output> ·

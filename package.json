@@ -10,6 +10,7 @@
     "check": "node scripts/bh.mjs check",
     "bundle": "node scripts/bh.mjs bundle",
     "bundle:all": "node scripts/bh.mjs bundle --all",
-    "serve": "node scripts/bh.mjs serve"
+    "serve": "node scripts/bh.mjs serve",
+    "visual": "node scripts/visual.mjs"
   }
 }

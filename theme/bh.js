@@ -1281,6 +1281,15 @@
     // Wait for everything queued so far (and anything queued while waiting), then signal.
     (async () => {
       for (let seen = 0; seen < pending.length;) { const batch = pending.slice(seen); seen = pending.length; await Promise.all(batch); }
+      // Fonts load lazily, when text first needs a weight: content rendered after boot can
+      // start new loads after fonts.ready resolved. Wait until the set is loaded and stays so.
+      if (doc.fonts) {
+        for (let i = 0; i < 20; i++) {
+          await doc.fonts.ready;
+          await new Promise((r) => setTimeout(r, 50));
+          if (doc.fonts.status === "loaded") break;
+        }
+      }
       root.dataset.bhReady = "";
       doc.dispatchEvent(new CustomEvent("bh-ready"));
     })();

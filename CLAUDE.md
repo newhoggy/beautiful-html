@@ -260,6 +260,16 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
 
 ## Verifying changes
 
+- **Run `npm run visual` around every theme or component change.** It renders the key
+  pages in light, dark and phone layouts and pixel-diffs them against your baselines in
+  `.visual/`. If the differences are what you intended, accept them with
+  `npm run visual -- --update`; otherwise read `.visual/report.html`. It needs Node ≥ 22
+  and a local Chrome (set `CHROME_PATH` if it isn't found). Add `data-vr-mask` to anything
+  that animates or is random, such as a live simulation.
+- **Screenshot automation must foreground the tab and wait for real frames.** Repeated
+  runs once flipped between two renderings, which looked like a font problem and wasn't.
+  New tabs could be captured from a stale background frame.
+
 - **Render it.** Lint and syntax checks passed while the page rendered completely unstyled.
   Look at the result in a browser (`npm run serve`) in both themes and at 375px wide.
 - **Follow your own links.** Open the page at `#id` for a section and for a figure, and
