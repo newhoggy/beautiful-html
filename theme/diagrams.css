@@ -1,0 +1,134 @@
+/* ==========================================================================
+   Diagrams — inline SVG vocabulary. Draw with classes, never hard-coded
+   colours, so every diagram follows the theme (light/dark) automatically.
+
+   <g class="node c1" data-id="api"><rect …/><text …>API</text></g>
+   <path class="edge flow" data-id="req" d="…"/>
+   <rect class="zone" …/>  <text class="label" …/>
+
+   Arrowheads: edges get marker-end automatically (markers injected by bh.js).
+   Stepper states: bh-stepper toggles .is-lit / .is-dim on [data-id] elements.
+   ========================================================================== */
+
+.diagram svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+
+/* ---- Nodes ------------------------------------------------------------------- */
+
+.node { --tone: var(--text-muted); }
+.node.c1 { --tone: var(--c1); }
+.node.c2 { --tone: var(--c2); }
+.node.c3 { --tone: var(--c3); }
+.node.c4 { --tone: var(--c4); }
+.node.c5 { --tone: var(--c5); }
+.node.c6 { --tone: var(--c6); }
+
+.node > :is(rect, circle, ellipse, polygon, path) {
+  fill: color-mix(in oklab, var(--tone) 11%, var(--surface));
+  stroke: var(--tone);
+  stroke-width: 1.5;
+}
+.node.solid > :is(rect, circle, ellipse, polygon, path) { fill: var(--tone); }
+.node.solid text { fill: var(--surface); }
+
+.node text, .diagram text {
+  fill: var(--text);
+  dominant-baseline: middle;
+}
+.node text { text-anchor: middle; font-weight: 600; }
+.node text.sub { font-weight: 400; font-size: 12px; fill: var(--text-muted); }
+
+/* Free-standing annotation text */
+.diagram .label { fill: var(--text-muted); font-size: 12px; font-weight: 400; }
+.diagram .label.strong { fill: var(--text); font-weight: 600; }
+.diagram .mono { font-family: var(--font-mono); font-size: 12px; }
+
+/* Boundaries: trust zones, hosts, VPCs */
+.zone {
+  fill: color-mix(in oklab, var(--text-muted) 4%, transparent);
+  stroke: var(--border-strong);
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+}
+.diagram .zone-label {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ---- Edges ------------------------------------------------------------------- */
+
+.edge {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  marker-end: url(#bh-arrow);
+}
+.edge.no-arrow { marker-end: none; }
+.edge.both { marker-start: url(#bh-arrow-start); }
+.edge.dashed { stroke-dasharray: 5 5; }
+.edge.c1 { stroke: var(--c1); } .edge.c2 { stroke: var(--c2); } .edge.c3 { stroke: var(--c3); }
+.edge.c4 { stroke: var(--c4); } .edge.c5 { stroke: var(--c5); } .edge.c6 { stroke: var(--c6); }
+
+/* Animated flow along an edge (marching dashes) */
+@media (prefers-reduced-motion: no-preference) {
+  .edge.flow {
+    stroke-dasharray: 6 6;
+    animation: bh-flow 0.9s linear infinite;
+  }
+}
+@keyframes bh-flow { to { stroke-dashoffset: -12; } }
+
+/* Marker shapes (defs injected once per page by bh.js) */
+.bh-arrow-head { fill: var(--text-muted); }
+.bh-arrow-head.lit { fill: var(--accent); }
+
+/* ---- Stepper states ----------------------------------------------------------- */
+
+.diagram [data-id] { transition: opacity var(--dur-3) var(--ease-out), filter var(--dur-3) var(--ease-out); }
+.diagram [data-id] > * { transition: stroke var(--dur-2), fill var(--dur-2), stroke-width var(--dur-2); }
+
+.diagram .is-dim { opacity: 0.22; }
+
+.node.is-lit { filter: drop-shadow(0 0 10px color-mix(in oklab, var(--tone) 45%, transparent)); }
+.node.is-lit > :is(rect, circle, ellipse, polygon, path) { stroke-width: 2.5; }
+
+.edge.is-lit {
+  stroke: var(--accent);
+  stroke-width: 2.25;
+  marker-end: url(#bh-arrow-lit);
+}
+.edge.no-arrow.is-lit { marker-end: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .edge.is-lit { stroke-dasharray: 6 6; animation: bh-flow 0.6s linear infinite; }
+}
+
+/* A moving packet: <circle class="packet" r="5"><animateMotion …/></circle> */
+.packet { fill: var(--accent); }
+
+/* ---- Legend ---------------------------------------------------------------------- */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin-top: var(--space-4);
+  padding: 0;
+  list-style: none;
+  font-size: var(--step--1);
+  color: var(--text-muted);
+}
+.legend li { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0 !important; }
+.legend .swatch { width: 0.85em; height: 0.85em; border-radius: 3px; background: var(--tone, var(--text-muted)); }
+.legend .c1 { --tone: var(--c1); } .legend .c2 { --tone: var(--c2); } .legend .c3 { --tone: var(--c3); }
+.legend .c4 { --tone: var(--c4); } .legend .c5 { --tone: var(--c5); } .legend .c6 { --tone: var(--c6); }

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}}</title>
+  <meta name="description" content="{{description}}">
+  <meta name="bh:kind" content="incident">
+  <meta name="bh:status" content="draft">
+  <meta name="bh:date" content="{{date}}">
+  <meta name="bh:authors" content="{{author}}">
+  <meta name="bh:tags" content="">
+  <script>try{var t=localStorage.getItem("bh-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+  <link rel="stylesheet" href="../theme/bh.css">
+  <script src="../theme/bh.js" defer></script>
+</head>
+<body data-home="../index.html">
+<main class="bh-page">
+  <article class="bh-article">
+
+    <!-- INCIDENT REVIEW: blameless. Facts on a timeline, mechanism in a diagram,
+         action items with owners. Times in UTC. -->
+
+    <header class="bh-hero">
+      <p class="eyebrow">Incident review</p>
+      <h1>{{title}}</h1>
+      <p class="lede">{{description}}</p>
+      <dl class="bh-meta" data-auto></dl>
+    </header>
+
+    <div class="metrics">
+      <div class="metric"><span class="value">—</span><span class="label">Duration</span></div>
+      <div class="metric"><span class="value">—</span><span class="label">Requests failed</span></div>
+      <div class="metric"><span class="value">—</span><span class="label">Customers affected</span></div>
+      <div class="metric"><span class="value">—</span><span class="label">Time to detect</span></div>
+    </div>
+
+    <h2 id="summary">Summary</h2>
+    <p>What happened, in three sentences a non-engineer can follow.</p>
+
+    <h2 id="timeline">Timeline</h2>
+    <ol class="timeline">
+      <li><time>00:00</time><div class="event"><strong>Trigger</strong><p>The change or event that started it.</p></div></li>
+      <li class="danger"><time>00:05</time><div class="event"><strong>Impact begins</strong><p>What users saw.</p></div></li>
+      <li class="warn"><time>00:12</time><div class="event"><strong>Detected</strong><p>How we found out.</p></div></li>
+      <li class="ok"><time>00:40</time><div class="event"><strong>Resolved</strong><p>What fixed it.</p></div></li>
+    </ol>
+
+    <h2 id="root-cause">Root cause</h2>
+    <figure class="diagram wide" id="failure">
+      <svg viewBox="-16 -16 672 152" role="img" aria-label="Failure propagation">
+        <g class="node c1" data-id="svc"><rect x="0" y="30" width="140" height="56" rx="10"/><text x="70" y="58">Service</text></g>
+        <g class="node c4" data-id="dep"><rect x="250" y="30" width="140" height="56" rx="10"/><text x="320" y="58">Dependency</text></g>
+        <g class="node c6" data-id="users"><rect x="500" y="30" width="140" height="56" rx="10"/><text x="570" y="58">Users</text></g>
+        <path class="edge c4" data-id="e1" d="M140 58 H248"/>
+        <path class="edge c4" data-id="e2" d="M390 58 H498"/>
+      </svg>
+      <figcaption>How the failure propagated.</figcaption>
+    </figure>
+    <bh-stepper for="failure">
+      <bh-step highlight="svc e1 dep"><p>The trigger.</p></bh-step>
+      <bh-step highlight="dep e2 users"><p>Why safeguards didn't contain it.</p></bh-step>
+    </bh-stepper>
+
+    <h2 id="what-went-well">What went well, what didn't</h2>
+    <div class="compare">
+      <div class="option"><h3>Went well</h3><ul class="pros"><li>…</li></ul></div>
+      <div class="option"><h3>Went poorly</h3><ul class="cons"><li>…</li></ul></div>
+    </div>
+
+    <h2 id="actions">Action items</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Action</th><th>Type</th><th>Owner</th><th>Status</th></tr></thead>
+        <tbody><tr><td>Prevent recurrence</td><td>Prevent</td><td>@owner</td><td><span class="badge open">Open</span></td></tr></tbody>
+      </table>
+    </div>
+
+    <footer class="bh-footer">
+      <span><a href="../index.html">← All documents</a></span>
+      <span>Updated {{date}}</span>
+    </footer>
+  </article>
+</main>
+</body>
+</html>

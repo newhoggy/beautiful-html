@@ -1,0 +1,348 @@
+/* ==========================================================================
+   Layout — page chrome (top bar, progress, TOC), article breakout grid,
+   hero, vertical rhythm, sidenotes, footer.
+   ========================================================================== */
+
+/* ---- Skip link -------------------------------------------------------------- */
+
+.skip-link {
+  position: fixed;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 100;
+  padding: var(--space-2) var(--space-4);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-radius: var(--radius-s);
+  transform: translateY(-200%);
+  transition: transform var(--dur-2) var(--ease-out);
+}
+.skip-link:focus { transform: none; }
+
+/* ---- Top bar ---------------------------------------------------------------- */
+
+.bh-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding-inline: max(var(--space-4), env(safe-area-inset-left)) max(var(--space-4), env(safe-area-inset-right));
+  background: color-mix(in oklab, var(--bg) 82%, transparent);
+  backdrop-filter: saturate(1.4) blur(12px);
+  -webkit-backdrop-filter: saturate(1.4) blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.bh-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text);
+  font-weight: 600;
+  font-size: var(--step--1);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.bh-brand-mark {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 6px;
+  background: conic-gradient(from 210deg, var(--c1), var(--c5), var(--c2), var(--c1));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 12%, transparent);
+}
+
+.bh-topbar-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+}
+.bh-topbar.show-title .bh-topbar-title { opacity: 1; transform: none; }
+
+.bh-topbar-actions { display: flex; gap: var(--space-1); margin-left: auto; }
+
+/* Reading progress: CSS scroll-driven where supported, JS sets --progress otherwise. */
+.bh-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+  transform-origin: 0 50%;
+  transform: scaleX(var(--progress, 0));
+}
+@supports (animation-timeline: scroll()) {
+  .bh-progress {
+    animation: bh-progress linear both;
+    animation-timeline: scroll(root block);
+  }
+  @keyframes bh-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+}
+
+/* ---- Page: optional TOC column + content column ------------------------------- */
+
+.bh-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  padding-bottom: var(--space-9);
+}
+
+@media (min-width: 1100px) {
+  .bh-page {
+    grid-template-columns: var(--toc-w) minmax(0, 1fr);
+    column-gap: var(--space-5);
+    max-width: 96rem;
+    margin-inline: auto;
+    padding-inline: var(--space-5);
+  }
+  .bh-page.no-toc { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---- Table of contents ------------------------------------------------------- */
+
+.bh-toc {
+  font-size: var(--step--1);
+  line-height: var(--leading-snug);
+  margin: var(--space-4) var(--space-4) 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.bh-toc > summary {
+  cursor: pointer;
+  padding: var(--space-3) var(--space-4);
+  font-weight: 600;
+  list-style: none;
+}
+.bh-toc > summary::-webkit-details-marker { display: none; }
+.bh-toc > summary::after { content: "▾"; float: right; color: var(--text-muted); transition: transform var(--dur-2); }
+.bh-toc:not([open]) > summary::after { transform: rotate(-90deg); }
+
+.bh-toc ol { list-style: none; margin: 0; padding: 0 var(--space-3) var(--space-3); }
+.bh-toc li.depth-3 { padding-left: var(--space-4); }
+.bh-toc a {
+  display: block;
+  padding: 0.3em 0.6em;
+  border-left: 2px solid transparent;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-radius: 0 4px 4px 0;
+  transition: color var(--dur-1), border-color var(--dur-1), background var(--dur-1);
+}
+.bh-toc a:hover { color: var(--text); background: var(--surface-2); }
+.bh-toc a.is-active { color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+
+@media (min-width: 1100px) {
+  .bh-toc {
+    position: sticky;
+    top: calc(var(--topbar-h) + var(--space-6));
+    align-self: start;
+    max-height: calc(100dvh - var(--topbar-h) - var(--space-7));
+    overflow: auto;
+    margin: var(--space-8) 0 0;
+    border: 0;
+    background: none;
+    scrollbar-width: thin;
+  }
+  .bh-toc > summary {
+    pointer-events: none;
+    padding: 0 0 var(--space-3) var(--space-3);
+    font-size: var(--step--2);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+  }
+  .bh-toc > summary::after { display: none; }
+  .bh-toc ol { padding: 0; }
+}
+
+/* ---- Article: named-line breakout grid -----------------------------------------
+   Children sit in `content` by default; add .wide or .full to break out.        */
+
+.bh-article {
+  --gutter: var(--space-4);
+  --flow: var(--space-5);
+  display: grid;
+  grid-template-columns:
+    [full-start] minmax(var(--gutter), 1fr)
+    [wide-start] minmax(0, 12rem)
+    [content-start] min(var(--measure), 100% - 2 * var(--gutter))
+    [content-end] minmax(0, 12rem)
+    [wide-end] minmax(var(--gutter), 1fr)
+    [full-end];
+  min-width: 0;
+}
+.bh-article > * { grid-column: content; min-width: 0; }
+.bh-article > .wide { grid-column: wide; }
+.bh-article > .full { grid-column: full; }
+
+/* Vertical rhythm: one spacing rule, adjusted around headings. */
+.bh-article > * + * { margin-top: var(--flow); }
+.bh-article > h2 {
+  margin-top: var(--space-8);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+.bh-article > h3 { margin-top: var(--space-6); }
+.bh-article > h2 + *, .bh-article > h3 + *, .bh-article > h4 + * { margin-top: var(--space-4); }
+
+.bh-article > ul, .bh-article > ol { padding-left: 1.25em; }
+.bh-article li + li { margin-top: var(--space-2); }
+.bh-article li::marker { color: var(--text-muted); }
+
+/* Section eyebrow on h2: "§2 · Design". Set automatically by bh.js. */
+.bh-article > h2[data-eyebrow]::before {
+  content: attr(data-eyebrow);
+  display: block;
+  margin-bottom: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--step--2);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* Heading anchors */
+.heading-anchor {
+  margin-left: 0.3em;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-weight: 400;
+  opacity: 0;
+  transition: opacity var(--dur-1);
+}
+:is(h2, h3):hover > .heading-anchor, .heading-anchor:focus-visible { opacity: 1; }
+
+/* ---- Hero ------------------------------------------------------------------------ */
+
+.bh-hero {
+  grid-column: wide !important;
+  padding-block: var(--space-8) var(--space-6);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+.bh-hero > * + * { margin-top: var(--space-4); }
+.bh-hero .lede {
+  max-width: 60ch;
+  font-size: var(--step-1);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.eyebrow {
+  font-size: var(--step--2);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.bh-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  margin: var(--space-5) 0 0;
+  font-size: var(--step--1);
+}
+.bh-meta > div { display: flex; flex-direction: column; gap: 2px; }
+.bh-meta dt {
+  font-size: var(--step--2);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.bh-meta dd { margin: 0; font-weight: 500; }
+
+/* ---- Lead paragraph ----------------------------------------------------------------- */
+
+.bh-article > .lead { font-size: var(--step-1); line-height: 1.55; }
+
+/* ---- Sidenotes (Tufte-style) --------------------------------------------------------
+   Author writes <span class="sidenote">…</span> inside a paragraph.
+   Wide screens: floats into the right gutter. Narrow: toggled by a numbered ref.  */
+
+.bh-article { counter-reset: sidenote figure table; }
+
+.sidenote-ref {
+  counter-increment: sidenote;
+  border: 0;
+  padding: 0 0.15em;
+  background: none;
+  color: var(--accent);
+  font-size: 0.75em;
+  font-weight: 600;
+  vertical-align: super;
+  line-height: 0;
+  cursor: pointer;
+}
+.sidenote-ref::after { content: counter(sidenote); }
+
+.sidenote {
+  display: block;
+  margin: var(--space-3) 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--accent);
+  background: var(--surface-2);
+  border-radius: 0 var(--radius-s) var(--radius-s) 0;
+  font-size: var(--step--1);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.js .sidenote:not(.is-open) { display: none; }
+.sidenote[data-n]::before { content: attr(data-n) ". "; font-weight: 600; color: var(--accent); }
+
+@media (min-width: 1440px) {
+  .js .sidenote, .js .sidenote:not(.is-open) {
+    display: block;
+    float: right;
+    clear: right;
+    width: 11rem;
+    margin: 0.3em -12.5rem 0 0;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .sidenote-ref { cursor: default; pointer-events: none; }
+}
+
+/* ---- Footer ------------------------------------------------------------------------ */
+
+.bh-footer {
+  grid-column: wide !important;
+  margin-top: var(--space-9) !important;
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--step--1);
+  color: var(--text-muted);
+}
+
+/* ---- Scroll reveal (only applied by JS to below-the-fold elements) ------------------ */
+
+@media (prefers-reduced-motion: no-preference) {
+  .reveal-pending {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  .reveal-in {
+    opacity: 1;
+    transform: none;
+    transition: opacity var(--dur-3) var(--ease-out), transform var(--dur-3) var(--ease-out);
+    transition-delay: calc(var(--reveal-i, 0) * 60ms);
+  }
+}

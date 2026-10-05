@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Token bucket rate limiting</title>
+  <meta name="description" content="How a token bucket admits bursts but enforces an average rate — with a live simulation, implementations, and the mistakes that bite in production.">
+  <meta name="bh:kind" content="explainer">
+  <meta name="bh:status" content="accepted">
+  <meta name="bh:date" content="2026-10-05">
+  <meta name="bh:authors" content="John Ky">
+  <meta name="bh:tags" content="rate limiting, networking, distributed systems">
+  <script>try{var t=localStorage.getItem("bh-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+  <link rel="stylesheet" href="../theme/bh.css">
+  <script src="../theme/bh.js" defer></script>
+  <style>
+    .sim-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    #sim-svg .slot { stroke: var(--c2); stroke-width: 1.5; fill: var(--surface); }
+    #sim-svg .slot-fill { fill: var(--c2); transition: opacity 80ms linear; }
+    #sim-svg .lane { fill: var(--surface-2); }
+    #sim-svg .dot-ok { fill: var(--ok); }
+    #sim-svg .dot-no { fill: var(--danger); }
+    #sim-svg .bucket-outline { fill: none; stroke: var(--border-strong); stroke-width: 1.5; }
+    #sim-svg .label { fill: var(--text-muted); font-size: 12px; }
+    #sim-svg .label.strong { fill: var(--text); font-weight: 600; }
+  </style>
+</head>
+<body data-home="../index.html">
+<main class="bh-page">
+  <article class="bh-article">
+
+    <header class="bh-hero">
+      <p class="eyebrow">Explainer · Rate limiting</p>
+      <h1>Token bucket rate limiting</h1>
+      <p class="lede">How one small data structure lets clients burst when they've been quiet, while still holding them to an average rate — and the production details that the textbook version leaves out.</p>
+      <dl class="bh-meta" data-auto></dl>
+    </header>
+
+    <div class="tldr">
+      <ul>
+        <li>A bucket holds up to <strong>b</strong> tokens and refills at <strong>r</strong> tokens per second. Each request spends a token; no token, no admission.</li>
+        <li>That gives you two knobs with clear meanings: <strong>b</strong> is the largest burst, <strong>r</strong> is the sustained rate.</li>
+        <li>You never need a timer. Refill is computed lazily from elapsed time whenever a request arrives.</li>
+      </ul>
+    </div>
+
+    <h2 id="mental-model">The mental model</h2>
+    <p class="lead">Picture a bucket under a dripping tap. Each drip is a token. A request may pass only if it can take a token out. If the bucket is full, the extra drips spill away and are lost.</p>
+    <p>That spill is the whole design. Saving is capped at <strong>b</strong> tokens, so a client that has been idle for an hour can't then fire an hour's worth of requests at once.<span class="sidenote">The token bucket is equivalent to GCRA (the generic cell rate algorithm) from ATM networking. GCRA stores one timestamp instead of a token count and a timestamp.</span> A client that has been idle for at least <strong>b/r</strong> seconds starts with a full bucket.</p>
+
+    <figure class="diagram wide" id="mechanism">
+      <svg viewBox="-16 -16 752 320" role="img" aria-label="Refill adds tokens to the bucket; the limiter takes a token per request, forwarding to the service or rejecting with 429">
+        <g class="node c6" data-id="refill"><rect x="0" y="10" width="150" height="48" rx="10"/><text x="75" y="28">Refill</text><text class="sub" x="75" y="45">r tokens / second</text></g>
+        <g class="node c2" data-id="bucket">
+          <path d="M220 40 H370 L356 176 Q355 184 347 184 H243 Q235 184 234 176 Z"/>
+          <text x="295" y="70">Bucket</text>
+          <text class="sub" x="295" y="88">holds ≤ b tokens</text>
+          <circle cx="262" cy="160" r="8" style="fill: var(--c2)"/>
+          <circle cx="284" cy="160" r="8" style="fill: var(--c2)"/>
+          <circle cx="306" cy="160" r="8" style="fill: var(--c2)"/>
+          <circle cx="328" cy="160" r="8" style="fill: var(--c2)"/>
+          <circle cx="273" cy="140" r="8" style="fill: var(--c2)"/>
+          <circle cx="295" cy="140" r="8" style="fill: var(--c2)"/>
+        </g>
+        <g class="node c3" data-id="requests"><rect x="0" y="200" width="150" height="48" rx="10"/><text x="75" y="224">Requests</text></g>
+        <g class="node c5" data-id="limiter"><rect x="430" y="200" width="130" height="48" rx="10"/><text x="495" y="224">Limiter</text></g>
+        <g class="node c1" data-id="service"><rect x="610" y="140" width="120" height="48" rx="10"/><text x="670" y="164">Service</text></g>
+        <g class="node c4" data-id="reject"><rect x="610" y="250" width="120" height="48" rx="10"/><text x="670" y="268">429</text><text class="sub" x="670" y="285">Retry-After</text></g>
+
+        <path class="edge" data-id="e-refill" d="M150 34 H295 V38"/>
+        <path class="edge" data-id="e-req" d="M150 224 H428"/>
+        <path class="edge dashed" data-id="e-take" d="M495 200 C495 130 430 112 366 112"/>
+        <path class="edge" data-id="e-allow" d="M560 214 C588 214 584 164 608 164"/>
+        <path class="edge" data-id="e-reject" d="M560 234 C588 234 584 274 608 274"/>
+
+        <text class="label" x="222" y="24" text-anchor="middle">drip</text>
+        <text class="label" x="290" y="212" text-anchor="middle">arrives</text>
+        <text class="label" x="440" y="96" text-anchor="middle">take 1 token</text>
+        <text class="label" x="586" y="182" text-anchor="end">token</text>
+        <text class="label" x="586" y="262" text-anchor="end">empty</text>
+      </svg>
+      <figcaption>The limiter is the only thing that moves. Refill isn't a background process. It is calculated when a request arrives.</figcaption>
+    </figure>
+
+    <h2 id="how-it-works">How a request is decided</h2>
+    <bh-stepper for="mechanism">
+      <bh-step highlight="requests e-req limiter"><p>A request arrives at the limiter with a timestamp <code>now</code>.</p></bh-step>
+      <bh-step highlight="refill e-refill bucket"><p><strong>Refill lazily.</strong> Add <code>(now − last) × r</code> tokens and clamp to <code>b</code>. Anything over the cap spills. Store <code>last = now</code>.</p></bh-step>
+      <bh-step highlight="limiter e-take bucket"><p><strong>Try to take a token.</strong> If <code>tokens ≥ 1</code>, subtract one. A request can cost more than one token. Weight expensive endpoints that way.</p></bh-step>
+      <bh-step highlight="limiter e-allow service"><p><strong>Admitted.</strong> Forward the request. The state for this client is just two numbers: <code>tokens</code> and <code>last</code>.</p></bh-step>
+      <bh-step highlight="limiter e-reject reject"><p><strong>Rejected.</strong> Return <code>429</code> with <code>Retry-After = (1 − tokens) / r</code>. The client knows exactly how long to wait, so it doesn't need to guess with a backoff.</p></bh-step>
+    </bh-stepper>
+
+    <h2 id="simulation">Watch it run</h2>
+    <p>The slots show tokens in the bucket, and the partly filled slot is the next token arriving. Below them is the last ten seconds of requests. Set the background traffic, then press <strong>Burst ×10</strong> and watch the bucket drain.</p>
+
+    <bh-playground class="wide" id="sim">
+      <div class="controls">
+        <label class="control"><span>Capacity b <output data-expr="b"></output></span>
+          <input type="range" name="b" min="1" max="20" value="8"></label>
+        <label class="control"><span>Refill rate r (tokens/s) <output data-expr="r" data-digits="1"></output></span>
+          <input type="range" name="r" min="0.5" max="10" step="0.5" value="2"></label>
+        <label class="control"><span>Background traffic (req/s) <output data-expr="load" data-digits="1"></output></span>
+          <input type="range" name="load" min="0" max="12" step="0.5" value="1"></label>
+      </div>
+      <svg id="sim-svg" viewBox="0 0 720 190" role="img" aria-label="Live simulation: token slots and a ten-second strip of admitted and rejected requests">
+        <text class="label strong" x="0" y="12">Bucket</text>
+        <rect class="bucket-outline" id="sim-outline" x="0" y="26" width="270" height="60" rx="10"/>
+        <g id="sim-slots"></g>
+        <text class="label strong" x="300" y="12">Last 10 s (newest on the left)</text>
+        <rect class="lane" x="300" y="26" width="420" height="60" rx="8"/>
+        <rect class="lane" x="300" y="96" width="420" height="60" rx="8"/>
+        <text class="label" x="308" y="40">admitted</text>
+        <text class="label" x="308" y="110">rejected</text>
+        <g id="sim-dots"></g>
+        <text class="label" x="300" y="180">now</text>
+        <text class="label" x="720" y="180" text-anchor="end">−10 s</text>
+      </svg>
+      <div class="sim-actions">
+        <button class="btn primary" type="button" data-sim="1">Send 1</button>
+        <button class="btn" type="button" data-sim="10">Burst ×10</button>
+        <button class="btn ghost" type="button" data-sim="reset">Reset</button>
+      </div>
+      <p class="readout">
+        Tokens <output id="sim-tokens">0</output> ·
+        admitted <output id="sim-ok">0</output> ·
+        rejected <output id="sim-no">0</output> ·
+        refill from empty takes <output data-expr="b / r" data-digits="1"></output> s
+      </p>
+    </bh-playground>
+
+    <details class="predict">
+      <summary>b = 10, r = 1/s, bucket full. A client sends 15 requests at once, then 1 per second. What happens?</summary>
+      <p>The first <strong>10</strong> are admitted and the next <strong>5</strong> are rejected. After that, every request at 1 per second is admitted. Each one spends the single token that arrived in the second before it, so the bucket stays almost empty. The client can't burst again until it slows below <em>r</em> and lets tokens build up.</p>
+    </details>
+
+    <h2 id="choosing-parameters">Choosing b and r</h2>
+    <p>Start from what the downstream system can take, not from what clients would like to send.</p>
+    <dl class="kv">
+      <dt>r</dt><dd>The sustained rate you can serve for every client at once, with headroom. If 200 clients share a backend that handles 10k req/s, the fair share is r ≈ 50.</dd>
+      <dt>b</dt><dd>The largest legitimate burst, such as a page load fanning out into parallel API calls. Too small and real users hit 429s. Too large and one client can saturate a replica briefly.</dd>
+      <dt>cost</dt><dd>Requests don't all weigh the same. Charge a report export 20 tokens and a health check 0.</dd>
+    </dl>
+
+    <h2 id="implementation">Implementation</h2>
+    <p>The core is about ten lines. The distributed version moves the same arithmetic into Redis, so the read-modify-write is atomic.</p>
+    <bh-tabs class="wide">
+      <section data-label="Rust">
+<pre data-title="token_bucket.rs"><code class="language-rust">use std::time::{Duration, Instant};
+
+pub struct TokenBucket {
+    capacity: f64, // b — largest burst
+    rate: f64,     // r — tokens per second
+    tokens: f64,
+    last: Instant, // monotonic clock: immune to NTP jumps
+}
+
+impl TokenBucket {
+    pub fn new(capacity: f64, rate: f64) -> Self {
+        Self { capacity, rate, tokens: capacity, last: Instant::now() }
+    }
+
+    /// Ok(()) if admitted, otherwise Err(how long until `cost` tokens exist).
+    pub fn try_acquire(&amp;mut self, cost: f64) -> Result&lt;(), Duration&gt; {
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.last).as_secs_f64();
+        self.tokens = (self.tokens + elapsed * self.rate).min(self.capacity);
+        self.last = now;
+
+        if self.tokens >= cost {
+            self.tokens -= cost;
+            Ok(())
+        } else {
+            Err(Duration::from_secs_f64((cost - self.tokens) / self.rate))
+        }
+    }
+}</code></pre>
+      </section>
+      <section data-label="Go">
+<pre data-title="bucket.go"><code class="language-go">type Bucket struct {
+	mu       sync.Mutex
+	capacity float64 // b
+	rate     float64 // r, tokens per second
+	tokens   float64
+	last     time.Time
+}
+
+func (b *Bucket) TryAcquire(cost float64) (ok bool, retryAfter time.Duration) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	now := time.Now() // carries a monotonic reading; Sub() uses it
+	b.tokens = math.Min(b.capacity, b.tokens+now.Sub(b.last).Seconds()*b.rate)
+	b.last = now
+
+	if b.tokens >= cost {
+		b.tokens -= cost
+		return true, 0
+	}
+	return false, time.Duration((cost - b.tokens) / b.rate * float64(time.Second))
+}</code></pre>
+      </section>
+      <section data-label="Redis (Lua)">
+<pre data-title="token_bucket.lua"><code class="language-lua">-- KEYS[1] = bucket key
+-- ARGV    = capacity, rate (tokens/s), now (ms, from the Redis TIME command), cost
+local b, r, now, cost = tonumber(ARGV[1]), tonumber(ARGV[2]), tonumber(ARGV[3]), tonumber(ARGV[4])
+
+local s = redis.call('HMGET', KEYS[1], 'tokens', 'ts')
+local tokens = tonumber(s[1]) or b
+local ts = tonumber(s[2]) or now
+
+tokens = math.min(b, tokens + math.max(0, now - ts) / 1000 * r)
+local ok = tokens >= cost
+if ok then tokens = tokens - cost end
+
+redis.call('HSET', KEYS[1], 'tokens', tokens, 'ts', now)
+redis.call('PEXPIRE', KEYS[1], math.ceil(b / r * 1000) + 1000) -- idle keys vanish when full
+return { ok and 1 or 0, tostring(tokens) }</code></pre>
+      </section>
+    </bh-tabs>
+
+    <h2 id="alternatives">How it compares</h2>
+    <div class="table-wrap wide">
+      <table>
+        <thead><tr><th>Algorithm</th><th>Bursts</th><th class="num">State per key</th><th>Boundary spikes</th><th>Best for</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Token bucket</strong></td><td class="yes">Up to b</td><td class="num">2 numbers</td><td class="yes">None</td><td>APIs: tolerate bursts, enforce an average</td></tr>
+          <tr><td>Leaky bucket (queue)</td><td class="no">Smoothed</td><td class="num">queue</td><td class="yes">None</td><td>Shaping output to a fixed rate</td></tr>
+          <tr><td>Fixed window</td><td>Up to 2× at edges</td><td class="num">1 counter</td><td class="no">Yes</td><td>Coarse quotas (per day)</td></tr>
+          <tr><td>Sliding log</td><td class="yes">Exact</td><td class="num">N timestamps</td><td class="yes">None</td><td>Low volume, exact limits</td></tr>
+          <tr><td>Sliding window counter</td><td>Approximate</td><td class="num">2 counters</td><td class="yes">Small</td><td>A cheap approximation of the log</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="gotchas">Gotchas in production</h2>
+    <aside class="callout warn">
+      <p class="callout-title">Wall-clock time</p>
+      <p>Measure elapsed time with a monotonic clock. If NTP steps the wall clock backwards, the elapsed time comes out negative. Without a clamp, that can drain the bucket, or in some code mint a huge pile of tokens.</p>
+    </aside>
+    <aside class="callout warn">
+      <p class="callout-title">Per-node limits multiply</p>
+      <p>Ten gateway replicas, each with its own bucket at r = 100, give a client an effective limit of 1,000. Either share state (the Redis script above) or divide <em>r</em> by the replica count and accept some unfairness.</p>
+    </aside>
+    <aside class="callout danger">
+      <p class="callout-title">Read-modify-write races</p>
+      <p>A distributed limiter that does <code>GET</code> and then <code>SET</code> as two round trips lets concurrent requests spend the same token twice. Run the update atomically, with a Lua script or a database transaction.</p>
+    </aside>
+    <details class="disclosure">
+      <summary>Go deeper: why return Retry-After?</summary>
+      <p>Clients that get a bare 429 back off blindly, usually with exponential backoff, and often all at the same moment. You already know when the next token will exist, so tell them. That turns a stampede of retries into an orderly queue.</p>
+    </details>
+
+    <h2 id="further-reading">Further reading</h2>
+    <ul>
+      <li><a href="https://en.wikipedia.org/wiki/Token_bucket">Token bucket (Wikipedia)</a>: the formal definition and its relation to the leaky bucket.</li>
+      <li><a href="https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm">Generic cell rate algorithm</a>: the same idea, storing a single timestamp.</li>
+      <li><a href="https://www.rfc-editor.org/rfc/rfc9110#field.retry-after">RFC 9110 §10.2.3, Retry-After</a>: the header semantics.</li>
+    </ul>
+
+    <footer class="bh-footer">
+      <span><a href="../index.html">← All documents</a></span>
+      <span>Updated 2026-10-05</span>
+    </footer>
+  </article>
+</main>
+
+<script>
+/* Page-specific simulation. Reads the bh-playground inputs directly each frame. */
+document.addEventListener("DOMContentLoaded", () => {
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const sim = document.getElementById("sim");
+  const slotsG = document.getElementById("sim-slots");
+  const dotsG = document.getElementById("sim-dots");
+  const outline = document.getElementById("sim-outline");
+  const out = { tokens: document.getElementById("sim-tokens"), ok: document.getElementById("sim-ok"), no: document.getElementById("sim-no") };
+  const input = (name) => +sim.querySelector(`input[name="${name}"]`).value;
+
+  const WINDOW = 10, STRIP_X = 300, STRIP_W = 420, PER_ROW = 10, GAP = 26;
+  let tokens = input("b"), last = performance.now() / 1000, nextArrival = Infinity;
+  let admitted = 0, rejected = 0, log = [], slotEls = [], builtFor = 0, visible = true;
+
+  function buildSlots(b) {
+    slotsG.replaceChildren();
+    slotEls = [];
+    const rows = Math.ceil(b / PER_ROW);
+    outline.setAttribute("height", rows * GAP + 22);
+    outline.setAttribute("width", Math.min(b, PER_ROW) * GAP + 18);
+    for (let i = 0; i < b; i++) {
+      const cx = 22 + (i % PER_ROW) * GAP, cy = 48 + Math.floor(i / PER_ROW) * GAP;
+      const ring = document.createElementNS(SVGNS, "circle");
+      ring.setAttribute("class", "slot"); ring.setAttribute("cx", cx); ring.setAttribute("cy", cy); ring.setAttribute("r", 10);
+      const fill = document.createElementNS(SVGNS, "circle");
+      fill.setAttribute("class", "slot-fill"); fill.setAttribute("cx", cx); fill.setAttribute("cy", cy); fill.setAttribute("r", 7);
+      slotsG.append(ring, fill);
+      slotEls.push(fill);
+    }
+    builtFor = b;
+  }
+
+  function request(now) {
+    const ok = tokens >= 1;
+    if (ok) { tokens -= 1; admitted++; } else { rejected++; }
+    const dot = document.createElementNS(SVGNS, "circle");
+    dot.setAttribute("class", ok ? "dot-ok" : "dot-no");
+    dot.setAttribute("r", 5);
+    dot.setAttribute("cy", (ok ? 56 : 126) + (Math.random() * 30 - 15));
+    dotsG.append(dot);
+    log.push({ t: now, el: dot });
+  }
+
+  function advance(t, b, r) {
+    tokens = Math.min(b, tokens + Math.max(0, t - last) * r);
+    last = Math.max(last, t);
+  }
+
+  function scheduleNext(now) {
+    const load = input("load");
+    nextArrival = load > 0 ? now - Math.log(1 - Math.random()) / load : Infinity; // Poisson arrivals
+  }
+
+  function frame() {
+    const now = performance.now() / 1000;
+    const b = input("b"), r = input("r");
+    if (b !== builtFor) { buildSlots(b); tokens = Math.min(tokens, b); }
+    if (nextArrival === Infinity && input("load") > 0) scheduleNext(now);
+    // Refill up to each arrival before deciding it, exactly as a real limiter would.
+    while (now >= nextArrival) { advance(nextArrival, b, r); request(nextArrival); scheduleNext(nextArrival); }
+    advance(now, b, r);
+
+    slotEls.forEach((el, i) => el.style.opacity = i < Math.floor(tokens) ? 1 : i === Math.floor(tokens) ? (tokens % 1) * 0.6 : 0);
+    while (log.length && now - log[0].t > WINDOW) log.shift().el.remove();
+    for (const e of log) e.el.setAttribute("cx", STRIP_X + 8 + ((now - e.t) / WINDOW) * (STRIP_W - 16));
+
+    out.tokens.textContent = tokens.toFixed(1);
+    out.ok.textContent = admitted;
+    out.no.textContent = rejected;
+    if (visible) requestAnimationFrame(frame);
+  }
+
+  sim.addEventListener("input", (e) => { if (e.target.name === "load") scheduleNext(performance.now() / 1000); });
+  sim.querySelectorAll("[data-sim]").forEach((btn) => btn.addEventListener("click", () => {
+    const now = performance.now() / 1000;
+    const v = btn.dataset.sim;
+    if (v === "reset") { tokens = input("b"); last = now; admitted = rejected = 0; log.forEach((e) => e.el.remove()); log = []; return; }
+    advance(now, input("b"), input("r"));
+    for (let i = 0; i < +v; i++) request(now);
+  }));
+
+  // Only animate while on screen.
+  new IntersectionObserver(([e]) => {
+    const was = visible;
+    visible = e.isIntersecting;
+    if (visible && !was) {
+      // Resume as if paused: no backlog of arrivals, but the bucket refills for the time away.
+      const now = performance.now() / 1000;
+      advance(now, input("b"), input("r"));
+      scheduleNext(now);
+      requestAnimationFrame(frame);
+    }
+  }).observe(sim);
+
+  buildSlots(input("b"));
+  requestAnimationFrame(frame);
+});
+</script>
+</body>
+</html>

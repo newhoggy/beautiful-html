@@ -1,0 +1,181 @@
+/* ==========================================================================
+   Base — reset, typography, links, inline code, focus, motion preferences.
+   ========================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--topbar-h) + var(--space-4));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: var(--leading);
+  font-kerning: normal;
+  font-variant-ligatures: common-ligatures;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+img, svg, video, canvas { max-width: 100%; }
+img, video { height: auto; display: block; }
+
+/* ---- Headings ------------------------------------------------------------ */
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  margin: 0;
+  font-variation-settings: "opsz" 72;
+}
+h1 { font-size: var(--step-4); letter-spacing: -0.02em; font-variation-settings: "opsz" 144; }
+h2 { font-size: var(--step-3); }
+h3 { font-size: var(--step-2); font-variation-settings: "opsz" 36; }
+h4 { font-size: var(--step-1); font-family: var(--font-body); letter-spacing: 0; }
+
+p, li, dd, figcaption { text-wrap: pretty; }
+p { margin: 0; }
+
+strong, b { font-weight: 600; }
+
+/* ---- Links ---------------------------------------------------------------- */
+
+a {
+  color: var(--accent);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in oklab, var(--accent) 40%, transparent);
+  text-underline-offset: 0.18em;
+  transition: text-decoration-color var(--dur-1) var(--ease-out);
+}
+a:hover { text-decoration-color: currentColor; }
+
+/* ---- Inline semantics ------------------------------------------------------ */
+
+code, kbd, samp, pre { font-family: var(--font-mono); font-size: 0.88em; }
+
+:not(pre) > code {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.08em 0.35em;
+  overflow-wrap: anywhere;
+}
+
+kbd {
+  display: inline-block;
+  padding: 0.05em 0.45em;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--surface);
+  font-size: 0.82em;
+  line-height: 1.4;
+}
+
+mark {
+  background: color-mix(in oklab, var(--warn) 22%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 0.15em;
+}
+
+abbr[title] { text-decoration: underline dotted; cursor: help; }
+
+hr {
+  border: 0;
+  height: 1px;
+  background: var(--border);
+  margin-block: var(--space-7);
+}
+
+::selection { background: color-mix(in oklab, var(--accent) 28%, transparent); }
+
+/* ---- Focus ----------------------------------------------------------------- */
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---- Buttons & form controls ----------------------------------------------- */
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.45em 0.95em;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--step--1);
+  font-weight: 500;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: background var(--dur-1), border-color var(--dur-1), transform var(--dur-1);
+}
+.btn:hover { background: var(--surface-2); }
+.btn:active { transform: translateY(1px); }
+.btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.btn.primary:hover { background: color-mix(in oklab, var(--accent) 88%, var(--text)); }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--surface-2); }
+.btn.icon { padding: 0.45em; }
+
+input[type="range"] { accent-color: var(--accent); width: 100%; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
+
+input[type="text"], input[type="search"], input[type="number"], select, textarea {
+  padding: 0.45em 0.7em;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+
+/* ---- Utilities -------------------------------------------------------------- */
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.muted { color: var(--text-muted); }
+.mono { font-family: var(--font-mono); }
+.nowrap { white-space: nowrap; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---- Reduced motion: kill non-essential animation globally ------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

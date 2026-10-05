@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}}</title>
+  <meta name="description" content="{{description}}">
+  <meta name="bh:kind" content="design">
+  <meta name="bh:status" content="draft">
+  <meta name="bh:date" content="{{date}}">
+  <meta name="bh:authors" content="{{author}}">
+  <meta name="bh:tags" content="">
+  <script>try{var t=localStorage.getItem("bh-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+  <link rel="stylesheet" href="../theme/bh.css">
+  <script src="../theme/bh.js" defer></script>
+</head>
+<body data-home="../index.html">
+<main class="bh-page">
+  <article class="bh-article">
+
+    <!-- DESIGN DOC: persuade reviewers that the problem is real and this design is the
+         right trade-off. Lead with the decision you want; put alternatives side by side. -->
+
+    <header class="bh-hero">
+      <p class="eyebrow">Design document</p>
+      <h1>{{title}}</h1>
+      <p class="lede">{{description}}</p>
+      <dl class="bh-meta" data-auto></dl>
+    </header>
+
+    <div class="tldr">
+      <ul>
+        <li><strong>Problem:</strong> one sentence.</li>
+        <li><strong>Proposal:</strong> one sentence.</li>
+        <li><strong>Ask:</strong> what you need from reviewers, by when.</li>
+      </ul>
+    </div>
+
+    <h2 id="context">Context &amp; problem</h2>
+    <p>What exists today, what hurts, and the evidence.</p>
+    <div class="metrics">
+      <div class="metric"><span class="value">—</span><span class="label">Key metric today</span></div>
+      <div class="metric"><span class="value">—</span><span class="label">Target</span></div>
+      <div class="metric"><span class="value">—</span><span class="label">Cost of doing nothing</span></div>
+    </div>
+
+    <h2 id="goals">Goals &amp; non-goals</h2>
+    <div class="compare">
+      <div class="option"><h3>Goals</h3><ul class="pros"><li>Measurable goal</li></ul></div>
+      <div class="option"><h3>Non-goals</h3><ul class="cons"><li>Explicitly out of scope</li></ul></div>
+    </div>
+
+    <h2 id="design">Proposed design</h2>
+    <figure class="diagram wide" id="arch">
+      <svg viewBox="-16 -16 672 212" role="img" aria-label="Architecture overview">
+        <rect class="zone" x="210" y="0" width="430" height="180" rx="12"/>
+        <text class="zone-label" x="226" y="18">Our system</text>
+        <g class="node c3" data-id="user"><rect x="0" y="62" width="140" height="56" rx="10"/><text x="70" y="90">Caller</text></g>
+        <g class="node c1" data-id="api"><rect x="250" y="62" width="140" height="56" rx="10"/><text x="320" y="90">API</text></g>
+        <g class="node c2" data-id="db"><rect x="480" y="62" width="140" height="56" rx="10"/><text x="550" y="90">Database</text></g>
+        <path class="edge" data-id="e1" d="M140 90 H248"/>
+        <path class="edge" data-id="e2" d="M390 90 H478"/>
+      </svg>
+      <figcaption>The components and where the boundary sits.</figcaption>
+    </figure>
+    <bh-stepper for="arch">
+      <bh-step highlight="user e1 api"><p>Walk the main request path.</p></bh-step>
+      <bh-step highlight="api e2 db"><p>Then the write path.</p></bh-step>
+    </bh-stepper>
+
+    <h3 id="interfaces">Interfaces</h3>
+    <bh-tabs>
+      <section data-label="API"><pre><code class="language-http">POST /v1/things</code></pre></section>
+      <section data-label="Schema"><pre><code class="language-sql">CREATE TABLE things (id bigint primary key);</code></pre></section>
+    </bh-tabs>
+
+    <h2 id="alternatives">Alternatives considered</h2>
+    <div class="compare">
+      <div class="option chosen"><h3>Option A</h3><p>Summary.</p><ul class="pros"><li>Pro</li></ul><ul class="cons"><li>Con</li></ul></div>
+      <div class="option"><h3>Option B</h3><p>Summary.</p><ul class="pros"><li>Pro</li></ul><ul class="cons"><li>Con</li></ul></div>
+      <div class="option"><h3>Do nothing</h3><p>Always include the baseline.</p><ul class="cons"><li>Con</li></ul></div>
+    </div>
+
+    <h2 id="risks">Risks &amp; mitigations</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Risk</th><th>Likelihood</th><th>Impact</th><th>Mitigation</th></tr></thead>
+        <tbody><tr><td>Describe the risk</td><td><span class="badge medium">Medium</span></td><td><span class="badge high">High</span></td><td>What we do about it</td></tr></tbody>
+      </table>
+    </div>
+
+    <h2 id="rollout">Rollout plan</h2>
+    <ol class="timeline">
+      <li><time>Week 1</time><div class="event"><strong>Milestone</strong><p>What ships, how we verify.</p></div></li>
+      <li><time>Week 3</time><div class="event"><strong>Milestone</strong><p>Exit criteria.</p></div></li>
+    </ol>
+
+    <h2 id="open-questions">Open questions</h2>
+    <ol>
+      <li>Question, owner, and when it must be answered.</li>
+    </ol>
+
+    <footer class="bh-footer">
+      <span><a href="../index.html">← All documents</a></span>
+      <span>Updated {{date}}</span>
+    </footer>
+  </article>
+</main>
+</body>
+</html>

@@ -1,0 +1,28 @@
+/* ==========================================================================
+   Print — drop chrome, expand collapsed content, show every stepper step.
+   ========================================================================== */
+
+@media print {
+  :root { color-scheme: light; }
+  body { background: #fff; font-size: 11pt; }
+
+  .bh-topbar, .bh-toc, .skip-link, .bh-stepper-bar, .bh-tablist, .copy-btn, .heading-anchor, .sidenote-ref { display: none !important; }
+
+  .bh-page { display: block; padding: 0; }
+  .bh-article { display: block; }
+  .bh-article > * + * { margin-top: 1em; }
+
+  bh-stepper.is-ready bh-step:not(.is-active),
+  bh-tabs.is-ready > section[hidden],
+  .js .sidenote:not(.is-open) { display: block !important; }
+
+  details > :not(summary) { display: block !important; }
+  details::details-content { block-size: auto !important; content-visibility: visible !important; }
+
+  .reveal-pending { opacity: 1 !important; transform: none !important; }
+  .diagram .is-dim { opacity: 1 !important; }
+
+  figure, pre, table, .callout, .option, .card { break-inside: avoid; }
+  h2, h3 { break-after: avoid; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 0.8em; color: #555; }
+}

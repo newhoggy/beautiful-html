@@ -1,0 +1,15 @@
+{
+  "name": "beautiful-html",
+  "private": true,
+  "type": "module",
+  "description": "Technical explainers, designs and decisions as rich, interactive, single-theme HTML.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "new": "node scripts/bh.mjs new",
+    "index": "node scripts/bh.mjs index",
+    "check": "node scripts/bh.mjs check",
+    "bundle": "node scripts/bh.mjs bundle",
+    "bundle:all": "node scripts/bh.mjs bundle --all",
+    "serve": "node scripts/bh.mjs serve"
+  }
+}

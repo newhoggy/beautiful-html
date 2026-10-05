@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}}</title>
+  <meta name="description" content="{{description}}">
+  <meta name="bh:kind" content="decision">
+  <meta name="bh:status" content="proposed">
+  <meta name="bh:date" content="{{date}}">
+  <meta name="bh:authors" content="{{author}}">
+  <meta name="bh:tags" content="">
+  <script>try{var t=localStorage.getItem("bh-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+  <link rel="stylesheet" href="../theme/bh.css">
+  <script src="../theme/bh.js" defer></script>
+</head>
+<body data-home="../index.html">
+<main class="bh-page">
+  <article class="bh-article">
+
+    <!-- ADR: short and permanent. Status: proposed | accepted | rejected | superseded.
+         When superseded, link the replacement at the top; never delete an ADR. -->
+
+    <header class="bh-hero">
+      <p class="eyebrow">Architecture decision record</p>
+      <h1>{{title}}</h1>
+      <p class="lede">{{description}}</p>
+      <dl class="bh-meta" data-auto></dl>
+    </header>
+
+    <div class="decision">
+      <p>We will … because …</p>
+    </div>
+
+    <h2 id="context">Context</h2>
+    <p>The forces at play: technical, organisational, deadlines. Facts, not opinions.</p>
+
+    <h2 id="options">Options considered</h2>
+    <div class="compare">
+      <div class="option chosen"><h3>Option A</h3><ul class="pros"><li>Pro</li></ul><ul class="cons"><li>Con</li></ul></div>
+      <div class="option"><h3>Option B</h3><ul class="pros"><li>Pro</li></ul><ul class="cons"><li>Con</li></ul></div>
+    </div>
+
+    <h2 id="consequences">Consequences</h2>
+    <div class="compare">
+      <div class="option"><h3>What gets easier</h3><ul class="pros"><li>…</li></ul></div>
+      <div class="option"><h3>What gets harder</h3><ul class="cons"><li>…</li></ul></div>
+    </div>
+
+    <h2 id="related">Related</h2>
+    <ul>
+      <li>Links to issues, design docs, superseded ADRs.</li>
+    </ul>
+
+    <footer class="bh-footer">
+      <span><a href="../index.html">← All documents</a></span>
+      <span>Updated {{date}}</span>
+    </footer>
+  </article>
+</main>
+</body>
+</html>

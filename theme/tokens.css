@@ -1,0 +1,91 @@
+/* ==========================================================================
+   Design tokens — the single source of truth for colour, type, space, motion.
+   Colours use light-dark(), so each token is defined once for both themes.
+   The theme follows the OS unless <html data-theme="light|dark"> overrides it.
+   ========================================================================== */
+
+:root {
+  color-scheme: light dark;
+
+  /* ---- Typography ------------------------------------------------------ */
+  --font-display: "Fraunces", ui-serif, Georgia, "Times New Roman", serif;
+  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Fluid modular scale (~1.2 on mobile → ~1.25 on desktop) */
+  --step--2: clamp(0.72rem, 0.70rem + 0.10vw, 0.78rem);
+  --step--1: clamp(0.84rem, 0.81rem + 0.15vw, 0.92rem);
+  --step-0:  clamp(1rem, 0.96rem + 0.20vw, 1.0625rem);
+  --step-1:  clamp(1.18rem, 1.10rem + 0.40vw, 1.38rem);
+  --step-2:  clamp(1.42rem, 1.28rem + 0.70vw, 1.80rem);
+  --step-3:  clamp(1.75rem, 1.50rem + 1.30vw, 2.50rem);
+  --step-4:  clamp(2.15rem, 1.70rem + 2.30vw, 3.50rem);
+
+  --leading: 1.65;
+  --leading-snug: 1.35;
+  --leading-tight: 1.12;
+  --measure: 66ch;
+
+  /* ---- Space (4px base) -------------------------------------------------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+
+  --radius-s: 6px;
+  --radius: 10px;
+  --radius-l: 16px;
+  --radius-pill: 999px;
+
+  --topbar-h: 3.25rem;
+  --toc-w: 14rem;
+
+  /* ---- Motion ------------------------------------------------------------ */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-1: 120ms;
+  --dur-2: 220ms;
+  --dur-3: 420ms;
+
+  /* ---- Colour: surfaces & text -------------------------------------------- */
+  --bg:            light-dark(#f6f7f9, #0c0e12);
+  --surface:       light-dark(#ffffff, #14171d);
+  --surface-2:     light-dark(#eef0f4, #1b1f27);
+  --text:          light-dark(#15181e, #e7e9ee);
+  --text-muted:    light-dark(#596173, #9ba3b4);
+  --border:        light-dark(#dfe3ea, #272c36);
+  --border-strong: light-dark(#c4cad5, #3a414e);
+  --code-bg:       light-dark(#f2f3f7, #10131a);
+
+  /* ---- Colour: accent & semantic (each has a -soft background tint) -------- */
+  --accent:          light-dark(#4338ca, #a5a8ff);
+  --accent-soft:     light-dark(#e9e8fd, #22234a);
+  --accent-contrast: light-dark(#ffffff, #0c0e12);
+
+  --info:   light-dark(#0b63bd, #6cb6ff);  --info-soft:   light-dark(#e4f0fc, #0f2236);
+  --ok:     light-dark(#13804b, #4fd18b);  --ok-soft:     light-dark(#e2f5eb, #0e2a1d);
+  --warn:   light-dark(#9a5800, #f2b450);  --warn-soft:   light-dark(#fdf1dc, #2e2210);
+  --danger: light-dark(#c4262e, #ff7b80);  --danger-soft: light-dark(#fde6e7, #351416);
+
+  /* ---- Colour: categorical (diagrams, charts). Assign by meaning, keep consistent. */
+  --c1: light-dark(#4338ca, #a5a8ff); /* indigo — primary actor / our system */
+  --c2: light-dark(#0f766e, #4fd1c5); /* teal   — data, storage */
+  --c3: light-dark(#b45309, #f6ad55); /* amber  — external, third-party */
+  --c4: light-dark(#be185d, #f687b3); /* rose   — failure path, contention */
+  --c5: light-dark(#0369a1, #63b3ed); /* sky    — network, transport */
+  --c6: light-dark(#475569, #a0aec0); /* slate  — infrastructure, neutral */
+
+  /* ---- Elevation ------------------------------------------------------------ */
+  --shadow-1: 0 1px 2px light-dark(rgb(16 24 40 / 0.06), rgb(0 0 0 / 0.5)),
+              0 1px 3px light-dark(rgb(16 24 40 / 0.08), rgb(0 0 0 / 0.3));
+  --shadow-2: 0 4px 12px light-dark(rgb(16 24 40 / 0.08), rgb(0 0 0 / 0.45)),
+              0 2px 4px light-dark(rgb(16 24 40 / 0.05), rgb(0 0 0 / 0.3));
+}
+
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"]  { color-scheme: dark; }

@@ -1,0 +1,18 @@
+/* ==========================================================================
+   beautiful-html theme — entry point. Link this one file from every page:
+     <link rel="stylesheet" href="../theme/bh.css">
+   Cascade layers keep specificity predictable: page-specific <style> blocks
+   (unlayered) always win over the theme without needing !important.
+   ========================================================================== */
+
+/* Order matters: the @layer statement must come before every @import. */
+@layer tokens, base, layout, components, diagrams, print;
+
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap");
+
+@import url("tokens.css") layer(tokens);
+@import url("base.css") layer(base);
+@import url("layout.css") layer(layout);
+@import url("components.css") layer(components);
+@import url("diagrams.css") layer(diagrams);
+@import url("print.css") layer(print);

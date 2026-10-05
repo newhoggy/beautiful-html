@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Component gallery</title>
+  <meta name="description" content="Every building block in the theme, with the markup to use it. The visual reference for authors and agents.">
+  <meta name="bh:kind" content="reference">
+  <meta name="bh:status" content="accepted">
+  <meta name="bh:date" content="2026-10-05">
+  <meta name="bh:authors" content="John Ky">
+  <meta name="bh:tags" content="theme, components, reference">
+  <script>try{var t=localStorage.getItem("bh-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+  <link rel="stylesheet" href="../theme/bh.css">
+  <script src="../theme/bh.js" defer></script>
+</head>
+<body data-home="../index.html">
+<main class="bh-page">
+  <article class="bh-article">
+
+    <header class="bh-hero">
+      <p class="eyebrow">Reference</p>
+      <h1>Component gallery</h1>
+      <p class="lede">Every building block in the theme, rendered live. View source to copy the markup — each section is self-contained.</p>
+      <dl class="bh-meta" data-auto></dl>
+    </header>
+
+    <div class="tldr">
+      <ul>
+        <li>Pages are plain HTML linking <code>theme/bh.css</code> and <code>theme/bh.js</code> — no build step.</li>
+        <li>Chrome (top bar, contents, progress, anchors, theme toggle) is added automatically.</li>
+        <li>Interactive parts are web components that fall back to readable static content.</li>
+      </ul>
+    </div>
+
+    <!-- ================================================================ -->
+    <h2 id="typography">Typography</h2>
+    <p class="lead">A <code>.lead</code> paragraph opens a section with a little more presence.</p>
+    <p>Body copy is set in IBM Plex Sans at a comfortable measure, with headings in Fraunces. Inline elements: <code>inline_code()</code>, <kbd>⌘</kbd> <kbd>K</kbd>, <mark>highlighted text</mark>, <abbr title="Architecture Decision Record">ADR</abbr>, and <a href="#typography">a link</a>. Sidenotes keep asides out of the main line of thought.<span class="sidenote">On wide screens this floats into the margin; on narrow screens tap the number to expand it.</span></p>
+    <h3 id="headings">A third-level heading</h3>
+    <p>Second-level headings get an automatic <code>§n</code> eyebrow and appear in the contents; third-level headings are indented beneath them.</p>
+
+    <!-- ================================================================ -->
+    <h2 id="callouts">Callouts</h2>
+    <aside class="callout"><p class="callout-title">Note</p><p>Neutral information the reader should not miss.</p></aside>
+    <aside class="callout tip"><p class="callout-title">Tip</p><p>A shortcut or recommended practice.</p></aside>
+    <aside class="callout warn"><p class="callout-title">Gotcha</p><p>Something that surprises people.</p></aside>
+    <aside class="callout danger"><p class="callout-title">Danger</p><p>Data loss, security, or outage risk.</p></aside>
+
+    <h3 id="badges">Badges</h3>
+    <p>
+      <span class="badge draft">Draft</span>
+      <span class="badge proposed">Proposed</span>
+      <span class="badge accepted">Accepted</span>
+      <span class="badge review">In review</span>
+      <span class="badge rejected">Rejected</span>
+      <span class="badge superseded">Superseded</span>
+      <span class="badge high">High</span>
+      <span class="badge medium">Medium</span>
+      <span class="badge low">Low</span>
+      <span class="badge accent plain">v2.4.0</span>
+    </p>
+
+    <!-- ================================================================ -->
+    <h2 id="cards-metrics">Cards &amp; metrics</h2>
+    <ul class="cards wide">
+      <li class="card"><span class="card-icon">1</span><h3>Single source</h3><p>Tokens in one file drive every colour, size and duration.</p></li>
+      <li class="card"><span class="card-icon">2</span><h3>Both themes</h3><p>Light and dark from <code>light-dark()</code> — no duplicated rules.</p></li>
+      <li class="card"><span class="card-icon">3</span><h3>Degrades well</h3><p>No JavaScript? Steps become a list, tabs become sections.</p></li>
+    </ul>
+    <div class="metrics wide">
+      <div class="metric"><span class="value">99.95%</span><span class="label">Availability (30d)</span></div>
+      <div class="metric"><span class="value">142 ms</span><span class="label">p99 latency <span class="delta down">+18%</span></span></div>
+      <div class="metric"><span class="value">3.2k</span><span class="label">Requests / s <span class="delta up">+6%</span></span></div>
+      <div class="metric"><span class="value">0</span><span class="label">Open incidents</span></div>
+    </div>
+
+    <!-- ================================================================ -->
+    <h2 id="comparisons">Comparisons &amp; decisions</h2>
+    <div class="compare wide">
+      <div class="option chosen">
+        <h3>PostgreSQL</h3>
+        <p>Relational, mature, already operated by the team.</p>
+        <ul class="pros"><li>Transactions across tables</li><li>Existing runbooks</li></ul>
+        <ul class="cons"><li>Vertical scaling ceiling</li></ul>
+      </div>
+      <div class="option">
+        <h3>DynamoDB</h3>
+        <p>Managed key-value with predictable latency.</p>
+        <ul class="pros"><li>No capacity planning</li></ul>
+        <ul class="cons"><li>Access patterns fixed up-front</li><li>Vendor lock-in</li></ul>
+      </div>
+    </div>
+    <div class="decision">
+      <p>We will use PostgreSQL with read replicas, because transactional integrity outweighs elastic scaling at our current size.</p>
+      <p class="muted">Revisit when write volume exceeds 5k/s.</p>
+    </div>
+
+    <!-- ================================================================ -->
+    <h2 id="sequences">Steps &amp; timelines</h2>
+    <ol class="steps">
+      <li><strong>Drain the node.</strong> Stop routing new traffic and wait for in-flight requests.</li>
+      <li><strong>Upgrade.</strong> Apply the new image and restart the service.</li>
+      <li><strong>Verify &amp; restore.</strong> Health checks pass, then re-add to the pool.</li>
+    </ol>
+    <ol class="timeline">
+      <li><time>14:02</time><div class="event"><strong>Deploy begins</strong><p>Config change rolled to 5% of hosts.</p></div></li>
+      <li class="danger"><time>14:06</time><div class="event"><strong>Error rate spikes</strong><p>5xx climbs to 12% on canary hosts.</p></div></li>
+      <li class="warn"><time>14:09</time><div class="event"><strong>Alert fires</strong><p>On-call paged by SLO burn alert.</p></div></li>
+      <li class="ok"><time>14:15</time><div class="event"><strong>Rolled back</strong><p>Error rate returns to baseline.</p></div></li>
+    </ol>
+
+    <!-- ================================================================ -->
+    <h2 id="data">Key-values &amp; tables</h2>
+    <dl class="kv">
+      <dt>Service</dt><dd><code>billing-api</code></dd>
+      <dt>Owner</dt><dd>Payments platform</dd>
+      <dt>Runtime</dt><dd>Rust 1.90, Tokio, Axum</dd>
+    </dl>
+    <div class="table-wrap wide">
+      <table>
+        <caption>Latency by region, last 7 days.</caption>
+        <thead><tr><th>Region</th><th class="num">p50</th><th class="num">p99</th><th>Meets SLO</th></tr></thead>
+        <tbody>
+          <tr><td>us-east-1</td><td class="num">21 ms</td><td class="num">96 ms</td><td class="yes">Yes</td></tr>
+          <tr><td>eu-west-1</td><td class="num">24 ms</td><td class="num">131 ms</td><td class="yes">Yes</td></tr>
+          <tr><td>ap-southeast-2</td><td class="num">38 ms</td><td class="num">412 ms</td><td class="no">No</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ================================================================ -->
+    <h2 id="disclosure">Disclosure &amp; predict-then-reveal</h2>
+    <details class="disclosure">
+      <summary>Go deeper: why not just retry?</summary>
+      <p>Retries multiply load during an outage. Without jittered backoff and a retry budget, a brief blip becomes a sustained overload.</p>
+    </details>
+    <details class="predict">
+      <summary>If each of 3 layers retries 3 times, how many calls can one request cause?</summary>
+      <p><strong>4³ = 64.</strong> Each layer makes up to 4 attempts (1 + 3 retries), and they multiply.</p>
+    </details>
+
+    <!-- ================================================================ -->
+    <h2 id="code">Code</h2>
+    <p>Language classes get syntax highlighting (Prism, loaded only when needed). Every block gets a copy button; <code>data-title</code> labels it.</p>
+    <pre data-title="src/limiter.rs"><code class="language-rust">pub fn try_acquire(&amp;mut self, now: Instant) -&gt; bool {
+    self.refill(now);                // ①
+    if self.tokens &gt;= 1.0 {
+        self.tokens -= 1.0;          // ②
+        true
+    } else {
+        false                        // ③
+    }
+}</code></pre>
+    <h3 id="annotated-code">Annotated code</h3>
+    <pre class="no-chrome"><code>let tokens = min(capacity, tokens + elapsed * rate);<span class="marker">1</span>
+if tokens &gt;= cost { tokens -= cost; allow() }<span class="marker">2</span>
+else { reject(retry_after(cost - tokens)) }<span class="marker">3</span></code></pre>
+    <ol class="annotations">
+      <li>Refill lazily from elapsed time — no background timer needed.</li>
+      <li>Spend tokens only when the request is admitted.</li>
+      <li>Tell the client exactly when to come back.</li>
+    </ol>
+    <h3 id="diffs">Diffs</h3>
+    <pre class="diff" data-title="config.yaml"><code>  timeout_ms: 2000
+<span class="del">- retries: 5</span><span class="add">+ retries: 2</span><span class="add">+ retry_budget: 0.1</span>  backoff: exponential</code></pre>
+
+    <!-- ================================================================ -->
+    <h2 id="diagrams">Diagrams</h2>
+    <p>Inline SVG drawn with theme classes — <code>.node.c1…c6</code>, <code>.edge</code>, <code>.zone</code>, <code>.label</code>. Colours follow the theme; arrowheads are automatic. Pair a diagram with <code>&lt;bh-stepper for="…"&gt;</code> to walk through it.</p>
+
+    <figure class="diagram wide" id="gallery-arch">
+      <svg viewBox="-16 -16 752 262" role="img" aria-label="Client calls gateway, which calls service; service reads cache and database, and publishes to a queue">
+        <rect class="zone" x="190" y="0" width="546" height="230" rx="14"/>
+        <text class="zone-label" x="206" y="20">Production VPC</text>
+
+        <g class="node c3" data-id="client"><rect x="0" y="87" width="130" height="56" rx="10"/><text x="65" y="108">Client</text><text class="sub" x="65" y="126">browser</text></g>
+        <g class="node c5" data-id="gw"><rect x="230" y="87" width="130" height="56" rx="10"/><text x="295" y="115">Gateway</text></g>
+        <g class="node c1" data-id="svc"><rect x="420" y="87" width="130" height="56" rx="10"/><text x="485" y="115">Service</text></g>
+        <g class="node c2" data-id="cache"><rect x="600" y="30" width="120" height="48" rx="10"/><text x="660" y="54">Cache</text></g>
+        <g class="node c2" data-id="db"><rect x="600" y="152" width="120" height="48" rx="24"/><text x="660" y="176">Database</text></g>
+        <g class="node c6" data-id="queue"><rect x="420" y="190" width="130" height="34" rx="8"/><text x="485" y="207">Queue</text></g>
+
+        <path class="edge" data-id="e-client-gw" d="M130 115 H228"/>
+        <path class="edge" data-id="e-gw-svc" d="M360 115 H418"/>
+        <path class="edge" data-id="e-svc-cache" d="M550 105 C575 105 575 54 598 54"/>
+        <path class="edge" data-id="e-svc-db" d="M550 125 C575 125 575 176 598 176"/>
+        <path class="edge dashed" data-id="e-svc-queue" d="M485 143 V188"/>
+        <text class="label" x="179" y="103" text-anchor="middle">HTTPS</text>
+        <text class="label" x="586" y="40" text-anchor="end">hit?</text>
+      </svg>
+      <figcaption>A request path. Use the stepper below; edges animate while lit.</figcaption>
+    </figure>
+    <ul class="legend">
+      <li><span class="swatch c3"></span>External</li>
+      <li><span class="swatch c5"></span>Network edge</li>
+      <li><span class="swatch c1"></span>Our service</li>
+      <li><span class="swatch c2"></span>Storage</li>
+      <li><span class="swatch c6"></span>Infrastructure</li>
+    </ul>
+    <bh-stepper for="gallery-arch">
+      <bh-step highlight="client e-client-gw gw"><p>The client calls the <strong>gateway</strong> over HTTPS; TLS terminates here.</p></bh-step>
+      <bh-step highlight="gw e-gw-svc svc"><p>The gateway authenticates and forwards to the <strong>service</strong>.</p></bh-step>
+      <bh-step highlight="svc e-svc-cache cache"><p>The service checks the <strong>cache</strong> first.</p></bh-step>
+      <bh-step highlight="svc e-svc-db db"><p>On a miss it reads the <strong>database</strong> and back-fills the cache.</p></bh-step>
+      <bh-step highlight="svc e-svc-queue queue"><p>Side effects are published to the <strong>queue</strong> asynchronously.</p></bh-step>
+    </bh-stepper>
+
+    <h3 id="mermaid">Mermaid (fallback)</h3>
+    <p>For quick sequence or state diagrams, a <code>&lt;pre class="mermaid"&gt;</code> renders with theme colours (loaded from a CDN only when present). Prefer hand-placed SVG for anything central to the argument.</p>
+    <pre class="mermaid">sequenceDiagram
+    participant C as Client
+    participant L as Limiter
+    participant S as Service
+    C->>L: request
+    alt token available
+      L->>S: forward
+      S-->>C: 200 OK
+    else bucket empty
+      L-->>C: 429 Retry-After
+    end</pre>
+
+    <!-- ================================================================ -->
+    <h2 id="tabs">Tabs</h2>
+    <bh-tabs>
+      <section data-label="Rust"><pre><code class="language-rust">let resp = client.get(url).send().await?;</code></pre></section>
+      <section data-label="Go"><pre><code class="language-go">resp, err := http.Get(url)</code></pre></section>
+      <section data-label="Python"><pre><code class="language-python">resp = httpx.get(url)</code></pre></section>
+    </bh-tabs>
+
+    <!-- ================================================================ -->
+    <h2 id="playground">Playground</h2>
+    <p>Named inputs feed <code>data-expr</code> outputs and <code>data-bind</code> attributes — live models with no custom script.</p>
+    <bh-playground class="wide">
+      <div class="controls">
+        <label class="control"><span>Replicas <output data-expr="replicas"></output></span>
+          <input type="range" name="replicas" min="1" max="8" value="3"></label>
+        <label class="control"><span>Per-replica capacity (rps) <output data-expr="cap"></output></span>
+          <input type="range" name="cap" min="100" max="2000" step="100" value="800"></label>
+        <label class="control"><span>Offered load (rps) <output data-expr="load"></output></span>
+          <input type="range" name="load" min="0" max="10000" step="250" value="2000"></label>
+      </div>
+      <svg viewBox="0 0 600 64" role="img" aria-label="Utilisation bar">
+        <rect x="0" y="16" width="600" height="28" rx="6" style="fill: var(--surface-2)"/>
+        <rect x="0" y="16" height="28" rx="6" data-bind="width: min(600, 600 * load / (replicas * cap)); style.fill: load > replicas * cap ? 'var(--danger)' : load > 0.8 * replicas * cap ? 'var(--warn)' : 'var(--ok)'" style="transition: width .2s"/>
+        <line x1="480" x2="480" y1="8" y2="52" style="stroke: var(--text-muted); stroke-dasharray: 3 3"/>
+        <text class="label" x="484" y="8" style="fill: var(--text-muted); font-size: 11px; dominant-baseline: hanging">80%</text>
+      </svg>
+      <p class="readout">Utilisation <output data-expr="100 * load / (replicas * cap)" data-digits="0"></output>% ·
+        headroom <output data-expr="replicas * cap - load"></output> rps</p>
+    </bh-playground>
+
+    <!-- ================================================================ -->
+    <h2 id="layout">Layout</h2>
+    <p>Children of <code>.bh-article</code> sit in the reading column. Add <code>.wide</code> to use the gutters, or <code>.full</code> to go edge to edge.</p>
+    <figure class="frame wide"><p class="muted" style="text-align:center">.wide — figures, tables, comparisons</p></figure>
+    <figure class="frame full" style="border-radius:0; border-inline:0"><p class="muted" style="text-align:center">.full — hero visuals, big diagrams</p></figure>
+
+    <footer class="bh-footer">
+      <span><a href="../index.html">← All documents</a></span>
+      <span>Updated 2026-10-05</span>
+    </footer>
+  </article>
+</main>
+</body>
+</html>

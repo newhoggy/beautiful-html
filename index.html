@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>beautiful-html</title>
+  <meta name="description" content="Technical explainers, designs and decisions — written as rich, interactive HTML.">
+  <script>try{var t=localStorage.getItem("bh-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+  <link rel="stylesheet" href="theme/bh.css">
+  <script src="theme/bh.js" defer></script>
+</head>
+<body data-home="index.html" data-eyebrows="off">
+<main class="bh-page no-toc">
+  <article class="bh-article">
+    <header class="bh-hero">
+      <p class="eyebrow">Library</p>
+      <h1>Technical writing, rendered properly</h1>
+      <p class="lede">Explainers, design documents, decisions and reviews — each one a self-contained page with diagrams you can step through and models you can play with.</p>
+    </header>
+
+    <bh-filter for="doc-list" class="wide"></bh-filter>
+
+    <ul class="cards wide" id="doc-list">
+      <!-- bh:index:start -->
+      <li class="card doc-card" data-kind="reference" data-search="component gallery every building block in the theme, with the markup to use it. the visual reference for authors and agents. theme, components, reference reference">
+        <a class="card-link" href="docs/component-gallery.html">
+          <span class="eyebrow">Reference</span>
+          <h3>Component gallery</h3>
+          <p>Every building block in the theme, with the markup to use it. The visual reference for authors and agents.</p>
+        </a>
+        <span class="card-meta"><span class="badge accepted">accepted</span><time datetime="2026-10-05">2026-10-05</time></span>
+      </li>
+      <li class="card doc-card" data-kind="explainer" data-search="token bucket rate limiting how a token bucket admits bursts but enforces an average rate — with a live simulation, implementations, and the mistakes that bite in production. rate limiting, networking, distributed systems explainer">
+        <a class="card-link" href="docs/token-bucket-rate-limiting.html">
+          <span class="eyebrow">Explainer</span>
+          <h3>Token bucket rate limiting</h3>
+          <p>How a token bucket admits bursts but enforces an average rate — with a live simulation, implementations, and the mistakes that bite in production.</p>
+        </a>
+        <span class="card-meta"><span class="badge accepted">accepted</span><time datetime="2026-10-05">2026-10-05</time></span>
+      </li>
+      <!-- bh:index:end -->
+    </ul>
+
+    <footer class="bh-footer">
+      <span>New page: <code>npm run new -- explainer my-topic "My topic"</code></span>
+      <span><a href="docs/component-gallery.html">Component gallery</a></span>
+    </footer>
+  </article>
+</main>
+</body>
+</html>

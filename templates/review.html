@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}}</title>
+  <meta name="description" content="{{description}}">
+  <meta name="bh:kind" content="review">
+  <meta name="bh:status" content="review">
+  <meta name="bh:date" content="{{date}}">
+  <meta name="bh:authors" content="{{author}}">
+  <meta name="bh:tags" content="">
+  <script>try{var t=localStorage.getItem("bh-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+  <link rel="stylesheet" href="../theme/bh.css">
+  <script src="../theme/bh.js" defer></script>
+</head>
+<body data-home="../index.html">
+<main class="bh-page">
+  <article class="bh-article">
+
+    <!-- CHANGE WALKTHROUGH / CODE REVIEW: show the shape of the change first,
+         then walk files in reading order (not alphabetical), then findings. -->
+
+    <header class="bh-hero">
+      <p class="eyebrow">Change walkthrough</p>
+      <h1>{{title}}</h1>
+      <p class="lede">{{description}}</p>
+      <dl class="bh-meta" data-auto></dl>
+    </header>
+
+    <div class="tldr">
+      <ul>
+        <li><strong>What:</strong> the change in one sentence.</li>
+        <li><strong>Why:</strong> the motivation.</li>
+        <li><strong>Risk:</strong> low / medium / high, and why.</li>
+      </ul>
+    </div>
+
+    <h2 id="shape">Shape of the change</h2>
+    <div class="metrics">
+      <div class="metric"><span class="value">—</span><span class="label">Files changed</span></div>
+      <div class="metric"><span class="value"><span class="delta up">+0</span> <span class="delta down">−0</span></span><span class="label">Lines</span></div>
+      <div class="metric"><span class="value">—</span><span class="label">Modules touched</span></div>
+    </div>
+
+    <h2 id="walkthrough">Walkthrough</h2>
+    <bh-tabs>
+      <section data-label="1 · core.rs">
+        <pre class="diff"><code><span class="del">- old line</span><span class="add">+ new line</span>  unchanged line</code></pre>
+        <p>Why this file changed.</p>
+      </section>
+      <section data-label="2 · api.rs">
+        <pre class="diff"><code><span class="add">+ new line</span></code></pre>
+        <p>Why this file changed.</p>
+      </section>
+    </bh-tabs>
+
+    <h2 id="findings">Findings</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Severity</th><th>Location</th><th>Finding</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge high">High</span></td><td><code>core.rs:42</code></td><td>Description and suggested fix.</td></tr>
+          <tr><td><span class="badge nit">Nit</span></td><td><code>api.rs:7</code></td><td>Description.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="testing">Test plan</h2>
+    <ol class="steps">
+      <li>How it was verified.</li>
+    </ol>
+
+    <footer class="bh-footer">
+      <span><a href="../index.html">← All documents</a></span>
+      <span>Updated {{date}}</span>
+    </footer>
+  </article>
+</main>
+</body>
+</html>
