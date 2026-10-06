@@ -168,6 +168,38 @@ beats five decorative ones.
     elsewhere.
   - Esc returns focus to the term without reopening the popup.
 
+## Reviews
+
+Readers comment **on the page itself**: the top bar's Review button (or `?review`) lets
+them select text or use "+ Comment" on a section or block. Comments stay in their browser,
+reappear on later visits, and are exported from the Review panel as a `bh-review/1` file
+(`.json`, or `.json.gz`). The format is defined in `reviews/schema.json`. Reviewers submit a
+file by adding it to `reviews/inbox/` in a pull request. `check` validates every review file.
+
+**Applying a review file (for an agent or a person):**
+1. Read it (`gunzip` if it's `.json.gz`). For each comment, see the page as the reviewer
+   saw it with `git show <comment.commit>:<document>` (if `commit` is null, use the
+   current file).
+2. Locate the target:
+   - Start inside `target.anchor`: the section from that heading to the next one
+     (`anchorKind` "section"), or that element ("block"), or before the first heading
+     ("top").
+   - Find `target.quote.exact` there, using `prefix`/`suffix` (then `position`) to choose
+     between repeats. The quote is rendered text with whitespace collapsed, so match
+     against the text, not the raw HTML.
+   - If it isn't in the current version, find where that passage went. If it's gone,
+     say so.
+3. Act by `kind`:
+   - `suggestion`: apply `suggestion` if it's right, or explain why not.
+   - `question`: answer it in the document if a reader would ask it too, otherwise in
+     the reply.
+   - `blocker`: must be resolved or argued.
+   - `comment`: use judgement.
+   - Keep every house rule; `npm run check` must still pass.
+4. Record what happened to each comment id (changed, answered, declined, with a reason)
+   in the pull request, so the reviewer can check each one.
+5. Leave the review file in the PR as the record. Don't edit it.
+
 ## Charts
 
 - **Pick the form before any colour.** One number → a `.metric` tile, not a chart. A trend

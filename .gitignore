@@ -1,4 +1,5 @@
 dist/
 .visual/
+theme/build.js
 node_modules/
 .DS_Store

@@ -62,6 +62,8 @@ theme/
   print.css             Print: chrome removed, all steps and tabs expanded
   bh.js                 Runtime: chrome, TOC/scroll-spy, web components, lazy Prism/Mermaid
 theme/modules/          On-demand components (loaded only by pages that use them)
+reviews/schema.json     Format of exported review files (bh-review/1)
+reviews/inbox/          Where review files arrive, via pull request
 scripts/bh.mjs          CLI: new · index · check · bundle · serve
 scripts/visual.mjs      Visual regression: Chrome via DevTools protocol, PNG diff, HTML report
 dist/                   Bundled single-file outputs (git-ignored)
@@ -103,6 +105,10 @@ dist/                   Bundled single-file outputs (git-ignored)
   glossary; each page lists the pages that link to it ("Referenced by").
 - **Presentation mode:** any page becomes slides (one per section) from the top bar or
   `?present`, with keyboard and swipe navigation and the URL following the slide.
+- **Reviews:** readers comment directly on the page (select text, or "+ Comment" on a
+  section). Comments persist in their browser and export as a JSON review file, stamped
+  with the commit and the exact text range, ready to attach to a pull request for a person
+  or an agent to apply (`reviews/schema.json`).
 - **Glossary:** terms defined once in `docs/glossary.html` are underlined automatically
   across every page. Hovering, focusing or tapping one shows its definition in a popup
   that stays put. You can move the pointer into the popup to select and copy text or

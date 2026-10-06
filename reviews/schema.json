@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://newhoggy.github.io/beautiful-html/reviews/schema.json",
+  "title": "beautiful-html review file (bh-review/1)",
+  "description": "Comments one reviewer made on one document, exported from the page's Review panel (theme/modules/review.js). May be gzipped (.json.gz).",
+  "type": "object",
+  "required": ["format", "document", "build", "comments"],
+  "properties": {
+    "format": { "const": "bh-review/1" },
+    "repo": { "type": ["string", "null"], "description": "owner/name, e.g. newhoggy/beautiful-html" },
+    "document": { "type": "string", "description": "Path from the site root, e.g. docs/edge-rate-limiting-design.html" },
+    "title": { "type": "string" },
+    "url": { "type": "string", "description": "Where the reviewer read it" },
+    "build": {
+      "type": "object",
+      "description": "The build the page was rendered from when the file was exported.",
+      "properties": {
+        "commit": { "type": ["string", "null"], "description": "Git commit SHA; null when opened from file:// without a build stamp" },
+        "dirty": { "type": ["boolean", "null"], "description": "true if the working tree had uncommitted changes (npm run serve / bundle)" },
+        "builtAt": { "type": ["string", "null"] }
+      }
+    },
+    "reviewer": { "type": ["string", "null"] },
+    "exported": { "type": "string", "format": "date-time" },
+    "comments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "created", "kind", "body", "target"],
+        "properties": {
+          "id": { "type": "string" },
+          "created": { "type": "string", "format": "date-time" },
+          "updated": { "type": "string", "format": "date-time" },
+          "commit": { "type": ["string", "null"], "description": "Commit of the page when this comment was written: `git show <commit>:<document>` is exactly what the reviewer saw" },
+          "dirty": { "type": ["boolean", "null"] },
+          "kind": { "enum": ["comment", "suggestion", "question", "blocker"] },
+          "body": { "type": "string" },
+          "suggestion": { "type": "string", "description": "Proposed replacement for the quoted text (kind = suggestion)" },
+          "outdated": { "type": "boolean", "description": "The quoted text could not be found in the page when exported" },
+          "target": {
+            "type": "object",
+            "required": ["anchor", "anchorKind"],
+            "properties": {
+              "anchor": { "type": "string", "description": "id of the nearest section heading or block (figure, step, table…); \"\" = before the first heading" },
+              "anchorKind": { "enum": ["section", "block", "top"], "description": "section = from that heading to the next heading; block = that element" },
+              "quote": {
+                "type": ["object", "null"],
+                "description": "The selected text, whitespace collapsed; null = the comment is about the whole anchor",
+                "required": ["exact", "prefix", "suffix"],
+                "properties": {
+                  "exact": { "type": "string" },
+                  "prefix": { "type": "string", "description": "Up to 32 chars before, for disambiguation" },
+                  "suffix": { "type": "string", "description": "Up to 32 chars after" }
+                }
+              },
+              "position": {
+                "type": ["object", "null"],
+                "description": "Offsets of `exact` within the anchor's text (rendered text, whitespace collapsed, theme-injected UI excluded)",
+                "properties": { "start": { "type": "integer" }, "end": { "type": "integer" } }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

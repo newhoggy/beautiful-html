@@ -41,6 +41,8 @@ jobs:
           mkdir -p _site
           cp -r index.html docs theme _site/
           touch _site/.nojekyll
+          # Review comments record which commit the reader was looking at.
+          echo "window.BH_BUILD = {\"repo\": \"${GITHUB_REPOSITORY}\", \"commit\": \"${GITHUB_SHA}\", \"dirty\": false, \"builtAt\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"};" > _site/theme/build.js
 
       - uses: actions/configure-pages@v5
 

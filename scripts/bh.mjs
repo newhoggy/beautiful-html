@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import { execSync } from "node:child_process";
+import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -568,6 +569,8 @@ const CONTRAST_PAIRS = [
   ["warn", ["warn-soft", "surface"], 4.5],
   ["danger", ["danger-soft", "surface"], 4.5],
   // c1–c5 colour syntax-highlighted code (text); c6 only strokes (non-text, 3:1).
+  // Review pins and count badges: --surface text on the kind/status colours.
+  ["surface", ["accent", "ok", "info", "warn", "danger"], 4.5],
   ["c1", ["code-bg", "surface"], 4.5], ["c2", ["code-bg", "surface"], 4.5], ["c3", ["code-bg", "surface"], 4.5],
   ["c4", ["code-bg", "surface"], 4.5], ["c5", ["code-bg", "surface"], 4.5], ["c6", ["surface"], 3],
 ];
@@ -681,6 +684,41 @@ function diagramLabelProblems(html) {
   return out;
 }
 
+// ---- review files ---------------------------------------------------------------------
+
+function reviewFiles(dir = path.join(ROOT, "reviews")) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const p = path.join(dir, e.name);
+    return e.isDirectory() ? reviewFiles(p) : /\.json(\.gz)?$/.test(e.name) && e.name !== "schema.json" ? [p] : [];
+  });
+}
+
+/** Read a review file (plain or gzipped JSON). */
+function readReview(file) {
+  const buf = fs.readFileSync(file);
+  return JSON.parse((file.endsWith(".gz") ? zlib.gunzipSync(buf) : buf).toString("utf8"));
+}
+
+function reviewProblems() {
+  const out = [];
+  for (const file of reviewFiles()) {
+    const rel = path.relative(ROOT, file);
+    let r;
+    try { r = readReview(file); } catch (e) { out.push(`${rel}: not readable JSON (${e.message})`); continue; }
+    if (r.format !== "bh-review/1") { out.push(`${rel}: format must be "bh-review/1"`); continue; }
+    if (!r.document || !fs.existsSync(path.join(ROOT, r.document))) out.push(`${rel}: document "${r.document}" doesn't exist`);
+    if (!Array.isArray(r.comments)) { out.push(`${rel}: comments must be an array`); continue; }
+    r.comments.forEach((cm, i) => {
+      const where = `${rel}: comment ${i + 1}`;
+      if (!cm.id || !cm.body || !cm.target) out.push(`${where} needs id, body and target`);
+      else if (!["comment", "suggestion", "question", "blocker"].includes(cm.kind)) out.push(`${where}: kind "${cm.kind}" is unknown`);
+      else if (cm.target.quote && typeof cm.target.quote.exact !== "string") out.push(`${where}: target.quote.exact must be text`);
+    });
+  }
+  return out;
+}
+
 // ---- check ------------------------------------------------------------------------
 
 function cmdCheck() {
@@ -697,6 +735,17 @@ function cmdCheck() {
     console.log((problems.length ? c.red("✗ ") : c.green("✓ ")) + "theme (import order, token contrast)");
     problems.forEach((p) => console.log(c.red("  error  ") + p));
     errors += problems.length;
+  }
+
+  // Review files (reviews/**/*.json[.gz]) are well-formed and point at real documents.
+  {
+    const problems = reviewProblems();
+    const n = reviewFiles().length;
+    if (n || problems.length) {
+      console.log((problems.length ? c.red("✗ ") : c.green("✓ ")) + `reviews (${n} file${n === 1 ? "" : "s"})`);
+      problems.forEach((p) => console.log(c.red("  error  ") + p));
+      errors += problems.length;
+    }
   }
 
   // Glossary: compiled data must be fresh and entries well-formed.
@@ -907,6 +956,10 @@ function bundleOne(file) {
 
   // Links back into the site don't exist in a standalone file.
   html = html.replace(/<html\b/, "<html data-bundled");
+  // Reviews made on a standalone file still know which document and commit they're about.
+  const source = path.relative(ROOT, file).split(path.sep).join("/");
+  html = html.replace("</head>", `  <meta name="bh:source" content="${escapeHtml(source)}">\n</head>`);
+  scripts.unshift(buildScript(buildInfo()));
   html = html.replace(/<a href="\.\.\/index\.html">← All documents<\/a>/g, "");
   html = html.replace("</body>", scripts.map((s) => `<script>\n${s}\n</script>`).join("\n") + "\n</body>");
 
@@ -930,10 +983,24 @@ function cmdBundle([target]) {
 
 // ---- serve ------------------------------------------------------------------------
 
+/** What review comments are made against: repo, commit and whether the tree had edits.
+    On GitHub Pages the deploy writes theme/build.js; `serve` and `bundle` compute it here. */
+function buildInfo() {
+  const git = (args) => { try { return execSync(`git ${args}`, { cwd: ROOT, stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); } catch { return ""; } };
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+  const repo = String(pkg.repository || "").replace(/^github:/, "");
+  return { repo, commit: git("rev-parse HEAD") || null, dirty: git("status --porcelain -- docs theme index.html") !== "", builtAt: new Date().toISOString() };
+}
+const buildScript = (info) => `/* Review build stamp (generated, not committed). */\nwindow.BH_BUILD = ${JSON.stringify(info)};\n`;
+
 function cmdServe([port = "8000"]) {
   const types = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json", ".woff2": "font/woff2", ...MIME };
   http.createServer((req, res) => {
     let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    if (p === "/theme/build.js") {
+      res.writeHead(200, { "content-type": "text/javascript", "cache-control": "no-cache" }).end(buildScript(buildInfo()));
+      return;
+    }
     let file = path.join(ROOT, p);
     if (!file.startsWith(ROOT)) { res.writeHead(403).end(); return; }
     if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, "index.html");

@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "description": "Technical explainers, designs and decisions as rich, interactive, single-theme HTML.",
+  "repository": "github:newhoggy/beautiful-html",
   "engines": { "node": ">=20" },
   "scripts": {
     "new": "node scripts/bh.mjs new",

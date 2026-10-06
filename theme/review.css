@@ -1,0 +1,171 @@
+/* ==========================================================================
+   Review — in-page comments (module: theme/modules/review.js).
+   Highlights use the CSS Custom Highlight API, so the document's DOM is untouched.
+   ========================================================================== */
+
+::highlight(bh-review) { background-color: color-mix(in oklab, var(--warn) 26%, transparent); }
+::highlight(bh-review-active) { background-color: color-mix(in oklab, var(--accent) 30%, transparent); }
+
+.bh-review-btn { position: relative; }
+.bh-review-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.bh-review-count {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.25rem;
+  border-radius: var(--radius-pill);
+  background: var(--warn);
+  color: var(--surface);
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.05rem;
+  text-align: center;
+}
+.bh-review-count[hidden] { display: none; }
+
+/* Kinds share the status tokens; each always also carries a text label. */
+.kind-comment    { --kind: var(--accent); }
+.kind-suggestion { --kind: var(--ok); }
+.kind-question   { --kind: var(--info); }
+.kind-blocker    { --kind: var(--danger); }
+
+.bh-review-pins { position: absolute; top: 0; left: 0; width: 0; height: 0; z-index: 45; }
+.bh-review-pin {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  border: 2px solid var(--surface);
+  border-radius: 50% 50% 50% 4px;
+  background: var(--kind, var(--warn));
+  color: var(--surface);
+  box-shadow: var(--shadow-1);
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bh-review-pin:hover, .bh-review-pin:focus-visible { transform: scale(1.12); }
+
+.bh-review-selbtn { position: absolute; z-index: 60; box-shadow: var(--shadow-2); }
+.bh-review-selbtn[hidden] { display: none; }
+
+/* "+ Comment" on sections and blocks: only while reviewing; shown on hover/focus. */
+.bh-review-add { display: none; }
+.bh-reviewing .bh-review-add {
+  display: inline-flex;
+  margin-left: 0.6em;
+  padding: 0.1em 0.55em;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: var(--step--2);
+  font-weight: 600;
+  letter-spacing: 0;
+  vertical-align: middle;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur-1);
+}
+.bh-reviewing :is(h2, h3, h4, figure, dt, [data-linkable], bh-step, bh-cw-step, bh-codewalk, bh-matrix):is(:hover, :focus-within) > .bh-review-add,
+.bh-reviewing .bh-review-add:focus-visible { opacity: 1; }
+.bh-reviewing figure > .bh-review-add { position: absolute; left: var(--space-2); top: var(--space-2); margin: 0; z-index: 3; }
+@media (hover: none) { .bh-reviewing .bh-review-add { opacity: 0.85; } }
+
+.bh-review-pop {
+  position: absolute;
+  z-index: 65;
+  width: min(26rem, calc(100vw - 16px));
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+  font-size: var(--step--1);
+}
+.bh-review-pop > * + * { margin-top: var(--space-2); }
+.bh-review-quote {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border-left: 3px solid var(--warn);
+  color: var(--text-muted);
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+.bh-review-body, .bh-review-suggestion { width: 100%; resize: vertical; font: inherit; }
+.bh-review-sugwrap[hidden] { display: none; }
+.bh-review-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2); }
+.bh-review-hint { margin-right: auto; font-size: var(--step--2); }
+.bh-review-head { display: flex; align-items: center; gap: var(--space-2); }
+.bh-review-head .badge { --tone: var(--kind); text-transform: capitalize; }
+.bh-review-text { white-space: pre-wrap; }
+.bh-review-suggested { padding: var(--space-2) var(--space-3); border-radius: var(--radius-s); background: var(--ok-soft); }
+
+.bh-review-panel {
+  position: fixed;
+  top: var(--topbar-h);
+  right: 0;
+  bottom: 0;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(22rem, 100vw);
+  padding: var(--space-4);
+  overflow: auto;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  font-size: var(--step--1);
+}
+.bh-review-panel[hidden] { display: none; }
+.bh-review-panel-head { display: flex; align-items: center; justify-content: space-between; font-size: var(--step-0); }
+.bh-review-list { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.bh-review-list li { margin: 0 !important; }
+.bh-review-item {
+  display: flex;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.bh-review-item:hover { border-color: var(--border-strong); }
+.is-outdated .bh-review-item { opacity: 0.65; border-style: dashed; cursor: default; }
+.bh-review-num {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: var(--kind);
+  color: var(--surface);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.bh-review-item-text { display: grid; gap: 2px; min-width: 0; }
+.bh-review-item-text .muted { font-size: var(--step--2); overflow-wrap: anywhere; }
+.bh-review-label { display: grid; gap: var(--space-1); font-weight: 600; }
+.bh-review-export { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.bh-review-help { font-size: var(--step--2); }
+
+@media print { .bh-review-ui, .bh-review-add { display: none !important; } }
+.bh-presenting .bh-review-ui { display: none !important; }
+
+/* While reviewing on wide screens, the page makes room for the panel so pins and the
+   right edge of the document stay visible. */
+@media (min-width: 1100px) {
+  html.bh-reviewing body { padding-right: min(22rem, 100vw); }
+}
