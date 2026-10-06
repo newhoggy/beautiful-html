@@ -1296,7 +1296,16 @@
     buildReveal();
     buildDiagramRefs();
     settle(buildGlossary());
-    settle(loadSiteData().then((site) => { buildBacklinks(site); buildLifecycle(site); }));
+    settle(loadSiteData().then((site) => {
+      buildBacklinks(site);
+      buildLifecycle(site);
+      // Published review threads on this page: show them to every reader.
+      const here = sitePath() || meta("bh:source");
+      const r = site && site.reviews && site.reviews[here];
+      if (r && r.threads && doc.body.dataset.review !== "off") {
+        return loadModule("review.js").then(() => window.bh.review && window.bh.review.start(false));
+      }
+    }));
     // Deep-link arrival waits for modules, so a link into a module-managed view works.
     const modules = settle(loadModules());
     modules.then(() => {

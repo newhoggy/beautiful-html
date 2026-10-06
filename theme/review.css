@@ -169,3 +169,42 @@
 @media (min-width: 1100px) {
   html.bh-reviewing body { padding-right: min(22rem, 100vw); }
 }
+
+/* ---- Threads: published vs your drafts, replies, resolution --------------------------- */
+
+.bh-review-pin.is-draft {
+  background: var(--surface);
+  color: var(--kind, var(--warn));
+  border: 2px dashed var(--kind, var(--warn));
+}
+.bh-review-pin.is-resolved { opacity: 0.55; }
+.bh-review-pin-count {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  min-width: 0.95rem;
+  height: 0.95rem;
+  padding: 0 0.2rem;
+  border-radius: var(--radius-pill);
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.6rem;
+  line-height: 0.95rem;
+}
+.bh-review-count.has-drafts { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--warn); }
+
+.bh-review-msgs { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; max-height: 18rem; overflow: auto; }
+.bh-review-msgs li { margin: 0 !important; }
+.bh-review-msg { padding: var(--space-2) var(--space-3); border-radius: var(--radius-s); background: var(--surface-2); }
+.bh-review-msg.is-draft { background: none; border: 1px dashed var(--border-strong); }
+.bh-review-msg > * + * { margin-top: var(--space-1); }
+.bh-review-msg-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--step--2); }
+.bh-review-msg-actions { display: flex; justify-content: flex-end; gap: var(--space-1); }
+.bh-review-msg-actions .btn { padding: 0.2em 0.6em; font-size: var(--step--2); }
+.bh-review-resolve { margin-right: auto; display: inline-flex; align-items: center; gap: 0.3em; font-size: var(--step--2); }
+
+.bh-review-sec { margin-top: var(--space-2); font-size: var(--step--2); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.bh-review-num.is-draft { background: var(--surface); color: var(--kind); border: 2px dashed var(--kind); }
+.is-resolved .bh-review-item { opacity: 0.6; }
+.bh-review-check { display: flex; align-items: center; gap: var(--space-2); font-size: var(--step--2); color: var(--text-muted); }
+.bh-review-check[hidden] { display: none; }

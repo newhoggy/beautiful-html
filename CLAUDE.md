@@ -226,6 +226,17 @@ reappear on later visits, and are exported from the Review panel as a `bh-review
 (`.json`, or `.json.gz`). The format is defined in `reviews/schema.json`. Reviewers submit a
 file by adding it to `reviews/inbox/` in a pull request. `check` validates every review file.
 
+**Published threads.** Every review file in `reviews/` is compiled by `npm run index` into
+`theme/reviews.js`, so once a review PR is merged its comments show on the published page
+for everyone: highlights and pins, opening into threads.
+- Anyone can **Reply** in a thread. A reply is a draft in their browser until exported;
+  it's a message with `inReplyTo` (and no target). A reply with `resolves: true` resolves
+  the thread, and `false` reopens it.
+- Resolved threads are hidden unless "Show resolved threads" is ticked.
+- Drafts that have since been merged are dropped from the browser automatically.
+- `check` requires ids to be unique across all review files, and every `inReplyTo` to
+  point at a message that exists.
+
 **Applying a review file (for an agent or a person):**
 1. Read it (`gunzip` if it's `.json.gz`). For each comment, see the page as the reviewer
    saw it with `git show <comment.commit>:<document>` (if `commit` is null, use the
@@ -246,9 +257,14 @@ file by adding it to `reviews/inbox/` in a pull request. `check` validates every
    - `blocker`: must be resolved or argued.
    - `comment`: use judgement.
    - Keep every house rule; `npm run check` must still pass.
-4. Record what happened to each comment id (changed, answered, declined, with a reason)
-   in the pull request, so the reviewer can check each one.
-5. Leave the review file in the PR as the record. Don't edit it.
+4. **Reply on the page, not only in the pull request.** Add a review file of your own,
+   `reviews/inbox/response-<document-slug>-<date>.json`, holding one reply per comment:
+   - `reviewer` is your name (for example "Claude");
+   - `inReplyTo` is the comment's id;
+   - the `body` says what changed (quote the new wording) or why not;
+   - set `resolves: true` when the comment is fully dealt with.
+   After merge, readers see the answer in the thread on the page.
+5. Leave the reviewer's file in the PR as the record. Don't edit it.
 
 ## Charts
 
