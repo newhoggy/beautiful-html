@@ -49,6 +49,7 @@
   cursor: pointer;
 }
 .bh-review-pin:hover, .bh-review-pin:focus-visible { transform: scale(1.12); }
+@media (max-width: 639px) { .bh-review-pin { width: 1.2rem; height: 1.2rem; font-size: 0.6rem; } }
 
 .bh-review-selbtn { position: absolute; z-index: 60; box-shadow: var(--shadow-2); }
 .bh-review-selbtn[hidden] { display: none; }

@@ -275,6 +275,7 @@
       const rect = firstRect(loc.range);
       if (!rect) return;
       const right = article.getBoundingClientRect().right;
+      const vw = doc.documentElement.clientWidth, narrow = vw < 640; // phones: no margin to sit in, so a smaller pin hugs the edge
       let top = rect.top + scrollY;
       while (used.some((u) => Math.abs(u - top) < 22)) top += 24; // don't stack pins
       used.push(top);
@@ -286,7 +287,7 @@
         "data-thread": String(i + 1),
         title: `${t.root.body.slice(0, 100)}${n > 1 ? ` (${n} messages)` : ""}`,
         "aria-label": `Thread ${i + 1}${t.draft ? " (your draft)" : ""}: ${t.root.body.slice(0, 80)}`,
-        style: `top:${top}px;left:${Math.min(right + 6, doc.documentElement.clientWidth - 30)}px`,
+        style: `top:${top}px;left:${narrow ? vw - 22 : Math.min(right + 6, vw - 30)}px`,
         onclick: () => openThread(t),
       });
       if (n > 1) pin.append(el("span", { class: "bh-review-pin-count", text: String(n) }));
@@ -568,7 +569,7 @@
         el("button", { type: "button", class: "btn primary", "data-export": "json", text: "Download drafts .json", onclick: () => exportFile(false) }),
         el("button", { type: "button", class: "btn", "data-export": "gz", text: ".json.gz", onclick: () => exportFile(true) }),
       ]),
-      el("p", { class: "bh-review-help muted", text: "Drafts stay in this browser until you export them. To submit: add the file to reviews/inbox/ in a pull request (GitHub → Add file → Upload files). Once merged, they appear here for everyone." }),
+      el("p", { class: "bh-review-help muted", text: "Drafts stay in this browser until you export them. To submit: add the file to reviews/inbox/ in a pull request (GitHub → Add file → Upload files). Once merged, they appear here for everyone. Delete drafts you have already submitted before exporting again: the same comment can't be merged twice." }),
       clear,
       el("label", { class: "bh-review-check" }, [pageToggle, " Show comments on the page when not reviewing"]),
     ]);

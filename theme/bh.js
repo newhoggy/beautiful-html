@@ -1301,8 +1301,10 @@
       buildLifecycle(site);
       // Published review threads on this page: show them to every reader.
       const here = sitePath() || meta("bh:source");
+      // A bundle has no site data, but it inlines this page's threads as BH_REVIEWS.
       const r = site && site.reviews && site.reviews[here];
-      if (r && r.threads && doc.body.dataset.review !== "off") {
+      const inlined = window.BH_REVIEWS && window.BH_REVIEWS[here];
+      if (((r && r.threads) || (inlined && inlined.length)) && doc.body.dataset.review !== "off") {
         return loadModule("review.js").then(() => window.bh.review && window.bh.review.start(false));
       }
     }));

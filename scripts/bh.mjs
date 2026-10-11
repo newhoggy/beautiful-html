@@ -727,6 +727,11 @@ function readReview(file) {
   return JSON.parse((file.endsWith(".gz") ? zlib.gunzipSync(buf) : buf).toString("utf8"));
 }
 
+/** A review's `document` as a clean site-root path ("docs/x.html"), so "./docs/x.html" and "/docs/x.html" key the same thread list. */
+function canonicalDocument(document) {
+  return typeof document === "string" ? path.posix.normalize(document.replace(/\\/g, "/")).replace(/^\/+/, "") : document;
+}
+
 /**
  * True when a review's `document` is a private page: its plaintext source
  * (docs/<slug>.private.html, whether or not it exists here) or the sealed shell
@@ -749,10 +754,11 @@ function compileReviews() {
     try { r = readReview(file); } catch { continue; } // reported by reviewProblems()
     if (r.format !== "bh-review/1" || !Array.isArray(r.comments)) continue;
     if (isPrivateDocument(r.document)) continue; // reported by reviewProblems(); never published
+    const docKey = canonicalDocument(r.document);
     for (const cm of r.comments) {
       const { outdated, ...keep } = cm; // export-time observation, not part of the record
       void outdated;
-      (byDoc[r.document] = byDoc[r.document] || []).push({ ...keep, author: cm.author || r.reviewer || null, file: path.relative(ROOT, file).split(path.sep).join("/") });
+      (byDoc[docKey] = byDoc[docKey] || []).push({ ...keep, author: cm.author || r.reviewer || null, file: path.relative(ROOT, file).split(path.sep).join("/") });
     }
   }
   for (const list of Object.values(byDoc)) list.sort((a, b) => String(a.created).localeCompare(String(b.created)));
@@ -783,6 +789,7 @@ function reviewProblems() {
       continue;
     }
     if (!r.document || !fs.existsSync(path.join(ROOT, r.document))) out.push(`${rel}: document "${r.document}" doesn't exist`);
+    else if (canonicalDocument(r.document) !== r.document) out.push(`${rel}: document "${r.document}" should be written as "${canonicalDocument(r.document)}" (a path from the site root)`);
     if (!Array.isArray(r.comments)) { out.push(`${rel}: comments must be an array`); continue; }
     r.comments.forEach((cm, i) => {
       const where = `${rel}: comment ${i + 1}`;
@@ -793,9 +800,9 @@ function reviewProblems() {
       if (typeof cm.created !== "string" || Number.isNaN(Date.parse(cm.created))) out.push(`${where}: created must be an ISO date-time`);
       if (cm.id) {
         if (ids.has(cm.id)) out.push(`${where}: id "${cm.id}" is also used in ${ids.get(cm.id).rel}`);
-        ids.set(cm.id, { rel, document: r.document });
+        ids.set(cm.id, { rel, document: canonicalDocument(r.document) });
       }
-      if (cm.inReplyTo) replies.push([where, cm.inReplyTo, r.document]);
+      if (cm.inReplyTo) replies.push([where, cm.inReplyTo, canonicalDocument(r.document)]);
     });
   }
   for (const [where, parent, document] of replies) {
