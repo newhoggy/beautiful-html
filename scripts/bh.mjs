@@ -1699,13 +1699,14 @@ const buildScript = (info) => `/* Review build stamp (generated, not committed).
 function cmdServe([port = "8000"]) {
   const types = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json", ".woff2": "font/woff2", ...MIME };
   http.createServer((req, res) => {
-    let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    let p;
+    try { p = decodeURIComponent(new URL(req.url, "http://x").pathname); } catch { res.writeHead(400).end(); return; }
     if (p === "/theme/build.js") {
       res.writeHead(200, { "content-type": "text/javascript", "cache-control": "no-cache" }).end(buildScript(buildInfo()));
       return;
     }
     let file = path.join(ROOT, p);
-    if (!file.startsWith(ROOT)) { res.writeHead(403).end(); return; }
+    if (file !== ROOT && !file.startsWith(ROOT + path.sep)) { res.writeHead(403).end(); return; }
     if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, "index.html");
     fs.readFile(file, (e, data) => {
       if (e) { res.writeHead(404, { "content-type": "text/plain" }).end("Not found"); return; }
