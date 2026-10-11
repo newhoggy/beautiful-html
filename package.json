@@ -11,6 +11,8 @@
     "check": "node scripts/bh.mjs check",
     "bundle": "node scripts/bh.mjs bundle",
     "bundle:all": "node scripts/bh.mjs bundle --all",
+    "seal": "node scripts/bh.mjs seal",
+    "unseal": "node scripts/bh.mjs unseal",
     "serve": "node scripts/bh.mjs serve",
     "visual": "node scripts/visual.mjs"
   }

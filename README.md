@@ -13,6 +13,9 @@ or the [component gallery](https://newhoggy.github.io/beautiful-html/docs/compon
   playgrounds, tabs, predict-then-reveal panels.
 - **Works without JS.** Steppers become numbered lists, tabs become sections, and nothing is hidden.
 - **Shareable.** `bundle` inlines everything into one `.html` file you can send to anyone.
+- **Private pages.** A page written as `docs/<slug>.private.html` is never committed. `seal`
+  publishes an encrypted copy that opens only from its `#k=<key>` link, with the key kept
+  in 1Password. `unseal` recovers the source from that copy (see CLAUDE.md).
 
 ## Quick start
 
@@ -21,6 +24,8 @@ open index.html                                     # or: npm run serve → http
 npm run new -- explainer consistent-hashing "Consistent hashing"
 npm run check                                       # lint links, ids, stepper refs, a11y basics
 npm run bundle -- docs/consistent-hashing.html      # → dist/consistent-hashing.html
+npm run seal                                        # encrypt docs/*.private.html (keys in 1Password)
+npm run unseal                                      # recreate docs/*.private.html from sealed pages
 npm run visual                                      # screenshot diff vs your baselines (Node ≥ 22 + Chrome)
 ```
 
@@ -64,7 +69,7 @@ theme/
 theme/modules/          On-demand components (loaded only by pages that use them)
 reviews/schema.json     Format of exported review files (bh-review/1)
 reviews/inbox/          Where review files arrive, via pull request
-scripts/bh.mjs          CLI: new · index · check · bundle · serve
+scripts/bh.mjs          CLI: new · index · check · bundle · seal · unseal · serve
 scripts/visual.mjs      Visual regression: Chrome via DevTools protocol, PNG diff, HTML report
 dist/                   Bundled single-file outputs (git-ignored)
 ```

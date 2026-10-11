@@ -21,6 +21,37 @@ Run `npm run index` after **any** change to a document. It regenerates the catal
 `theme/glossary.js`, `theme/site.js` (backlinks) and `theme/search-index.js`. `check`
 fails while any of these are stale. Never edit the generated files by hand.
 
+## Private pages
+
+The repo and its GitHub Pages site are public, so a page that must stay private is never
+committed as plain HTML. The committed copy is encrypted, and it opens only from a link that
+carries its key.
+
+- Write it as `docs/<slug>.private.html` (`npm run new -- --private <template> <slug> "<Title>"`).
+  That name is git-ignored. Preview it locally like any page.
+- `npm run seal` gzips and AES-256-GCM-encrypts each private page into `docs/<slug>.html`,
+  which is committed and published. Its link is `docs/<slug>.html#k=<key>`; add `&<id>`
+  after the key to link to a section. `seal -- --show-links` prints the full links. The key
+  is in the URL fragment, which browsers never send to the server. Opened without it, the
+  page shows only a notice.
+- **Keys live in 1Password**, never on disk: one Password item per page, titled
+  `beautiful-html private page: <slug>`, in the vault `$BH_OP_VAULT` (default `Private`).
+  `seal` creates the item the first time and reads it back to confirm it was stored. The
+  key stays the same across re-seals, so links keep working. Needs the `op` CLI with
+  1Password's desktop-app integration turned on.
+- **The sealed file is the copy of record.** In a fresh clone, `npm run unseal` (or
+  `unseal -- <slug>`) recreates `docs/<slug>.private.html` from the sealed page and its key.
+  It refuses to overwrite unsealed edits unless you pass `--force`.
+- Re-run `npm run seal` after every edit. `check` fails when a sealed copy is stale, when
+  its shell is outdated, or when a private page was never sealed.
+- Private pages stay out of the catalogue, search, backlinks and `bundle --all`. Public
+  pages, glossary entries included, must not link to them; `check` fails if one does.
+- After decrypting, the page removes the key from the address bar and remembers it for the
+  browser session. Copied section links therefore have no key: share the full `#k=` link.
+- Never put a `#k=` link in a commit message, PR, issue or any other public place.
+- Making a page public: rename it to `docs/<slug>.html` (replacing the sealed copy), archive
+  its 1Password item, and run `npm run index`.
+
 ## Page contract
 
 - Pages are flat files in `docs/` and link `../theme/bh.css` and `../theme/bh.js`. Don't add a build step.

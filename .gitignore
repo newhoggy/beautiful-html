@@ -3,3 +3,5 @@ dist/
 theme/build.js
 node_modules/
 .DS_Store
+# Private pages: plaintext never leaves this machine; keys live in 1Password (see CLAUDE.md).
+docs/*.private.html
