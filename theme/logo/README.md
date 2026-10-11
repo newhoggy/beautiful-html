@@ -1,0 +1,30 @@
+# Bitwise Engineering logo
+
+A "B" built from two bits: a solid upper bowl (1) over a hollow lower bowl (0). Meaning is
+carried by shape, not colour. One colour only: the theme accent.
+
+| File | Use it for | Colours |
+| --- | --- | --- |
+| `mark.svg` | the glyph alone, in an `<img>` or as a CSS image | accent, switching with the OS scheme |
+| `mark-tile.svg` | favicon, README, anywhere the background is unknown | accent tile, `--accent-contrast` glyph |
+| `lockup.svg` | mark + wordmark, in an `<img>` | accent mark, `--text` wordmark |
+| `apple-touch-icon.png` | 180x180 full-bleed tile (iOS rounds it itself) | light-mode tile |
+| `og.png` | `og:image`, 1200x630 | fixed dark card; a PNG has no theme |
+| `og-card.svg` | source of `og.png` | fixed dark card |
+
+On a page, do not use these files: use the inline mark (`LOGO_SVG` in `theme/bh.js`, or
+`<span data-bh-logo>`), which follows the page theme, including the manual toggle.
+An `<img>`/favicon SVG cannot see page CSS variables, so the files here switch with
+`prefers-color-scheme` through an `@media` rule inside the SVG, and cannot follow the toggle.
+
+Colours are the `tokens.css` values: accent `#4338ca` / `#a5a8ff`, accent-contrast
+`#ffffff` / `#0c0e12`, text `#15181e` / `#e7e9ee`. Contrast of the mark against `--bg` and
+`--surface`: 7.4:1 / 7.9:1 (light), 8.9:1 / 8.2:1 (dark); glyph on tile 7.9:1 / 8.9:1.
+
+The wordmark and the card text are IBM Plex Sans (SemiBold and Regular, SIL Open Font
+License 1.1) converted to outlines, so no file needs a font. To change them, regenerate
+the paths with a font library such as opentype.js (`font.getPath(text, x, y, size).toPathData()`).
+
+Regenerate the PNGs from the SVG sources with any headless Chrome, for example with
+`--screenshot` at `--window-size=1200,630` for `og-card.svg`; keep the touch icon a square
+without rounded corners.
