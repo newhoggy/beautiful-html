@@ -1697,6 +1697,8 @@ function buildInfo() {
 const buildScript = (info) => `/* Review build stamp (generated, not committed). */\nwindow.BH_BUILD = ${JSON.stringify(info)};\n`;
 
 function cmdServe([port = "8000"]) {
+  const root = fs.realpathSync(ROOT);
+  const contains = (file) => file === root || file.startsWith(root + path.sep);
   const types = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json", ".woff2": "font/woff2", ...MIME };
   http.createServer((req, res) => {
     let p;
@@ -1705,10 +1707,18 @@ function cmdServe([port = "8000"]) {
       res.writeHead(200, { "content-type": "text/javascript", "cache-control": "no-cache" }).end(buildScript(buildInfo()));
       return;
     }
-    let file = path.join(ROOT, p);
-    if (file !== ROOT && !file.startsWith(ROOT + path.sep)) { res.writeHead(403).end(); return; }
-    if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, "index.html");
-    fs.readFile(file, (e, data) => {
+    let file = path.join(root, p), target;
+    if (!contains(file)) { res.writeHead(403).end(); return; }
+    try {
+      target = fs.realpathSync(file);
+      if (!contains(target)) { res.writeHead(403).end(); return; }
+      if (fs.statSync(target).isDirectory()) {
+        file = path.join(file, "index.html");
+        target = fs.realpathSync(path.join(target, "index.html"));
+        if (!contains(target)) { res.writeHead(403).end(); return; }
+      }
+    } catch { res.writeHead(404, { "content-type": "text/plain" }).end("Not found"); return; }
+    fs.readFile(target, (e, data) => {
       if (e) { res.writeHead(404, { "content-type": "text/plain" }).end("Not found"); return; }
       res.writeHead(200, { "content-type": types[path.extname(file)] || "application/octet-stream", "cache-control": "no-cache" }).end(data);
     });

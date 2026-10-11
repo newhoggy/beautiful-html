@@ -77,16 +77,25 @@ export async function launchChrome() {
   return { send, close };
 }
 
-/** Static server for `root` on a free port. `routes` maps a URL path to { type, body } and wins over files. */
+/** Static server for `root` on a free port. `routes` maps a URL path to { type, body } and wins over files.
+ * Symlinked roots and in-root targets are supported; targets outside the canonical root return 403.
+ * Unresolvable paths return 404. Directories do not automatically select index.html.
+ */
 export function serveStatic(root, routes = new Map()) {
+  root = fs.realpathSync(root);
+  const contains = (file) => file === root || file.startsWith(root + path.sep);
   const types = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml", ".png": "image/png" };
   const server = http.createServer((req, res) => {
     let pathname;
     try { pathname = decodeURIComponent(new URL(req.url, "http://x").pathname); } catch { res.writeHead(400).end(); return; }
     if (routes.has(pathname)) { const r = routes.get(pathname); res.writeHead(200, { "content-type": r.type }).end(r.body); return; }
     const file = path.join(root, pathname);
-    if (file !== root && !file.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
-    fs.readFile(file, (e, data) => {
+    if (!contains(file)) { res.writeHead(403).end(); return; }
+    let target;
+    try { target = fs.realpathSync(file); }
+    catch { res.writeHead(404).end(); return; }
+    if (!contains(target)) { res.writeHead(403).end(); return; }
+    fs.readFile(target, (e, data) => {
       if (e) { res.writeHead(404).end(); return; }
       res.writeHead(200, { "content-type": types[path.extname(file)] || "application/octet-stream" }).end(data);
     });
