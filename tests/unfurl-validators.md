@@ -5,6 +5,8 @@ performed on 2026-10-12 in Australia/Sydney (2026-10-11 UTC), after
 [PR #18](https://github.com/newhoggy/beautiful-html/pull/18) deployed the site-base fix.
 The live HTML matched the committed HTML at `81c1bda` for all three pages.
 
+The initial live observations below describe the deployed version. The repairs
+and current validation are recorded under [Follow-up repairs](#follow-up-repairs).
 This is an observation record, not an automated regression test or a guarantee for
 other platforms. No social post was published.
 
@@ -95,15 +97,15 @@ private plaintext lacks `<link rel="icon">`. `npm test` returned **3 passed,
 1 failed**, because the review-ingestion test also invokes the full check and
 sees that same favicon error. These failures predate this verification change;
 they were observed before any tracked edits on the exact default-branch commit.
-The sealed public shell itself has its icons. Private content was not edited
-or resealed to conceal the baseline failure.
+The sealed public shell itself has its icons. During this initial verification,
+the private source was not edited or resealed.
 
 ## Findings and limits
 
 The two-validator fetch criterion is exercised for all three page types after
 #14's deployment. The observations and discrepancies are also recorded on #16.
-Remaining findings are the diagram's small annotations and the pre-existing
-private-source favicon failure. The description-length warning is retained
+These findings motivated the follow-up repairs below: the diagram's small
+annotations and the pre-existing private-source favicon failure. The description-length warning is retained
 because a generic sealed preview works without lengthening it.
 
 No assertion is made about Slack, Discord, X, iMessage, Mastodon, a rendered
@@ -118,3 +120,49 @@ published/CI file set, `npm run check` passed (13 files, 0 errors, 0 warnings),
 restored afterward. The source-free run does not supersede the private-input
 failure above. The server test needs permission to bind localhost: a sandboxed
 attempt failed with `listen EPERM`, and the permitted rerun passed.
+
+
+## Follow-up repairs
+
+On 2026-10-12 (Australia/Sydney), following the user's instruction to fix the
+remaining findings:
+
+- Added the favicon and touch-icon links to the actual private source and
+  resealed it with its existing key. A byte comparison proved that removing
+  those two inserted links recreates the original source exactly. Decrypting
+  the new committed ciphertext recreated exactly the updated source. No other
+  private source content changed, and no plaintext or key was committed.
+- Enlarged the token-bucket mechanism node labels from 14 to 24 SVG units,
+  secondary labels from 12 to 20, and edge labels from 12 to 22. Secondary and
+  edge labels now use the theme's text colour for stronger contrast. Shortened
+  the refill and capacity labels and adjusted their spacing and node heights
+  to fit the larger type. Kept all stepper IDs, arrow paths, and semantics.
+- Regenerated the card: 1200 × 630 PNG, 81,340 bytes. Other cards were current
+  and unchanged. `npm run index` left generated metadata/data unchanged.
+
+The new card was inspected locally in Chrome at **480 × 252 CSS pixels**, with
+no image enlargement: the full title and labels (including refill rate,
+capacity, take-one-token, token/empty, and Retry-After) were readable. This was
+local preview-size QA, not a new LinkedIn scrape. The actual page was inspected
+in light and dark themes; labels were contained in their nodes and arrows were
+separate from labels. At a 390-pixel phone viewport, the existing horizontal
+scroll region exposed both halves of the diagram. The refill step still
+highlighted the appropriate nodes and arrow.
+
+Current validation, with the real private source **present throughout**:
+
+- `npm run check`: **14 files, 0 errors, 0 warnings**, including the real-source
+  digest and title/description leak checks.
+- `npm test`: **8 passed**, including the additional static-server checks now
+  on main.
+- `node --check theme/bh.js` and all `theme/modules/*.js` / `scripts/*.mjs`:
+  passed.
+- `npm run bundle:all`: seven public bundles; no private bundle.
+- `npm run visual -- --only token-bucket`: light, dark, and phone cases rendered.
+  No baselines existed, so this established baselines rather than proving a
+  comparison with the old diagram. Browser inspection supplied visual QA.
+
+The revised card can only be fetched by LinkedIn at the final live URL after
+this PR merges and deploys. That re-scrape remains a post-deployment check; the
+initial two real-validator fetches above remain the live evidence. The generic
+private-description length warning is intentionally unchanged.

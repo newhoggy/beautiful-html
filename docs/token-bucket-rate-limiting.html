@@ -36,6 +36,10 @@
   <link rel="stylesheet" href="../theme/bh.css">
   <script src="../theme/bh.js" defer></script>
   <style>
+    /* These labels must also survive the social card's preview-size reduction. */
+    #mechanism .node text { font-size: 24px; }
+    #mechanism .node text.sub { font-size: 20px; fill: var(--text); }
+    #mechanism .label { font-size: 22px; font-weight: 600; fill: var(--text); }
     .sim-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
     #sim-svg .slot { stroke: var(--c2); stroke-width: 1.5; fill: var(--surface); }
     #sim-svg .slot-fill { fill: var(--c2); transition: opacity 80ms linear; }
@@ -72,11 +76,11 @@
 
     <figure class="diagram wide" id="mechanism">
       <svg viewBox="-16 -16 752 320" role="img" aria-label="Refill adds tokens to the bucket; the limiter takes a token per request, forwarding to the service or rejecting with 429">
-        <g class="node c6" data-id="refill"><rect x="0" y="10" width="150" height="48" rx="10"/><text x="75" y="28">Refill</text><text class="sub" x="75" y="45">r tokens / second</text></g>
+        <g class="node c6" data-id="refill"><rect x="0" y="0" width="150" height="60" rx="10"/><text x="75" y="18">Refill</text><text class="sub" x="75" y="44">r tokens/s</text></g>
         <g class="node c2" data-id="bucket">
           <path d="M220 40 H370 L356 176 Q355 184 347 184 H243 Q235 184 234 176 Z"/>
-          <text x="295" y="70">Bucket</text>
-          <text class="sub" x="295" y="88">holds ≤ b tokens</text>
+          <text x="295" y="66">Bucket</text>
+          <text class="sub" x="295" y="94">≤ b tokens</text>
           <circle cx="262" cy="160" r="8" style="fill: var(--c2)"/>
           <circle cx="284" cy="160" r="8" style="fill: var(--c2)"/>
           <circle cx="306" cy="160" r="8" style="fill: var(--c2)"/>
@@ -87,7 +91,7 @@
         <g class="node c3" data-id="requests"><rect x="0" y="200" width="150" height="48" rx="10"/><text x="75" y="224">Requests</text></g>
         <g class="node c5" data-id="limiter"><rect x="430" y="200" width="130" height="48" rx="10"/><text x="495" y="224">Limiter</text></g>
         <g class="node c1" data-id="service"><rect x="610" y="140" width="120" height="48" rx="10"/><text x="670" y="164">Service</text></g>
-        <g class="node c4" data-id="reject"><rect x="610" y="250" width="120" height="48" rx="10"/><text x="670" y="268">429</text><text class="sub" x="670" y="285">Retry-After</text></g>
+        <g class="node c4" data-id="reject"><rect x="610" y="246" width="120" height="58" rx="10"/><text x="670" y="262">429</text><text class="sub" x="670" y="288">Retry-After</text></g>
 
         <path class="edge" data-id="e-refill" d="M150 24 H295 V29"/>
         <path class="edge" data-id="e-req" d="M150 224 H419"/>
@@ -95,9 +99,9 @@
         <path class="edge" data-id="e-allow" d="M560 214 C580 214 580 164 596 164 H599"/>
         <path class="edge" data-id="e-reject" d="M560 234 C580 234 580 274 596 274 H599"/>
 
-        <text class="label" x="222" y="12" text-anchor="middle">drip</text>
-        <text class="label" x="290" y="212" text-anchor="middle">arrives</text>
-        <text class="label" x="440" y="96" text-anchor="middle">take 1 token</text>
+        <text class="label" x="222" y="4" text-anchor="middle">drip</text>
+        <text class="label" x="290" y="200" text-anchor="middle">arrives</text>
+        <text class="label" x="440" y="88" text-anchor="middle">take 1 token</text>
         <text class="label" x="574" y="174" text-anchor="end">token</text>
         <text class="label" x="574" y="264" text-anchor="end">empty</text>
       </svg>
