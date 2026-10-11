@@ -6,9 +6,9 @@ A software engineering blog on **functional programming**, **succinct data struc
 **AI workflows**. Every post is a self-contained, interactive HTML page: explainers, design
 docs, decision records, incident reviews and change walkthroughs, with one consistent theme.
 
-**Live site: [newhoggy.github.io/beautiful-html](https://newhoggy.github.io/beautiful-html/)**
-Start with the [component gallery](https://newhoggy.github.io/beautiful-html/docs/component-gallery.html)
-to see what a page can do.
+**Live site: [bitwise.john-ky.io](https://bitwise.john-ky.io/)**
+Start with the [component gallery](https://bitwise.john-ky.io/docs/component-gallery.html)
+to see what a page can do. The old `newhoggy.github.io/beautiful-html` address redirects there.
 
 The theme and toolkit that build the site are called **beautiful-html**. Their names stay:
 the `bh` / `bh-*` prefixes (`bh.css`, `bh.js`, `bh:` meta tags, the `bh-review/1` format) and the
@@ -87,7 +87,7 @@ need Node ≥ 22 and a local Chrome.)
   meta and card), uploads all documents bundled as single files, and renders every page in
   Chrome (light, dark and phone layouts).
 - **GitHub Pages** (`.github/workflows/pages.yml`) publishes the repo as it stands to
-  [newhoggy.github.io/beautiful-html](https://newhoggy.github.io/beautiful-html/), with
+  [bitwise.john-ky.io](https://bitwise.john-ky.io/), with
   no build step. It stays off until you opt in:
   1. Go to Settings → Pages and set the source to **GitHub Actions**.
   2. Add the repository variable `PAGES_ENABLED=true`.

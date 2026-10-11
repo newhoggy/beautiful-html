@@ -99,7 +99,7 @@ nothing for this; two generated things do the work.
   `og:title`, `og:description` and `article:*` but drop `canonical`, `og:url`, `og:image*` and
   `twitter:*`, since a standalone file has no URL or card of its own.
 - **Absolute URLs** come from one place: `homepage` in `package.json`
-  (`https://newhoggy.github.io/beautiful-html/`). A fork sets that, or `BH_SITE_URL`. The site
+  (`https://bitwise.john-ky.io/`). A fork sets that, or `BH_SITE_URL`. The site
   name is `bh.siteName` in `package.json`. Changing either makes the block and every sealed
   shell stale: run `npm run index`, `npm run cards` and `npm run seal -- --reshell`.
 - **Private pages** unfurl as one generic "Private page" card: see below.

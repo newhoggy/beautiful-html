@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Bitwise Engineering: a software engineering blog, built on the beautiful-html theme.",
   "repository": "github:newhoggy/beautiful-html",
-  "homepage": "https://newhoggy.github.io/beautiful-html/",
+  "homepage": "https://bitwise.john-ky.io/",
   "bh": { "siteName": "Bitwise Engineering" },
   "engines": { "node": ">=20" },
   "scripts": {
