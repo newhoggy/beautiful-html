@@ -120,5 +120,6 @@ window.BH_SITE = {
     "section": ""
    }
   ]
- }
+ },
+ "reviews": {}
 };

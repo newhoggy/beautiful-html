@@ -1,11 +1,17 @@
 /* ==========================================================================
-   Review — comment directly on a page; comments stay in this browser and are
-   exported as a review file (JSON, optionally gzipped) to attach to a PR.
+   Review — comment and reply directly on a page.
+
+   Published threads: review files merged into the repo (reviews/**) are compiled by
+   `npm run index` into theme/reviews.js and shown to every reader as highlighted,
+   pinned threads. Drafts: new comments and replies made here stay in this browser
+   (they survive revisits) until exported as a review file (JSON, optionally gzipped)
+   and added to the repo by pull request; once merged they become part of the threads,
+   and the local drafts are dropped automatically.
 
    Turn on with the top bar's Review button (or ?review). Then:
    - select text and press "Comment", or use "+ Comment" on any section/figure;
-   - comments show as highlights and numbered pins (also on later visits);
-   - the panel lists them and exports `bh-review/1` files for an agent or a person.
+   - open any pin to read the thread and Reply (optionally marking it resolved);
+   - the panel lists threads and drafts, and exports your drafts.
 
    Each comment is anchored three ways, so it survives edits to the document:
      target.anchor    nearest stable id (a section heading, figure, step, …)
@@ -37,9 +43,11 @@
   const docPath = () => bh.sitePath() || bh.meta("bh:source") || location.pathname.replace(/^\//, "");
   const storeKey = () => `bh-review/v1/${build().repo || "local"}/${docPath()}`;
 
-  let state = { reviewer: "", comments: [] };
+  let state = { reviewer: "", comments: [] };            // local drafts (comments + replies)
+  let published = [];                                      // merged comments for this document
   let active = false, panel, pinLayer, selBtn, pop, liveRegion;
-  const located = new Map(); // comment id → { range, rects } | null (outdated)
+  let showOnPage = true, showResolved = false;
+  const located = new Map(); // thread root id → { range } | null (outdated)
 
   // ---- Storage ------------------------------------------------------------------------
 
@@ -48,6 +56,13 @@
     try { state = raw ? JSON.parse(raw) : state; } catch (_) { /* corrupt: start fresh */ }
     state.reviewer = state.reviewer || bh.storage(() => localStorage.getItem("bh-review/v1/reviewer")) || "";
     state.comments = state.comments || [];
+    showOnPage = bh.storage(() => localStorage.getItem("bh-review/v1/show")) !== "off";
+    published = ((window.BH_REVIEWS || {})[docPath()] || []).slice();
+    // Drafts that have since been merged are now published: drop the local copies.
+    const merged = new Set(published.map((c) => c.id));
+    const before = state.comments.length;
+    state.comments = state.comments.filter((c) => !merged.has(c.id));
+    if (state.comments.length !== before) save();
   }
   function save() {
     bh.storage(() => {
@@ -210,40 +225,76 @@
     return r;
   }
 
+  // ---- Threads: published + draft comments, with replies -----------------------------------------
+
+  const newId = () => "c-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const isDraft = (m) => state.comments.includes(m);
+
+  /** Roots (no inReplyTo) with every reply that points into them, oldest first. */
+  function threads() {
+    const all = [...published, ...state.comments];
+    const byId = new Map(all.map((m) => [m.id, m]));
+    const rootOf = (m) => { let r = m, guard = 0; while (r.inReplyTo && byId.has(r.inReplyTo) && guard++ < 50) r = byId.get(r.inReplyTo); return r; };
+    const map = new Map();
+    for (const m of all) if (!m.inReplyTo) map.set(m.id, { root: m, replies: [] });
+    for (const m of all) if (m.inReplyTo) { const t = map.get(rootOf(m).id); if (t) t.replies.push(m); }
+    const list = [...map.values()];
+    for (const t of list) {
+      t.replies.sort((a, b) => a.created.localeCompare(b.created));
+      const verdict = [...t.replies].reverse().find((r) => typeof r.resolves === "boolean");
+      t.resolved = !!(verdict && verdict.resolves);
+      t.draft = isDraft(t.root);
+      t.drafts = [t.root, ...t.replies].filter(isDraft).length;
+    }
+    // Published threads first (as they were written), then this browser's drafts.
+    return list.sort((a, b) => (a.draft - b.draft) || a.root.created.localeCompare(b.root.created));
+  }
+
   // ---- Rendering: highlights, pins ------------------------------------------------------------------
 
+  let current = [];
   function relocateAll() {
+    current = threads();
     located.clear();
-    for (const c of state.comments) located.set(c.id, locate(c));
+    for (const t of current) located.set(t.root.id, t.root.target ? locate(t.root) : null);
     paint();
   }
 
+  const visible = (t) => (active || showOnPage) && (showResolved || !t.resolved || t.drafts > 0);
+
   function paint() {
-    // Highlights via the CSS Custom Highlight API (no DOM changes); pins in a layer.
     if (window.CSS && CSS.highlights && window.Highlight) {
-      const quoted = state.comments.filter((c) => c.target.quote && located.get(c.id)).map((c) => located.get(c.id).range);
-      CSS.highlights.set("bh-review", new Highlight(...quoted));
+      const ranges = current.filter((t) => visible(t) && t.root.target && t.root.target.quote && located.get(t.root.id)).map((t) => located.get(t.root.id).range);
+      CSS.highlights.set("bh-review", new Highlight(...ranges));
     }
     pinLayer.replaceChildren();
     const used = [];
-    state.comments.forEach((c, i) => {
-      const loc = located.get(c.id);
-      if (!loc) return;
+    current.forEach((t, i) => {
+      const loc = located.get(t.root.id);
+      if (!loc || !visible(t)) return;
       const rect = firstRect(loc.range);
       if (!rect) return;
       const right = article.getBoundingClientRect().right;
+      const vw = doc.documentElement.clientWidth, narrow = vw < 640; // phones: no margin to sit in, so a smaller pin hugs the edge
       let top = rect.top + scrollY;
       while (used.some((u) => Math.abs(u - top) < 22)) top += 24; // don't stack pins
       used.push(top);
+      const n = 1 + t.replies.length;
       const pin = el("button", {
-        type: "button", class: `bh-review-pin kind-${c.kind}`, text: String(i + 1),
-        title: c.body.slice(0, 120), "aria-label": `Review comment ${i + 1}: ${c.body.slice(0, 80)}`,
-        style: `top:${top}px;left:${Math.min(right + 6, doc.documentElement.clientWidth - 30)}px`,
-        onclick: () => openThread(c),
+        type: "button",
+        class: `bh-review-pin kind-${t.root.kind}${t.draft ? " is-draft" : ""}${t.resolved ? " is-resolved" : ""}`,
+        text: String(i + 1),
+        "data-thread": String(i + 1),
+        title: `${t.root.body.slice(0, 100)}${n > 1 ? ` (${n} messages)` : ""}`,
+        "aria-label": `Thread ${i + 1}${t.draft ? " (your draft)" : ""}: ${t.root.body.slice(0, 80)}`,
+        style: `top:${top}px;left:${narrow ? vw - 22 : Math.min(right + 6, vw - 30)}px`,
+        onclick: () => openThread(t),
       });
+      if (n > 1) pin.append(el("span", { class: "bh-review-pin-count", text: String(n) }));
       pinLayer.append(pin);
     });
     renderPanel();
+    updateCount();
   }
 
   function firstRect(range) {
@@ -267,6 +318,8 @@
     pop.style.top = `${(below ? rect.bottom + 10 : rect.top - 10 - h) + scrollY}px`;
   }
 
+  function stamp() { const b = build(); return { created: new Date().toISOString(), commit: b.commit, dirty: b.dirty, author: state.reviewer || null }; }
+
   function composer(target, existing, rect, range) {
     closePop();
     const kind = el("select", { class: "bh-review-kind", "aria-label": "Kind" }, KINDS.map((k) => el("option", { value: k, text: k[0].toUpperCase() + k.slice(1), selected: existing ? existing.kind === k : k === "comment" })));
@@ -280,19 +333,13 @@
     const quote = target.quote ? target.quote.exact : target.label ? `${target.anchorKind === "section" ? "Section" : "Block"}: ${target.label}` : "This page";
     const saveIt = () => {
       if (!body.value.trim()) { body.focus(); return; }
+      const sug = kind.value === "suggestion" && suggestion.value.trim() ? suggestion.value.trim() : undefined;
       if (existing) {
-        Object.assign(existing, { kind: kind.value, body: body.value.trim(), suggestion: kind.value === "suggestion" && suggestion.value.trim() ? suggestion.value.trim() : undefined, updated: new Date().toISOString() });
+        Object.assign(existing, { kind: kind.value, body: body.value.trim(), suggestion: sug, updated: new Date().toISOString() });
       } else {
         const t = { ...target };
         delete t.label;
-        state.comments.push({
-          id: "c-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-          created: new Date().toISOString(),
-          commit: build().commit, dirty: build().dirty,
-          kind: kind.value, body: body.value.trim(),
-          ...(kind.value === "suggestion" && suggestion.value.trim() ? { suggestion: suggestion.value.trim() } : {}),
-          target: t,
-        });
+        state.comments.push({ id: newId(), ...stamp(), kind: kind.value, body: body.value.trim(), ...(sug ? { suggestion: sug } : {}), target: t });
       }
       save();
       closePop();
@@ -320,43 +367,88 @@
     body.focus();
   }
 
-  function openThread(c) {
-    closePop();
-    const loc = located.get(c.id);
-    const i = state.comments.indexOf(c) + 1;
-    pop = el("div", { class: "bh-review-pop bh-review-ui", role: "dialog", "aria-label": `Review comment ${i}` }, [
-      el("div", { class: "bh-review-head" }, [
-        el("span", { class: `badge kind-${c.kind}`, text: c.kind }),
-        el("span", { class: "muted", text: `#${i} · ${new Date(c.created).toLocaleString()}` }),
+  function message(m, t) {
+    const draft = isDraft(m);
+    const who = m.author || m.reviewer || (draft ? "You" : "Anonymous");
+    return el("li", { class: `bh-review-msg${draft ? " is-draft" : ""}` }, [
+      el("div", { class: "bh-review-msg-head" }, [
+        el("strong", { text: who }),
+        el("span", { class: "muted", text: new Date(m.created).toLocaleString() }),
+        draft ? el("span", { class: "badge plain draft", text: "draft · not yet submitted" }) : null,
+        m.resolves === true ? el("span", { class: "badge resolved", text: "resolved" }) : m.resolves === false ? el("span", { class: "badge open", text: "reopened" }) : null,
       ]),
-      c.target.quote ? el("blockquote", { class: "bh-review-quote", text: c.target.quote.exact }) : null,
-      el("p", { class: "bh-review-text", text: c.body }),
-      c.suggestion ? el("p", { class: "bh-review-suggested" }, [el("strong", { text: "Suggest: " }), c.suggestion]) : null,
+      el("p", { class: "bh-review-text", text: m.body }),
+      m.suggestion ? el("p", { class: "bh-review-suggested" }, [el("strong", { text: "Suggest: " }), m.suggestion]) : null,
+      draft ? el("div", { class: "bh-review-msg-actions" }, [
+        m === t.root
+          ? el("button", { type: "button", class: "btn ghost", text: "Edit", onclick: () => { const loc = located.get(t.root.id); composer(t.root.target, m, loc ? firstRect(loc.range) : { left: 40, top: 120, bottom: 140 }, loc && loc.range); } })
+          : null,
+        el("button", { type: "button", class: "btn ghost", text: "Delete draft", onclick: () => remove(m) }),
+      ]) : null,
+    ]);
+  }
+
+  function openThread(t) {
+    closePop();
+    const loc = located.get(t.root.id);
+    const i = current.indexOf(t) + 1;
+    const reply = el("textarea", { class: "bh-review-body", rows: "3", placeholder: "Reply…", "aria-label": "Reply" });
+    const resolve = el("input", { type: "checkbox" });
+    const sendReply = () => {
+      if (!reply.value.trim() && !resolve.checked) { reply.focus(); return; }
+      state.comments.push({
+        id: newId(), ...stamp(), kind: "comment", inReplyTo: t.root.id,
+        body: reply.value.trim() || (t.resolved ? "Reopened." : "Resolved."),
+        ...(resolve.checked ? { resolves: !t.resolved } : {}),
+      });
+      save();
+      relocateAll();
+      const again = current.find((x) => x.root.id === t.root.id);
+      if (again) openThread(again);
+      announce("Reply saved in this browser; export it to submit");
+    };
+    pop = el("div", { class: "bh-review-pop bh-review-ui", role: "dialog", "aria-label": `Thread ${i}` }, [
+      el("div", { class: "bh-review-head" }, [
+        el("span", { class: `badge kind-${t.root.kind}`, text: t.root.kind }),
+        el("span", { class: "muted", text: `#${i}` }),
+        t.resolved ? el("span", { class: "badge resolved", text: "resolved" }) : null,
+        !loc && t.root.target ? el("span", { class: "badge warn", text: "outdated" }) : null,
+      ]),
+      t.root.target && t.root.target.quote ? el("blockquote", { class: "bh-review-quote", text: t.root.target.quote.exact }) : null,
+      !loc && t.root.commit && build().repo ? el("p", { class: "muted bh-review-hint" }, [
+        "The text this refers to has changed. ",
+        el("a", { href: `https://github.com/${build().repo}/blob/${t.root.commit}/${docPath()}`, target: "_blank", rel: "noopener", text: "See it as it was" }),
+      ]) : null,
+      el("ol", { class: "bh-review-msgs" }, [t.root, ...t.replies].map((m) => message(m, t))),
+      reply,
       el("div", { class: "bh-review-actions" }, [
-        el("button", { type: "button", class: "btn ghost", text: "Delete", onclick: () => remove(c) }),
-        el("button", { type: "button", class: "btn", text: "Edit", onclick: () => composer(c.target, c, loc ? firstRect(loc.range) : pinRect(c), loc && loc.range) }),
-        el("button", { type: "button", class: "btn primary", text: "Close", onclick: closePop }),
+        el("label", { class: "bh-review-resolve" }, [resolve, t.resolved ? " Reopen" : " Mark resolved"]),
+        el("button", { type: "button", class: "btn ghost", text: "Close", onclick: closePop }),
+        el("button", { type: "button", class: "btn primary", text: "Reply", onclick: sendReply }),
       ]),
     ]);
-    pop.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); closePop(); } });
+    pop.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { e.stopPropagation(); closePop(); }
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendReply(); }
+    });
     doc.body.append(pop);
-    placePop(loc ? firstRect(loc.range) : pinRect(c));
-    if (loc && c.target.quote && window.CSS && CSS.highlights && window.Highlight) CSS.highlights.set("bh-review-active", new Highlight(loc.range));
-    pop.querySelector(".btn.primary").focus();
+    placePop(loc ? firstRect(loc.range) : pinRect(t));
+    if (loc && t.root.target.quote && window.CSS && CSS.highlights && window.Highlight) CSS.highlights.set("bh-review-active", new Highlight(loc.range));
+    reply.focus({ preventScroll: true });
   }
 
-  function pinRect(c) {
-    const i = state.comments.indexOf(c);
-    const pin = pinLayer.children[i];
-    return pin ? pin.getBoundingClientRect() : { left: 20, top: 80, bottom: 100, right: 40 };
+  function pinRect(t) {
+    const pin = pinLayer.querySelector(`[data-thread="${current.indexOf(t) + 1}"]`);
+    return pin ? pin.getBoundingClientRect() : { left: 40, top: 120, bottom: 140, right: 60 };
   }
 
-  function remove(c) {
-    state.comments = state.comments.filter((x) => x !== c);
+  function remove(m) {
+    // Deleting a draft root also deletes your draft replies to it.
+    state.comments = state.comments.filter((x) => x !== m && x.inReplyTo !== m.id);
     save();
     closePop();
     relocateAll();
-    announce("Comment deleted");
+    announce("Draft deleted");
   }
 
   // ---- Selection & block buttons (review mode only) -------------------------------------------------------
@@ -400,61 +492,86 @@
   }
   function removeBlockButtons() { article.querySelectorAll(".bh-review-add").forEach((b) => b.remove()); }
 
-  // ---- Panel: list, reviewer, export -------------------------------------------------------------------------
+  // ---- Panel: threads, drafts, export ---------------------------------------------------------------------
+
+  function goTo(t) {
+    const loc = located.get(t.root.id);
+    if (loc) {
+      const anchor = loc.range.startContainer.nodeType === 1 ? loc.range.startContainer : loc.range.startContainer.parentElement;
+      anchor.scrollIntoView({ block: "center", behavior: bh.reducedMotion.matches ? "instant" : "smooth" });
+      setTimeout(() => openThread(t), 350);
+    } else {
+      openThread(t);
+    }
+  }
+
+  function threadItem(t) {
+    const loc = located.get(t.root.id);
+    const i = current.indexOf(t) + 1;
+    const n = 1 + t.replies.length;
+    const where = t.root.target && t.root.target.quote ? `“${t.root.target.quote.exact.slice(0, 60)}${t.root.target.quote.exact.length > 60 ? "…" : ""}”` : `#${(t.root.target && t.root.target.anchor) || "top"}`;
+    const status = [t.resolved ? "resolved" : null, !loc && t.root.target ? "outdated" : null, n > 1 ? `${n} messages` : null, t.drafts ? `${t.drafts} draft${t.drafts === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ");
+    return el("li", { class: `${loc ? "" : "is-outdated"}${t.resolved ? " is-resolved" : ""}` }, [
+      el("button", { type: "button", class: "bh-review-item", onclick: () => goTo(t) }, [
+        el("span", { class: `bh-review-num kind-${t.root.kind}${t.draft ? " is-draft" : ""}`, text: String(i) }),
+        el("span", { class: "bh-review-item-text" }, [
+          el("strong", { text: t.root.body.length > 90 ? t.root.body.slice(0, 87) + "…" : t.root.body }),
+          el("span", { class: "muted", text: where + (status ? ` · ${status}` : "") }),
+        ]),
+      ]),
+    ]);
+  }
 
   function renderPanel() {
     if (!panel) return;
-    const list = panel.querySelector(".bh-review-list");
-    const outdated = state.comments.filter((c) => !located.get(c.id)).length;
-    panel.querySelector(".bh-review-summary").textContent = state.comments.length
-      ? `${state.comments.length} comment${state.comments.length === 1 ? "" : "s"} on this page, saved in this browser${outdated ? ` · ${outdated} outdated` : ""}.`
-      : "No comments yet. Select text and press Comment, or use + Comment on a section.";
-    list.replaceChildren(...state.comments.map((c, i) => {
-      const loc = located.get(c.id);
-      return el("li", { class: loc ? "" : "is-outdated" }, [
-        el("button", { type: "button", class: "bh-review-item", onclick: () => {
-          if (!loc) return;
-          firstRect(loc.range) && loc.range.startContainer.parentElement && loc.range.startContainer.parentElement.scrollIntoView({ block: "center", behavior: bh.reducedMotion.matches ? "instant" : "smooth" });
-          setTimeout(() => openThread(c), 350);
-        } }, [
-          el("span", { class: `bh-review-num kind-${c.kind}`, text: String(i + 1) }),
-          el("span", { class: "bh-review-item-text" }, [
-            el("strong", { text: c.body.length > 90 ? c.body.slice(0, 87) + "…" : c.body }),
-            el("span", { class: "muted", text: (c.target.quote ? `“${c.target.quote.exact.slice(0, 60)}${c.target.quote.exact.length > 60 ? "…" : ""}”` : `#${c.target.anchor || "top"}`) + (loc ? "" : " · outdated: text not found") }),
-          ]),
-        ]),
-      ]);
-    }));
-    panel.querySelectorAll("[data-export]").forEach((b) => { b.disabled = !state.comments.length; });
-    panel.querySelector("[data-clear]").disabled = !state.comments.length;
+    const pub = current.filter((t) => !t.draft);
+    const open = pub.filter((t) => !t.resolved);
+    const shownPub = pub.filter((t) => showResolved || !t.resolved || t.drafts);
+    const mine = current.filter((t) => t.draft);
+    const draftCount = state.comments.length;
+    panel.querySelector(".bh-review-pubhead").textContent = pub.length ? `Discussion · ${open.length} open${pub.length - open.length ? `, ${pub.length - open.length} resolved` : ""}` : "Discussion";
+    panel.querySelector(".bh-review-publist").replaceChildren(...(shownPub.length ? shownPub.map(threadItem) : [el("li", { class: "muted", text: pub.length ? "All threads are resolved." : "No published comments on this page yet." })]));
+    panel.querySelector(".bh-review-mylist").replaceChildren(...(mine.length ? mine.map(threadItem) : [el("li", { class: "muted", text: "Select text and press Comment, or use + Comment on a section. Reply from any thread." })]));
+    panel.querySelector(".bh-review-mine").textContent = draftCount ? `Your drafts · ${draftCount} not yet submitted` : "Your drafts";
+    panel.querySelectorAll("[data-export]").forEach((b) => { b.disabled = !draftCount; });
+    panel.querySelector("[data-clear]").disabled = !draftCount;
+    panel.querySelector(".bh-review-resolved").hidden = pub.length === open.length;
   }
 
   function buildPanel() {
-    const reviewer = el("input", { type: "text", class: "bh-review-reviewer", placeholder: "Your name (optional)", "aria-label": "Reviewer name", value: state.reviewer });
+    const reviewer = el("input", { type: "text", class: "bh-review-reviewer", placeholder: "Your name (optional)", "aria-label": "Your name", value: state.reviewer });
     reviewer.addEventListener("input", () => { state.reviewer = reviewer.value.trim(); save(); });
-    const clear = el("button", { type: "button", class: "btn ghost", "data-clear": "", text: "Clear all…" });
+    const clear = el("button", { type: "button", class: "btn ghost", "data-clear": "", text: "Delete all drafts…" });
     let armed = false;
     clear.addEventListener("click", () => {
-      if (!armed) { armed = true; clear.textContent = "Click again to delete all"; setTimeout(() => { armed = false; clear.textContent = "Clear all…"; }, 3000); return; }
+      if (!armed) { armed = true; clear.textContent = "Click again to delete your drafts"; setTimeout(() => { armed = false; clear.textContent = "Delete all drafts…"; }, 3000); return; }
       state.comments = [];
       save();
       relocateAll();
-      announce("All comments cleared");
+      announce("Drafts deleted");
     });
+    const resolvedToggle = el("input", { type: "checkbox" });
+    resolvedToggle.addEventListener("change", () => { showResolved = resolvedToggle.checked; paint(); });
+    const pageToggle = el("input", { type: "checkbox", checked: showOnPage });
+    pageToggle.addEventListener("change", () => { showOnPage = pageToggle.checked; bh.storage(() => localStorage.setItem("bh-review/v1/show", showOnPage ? "on" : "off")); paint(); });
     panel = el("aside", { class: "bh-review-panel bh-review-ui", "aria-label": "Review" }, [
       el("div", { class: "bh-review-panel-head" }, [
         el("strong", { text: "Review" }),
         el("button", { type: "button", class: "btn ghost", text: "Done", onclick: () => setActive(false) }),
       ]),
-      el("p", { class: "bh-review-summary muted" }),
-      el("ol", { class: "bh-review-list" }),
-      el("label", { class: "bh-review-label" }, ["Reviewer", reviewer]),
+      el("p", { class: "bh-review-sec bh-review-pubhead" }),
+      el("ol", { class: "bh-review-list bh-review-publist" }),
+      el("label", { class: "bh-review-check bh-review-resolved" }, [resolvedToggle, " Show resolved threads"]),
+      el("p", { class: "bh-review-sec bh-review-mine" }),
+      el("ol", { class: "bh-review-list bh-review-mylist" }),
+      el("label", { class: "bh-review-label" }, ["Your name", reviewer]),
       el("div", { class: "bh-review-export" }, [
-        el("button", { type: "button", class: "btn primary", "data-export": "json", text: "Download .json", onclick: () => exportFile(false) }),
-        el("button", { type: "button", class: "btn", "data-export": "gz", text: "Download .json.gz", onclick: () => exportFile(true) }),
+        el("button", { type: "button", class: "btn primary", "data-export": "json", text: "Download drafts .json", onclick: () => exportFile(false) }),
+        el("button", { type: "button", class: "btn", "data-export": "gz", text: ".json.gz", onclick: () => exportFile(true) }),
       ]),
-      el("p", { class: "bh-review-help muted", text: "Comments stay in this browser until you export. To submit: download the file, add it to reviews/inbox/ in a pull request (GitHub → Add file → Upload files)." }),
+      el("p", { class: "bh-review-help muted", text: "Drafts stay in this browser until you export them. To submit: add the file to reviews/inbox/ in a pull request (GitHub → Add file → Upload files). Once merged, they appear here for everyone. Delete drafts you have already submitted before exporting again: the same comment can't be merged twice." }),
       clear,
+      el("label", { class: "bh-review-check" }, [pageToggle, " Show comments on the page when not reviewing"]),
     ]);
     doc.body.append(panel);
   }
@@ -470,17 +587,21 @@
       build: { commit: b.commit, dirty: b.dirty, builtAt: b.builtAt },
       reviewer: state.reviewer || null,
       exported: new Date().toISOString(),
-      comments: state.comments.map((c) => ({ ...c, outdated: !located.get(c.id) })),
+      comments: state.comments.map((c) => {
+        const out = { ...c, author: c.author || state.reviewer || null };
+        if (!c.inReplyTo && c.target) out.outdated = !located.get(c.id);
+        return out;
+      }),
     };
   }
 
   async function exportFile(gzip) {
     const json = JSON.stringify(reviewFile(), null, 2) + "\n";
-    const stamp = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 16);
+    const stampStr = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 16);
     const slug = docPath().split("/").pop().replace(/\.html$/, "");
     const who = (state.reviewer || "anonymous").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "anonymous";
     let blob = new Blob([json], { type: "application/json" });
-    let name = `review-${slug}-${stamp}-${who}.json`;
+    let name = `review-${slug}-${stampStr}-${who}.json`;
     if (gzip && window.CompressionStream) {
       blob = await new Response(blob.stream().pipeThrough(new CompressionStream("gzip"))).blob();
       blob = new Blob([blob], { type: "application/gzip" });
@@ -502,8 +623,12 @@
   function updateCount() {
     const badge = doc.querySelector(".bh-review-count");
     if (!badge) return;
-    badge.hidden = !state.comments.length;
-    badge.textContent = String(state.comments.length);
+    const open = current.filter((t) => !t.resolved).length;
+    badge.hidden = !open && !state.comments.length;
+    badge.textContent = String(open);
+    badge.classList.toggle("has-drafts", state.comments.length > 0);
+    const btn = doc.querySelector(".bh-review-btn");
+    if (btn) btn.title = `Review: ${open} open thread${open === 1 ? "" : "s"}${state.comments.length ? `, ${state.comments.length} unsubmitted draft${state.comments.length === 1 ? "" : "s"}` : ""}`;
   }
 
   function setActive(on) {
@@ -511,7 +636,7 @@
     root.classList.toggle("bh-reviewing", on);
     const btn = doc.querySelector(".bh-review-btn");
     if (btn) btn.setAttribute("aria-pressed", String(on));
-    if (on) { if (!panel) buildPanel(); addBlockButtons(); renderPanel(); panel.hidden = false; }
+    if (on) { if (!panel) buildPanel(); addBlockButtons(); panel.hidden = false; renderPanel(); }
     else { if (panel) panel.hidden = true; removeBlockButtons(); selBtn.hidden = true; closePop(); }
     requestAnimationFrame(paint);
   }
@@ -535,17 +660,19 @@
         addEventListener("resize", later);
         new ResizeObserver(later).observe(article);
         relocateAll();
-        updateCount();
       }
       if (review) setActive(true);
     };
-    // The build stamp (commit) is optional: present on GitHub Pages and under `npm run serve`.
-    if (window.BH_BUILD || !bh.siteRoot) { go(); return Promise.resolve(); }
-    return bh.loadScript(new URL("theme/build.js", bh.siteRoot).href).catch(() => {}).then(go);
+    // Optional data: the build stamp (commit) and the published threads. Both exist on
+    // GitHub Pages and under `npm run serve`; bundles inline them.
+    const need = [];
+    if (bh.siteRoot && !window.BH_BUILD) need.push(new URL("theme/build.js", bh.siteRoot).href);
+    if (bh.siteRoot && !window.BH_REVIEWS) need.push(new URL("theme/reviews.js", bh.siteRoot).href);
+    return Promise.all(need.map((u) => bh.loadScript(u).catch(() => {}))).then(go);
   }
 
   function toggle() { return start(false).then(() => setActive(!active)); }
 
-  bh.review = { start, toggle, get comments() { return state.comments; }, file: reviewFile, relocate: relocateAll };
+  bh.review = { start, toggle, get comments() { return state.comments; }, get threads() { return current; }, file: reviewFile, relocate: relocateAll };
   window.bhModules = Object.assign(window.bhModules || {}, { "review.js": true });
 })();

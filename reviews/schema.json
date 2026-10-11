@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://newhoggy.github.io/beautiful-html/reviews/schema.json",
   "title": "beautiful-html review file (bh-review/1)",
-  "description": "Comments one reviewer made on one document, exported from the page's Review panel (theme/modules/review.js). May be gzipped (.json.gz).",
+  "description": "Comments and replies one reviewer made on one document, exported from the page's Review panel (theme/modules/review.js). May be gzipped (.json.gz). Merged files under reviews/ are compiled into theme/reviews.js and shown on the published page as threads.",
   "type": "object",
   "required": ["format", "document", "build", "comments"],
   "properties": {
@@ -26,7 +26,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "created", "kind", "body", "target"],
+        "required": ["id", "created", "kind", "body"],
         "properties": {
           "id": { "type": "string" },
           "created": { "type": "string", "format": "date-time" },
@@ -59,8 +59,12 @@
                 "properties": { "start": { "type": "integer" }, "end": { "type": "integer" } }
               }
             }
-          }
-        }
+          },
+          "author": { "type": ["string", "null"], "description": "Who wrote this message (defaults to the file's reviewer)" },
+          "inReplyTo": { "type": "string", "description": "Id of the comment this replies to (any message in a thread). A reply needs no target: it belongs to the thread's root." },
+          "resolves": { "type": "boolean", "description": "true marks the thread resolved; false reopens it. The latest reply that sets it wins." }
+        },
+        "anyOf": [{ "required": ["target"] }, { "required": ["inReplyTo"] }]
       }
     }
   }
