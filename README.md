@@ -1,3 +1,5 @@
+<img src="theme/logo/mark-tile.svg" alt="Bitwise Engineering logo" width="72" align="right">
+
 # Bitwise Engineering
 
 A software engineering blog on **functional programming**, **succinct data structures** and

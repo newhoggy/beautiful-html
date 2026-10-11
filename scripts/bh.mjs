@@ -745,6 +745,29 @@ function reviewProblems() {
 
 // ---- check ------------------------------------------------------------------------
 
+// ---- logo: the inline mark in bh.js must match the self-contained SVG ------------------------
+
+const LOGO_DIR = path.join(ROOT, "theme", "logo");
+
+/** theme/logo/mark.svg is the source of truth for the mark's geometry; bh.js inlines the same paths. */
+function logoProblems() {
+  const problems = [];
+  const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, "utf8") : null);
+  const mark = read(path.join(LOGO_DIR, "mark.svg")), js = read(path.join(ROOT, "theme", "bh.js"));
+  if (!mark) return ["theme/logo/mark.svg is missing"];
+  const paths = [...mark.matchAll(/<path\b[^>]*\sd="([^"]+)"/g)].map((m) => m[1]);
+  if (!paths.length) problems.push("theme/logo/mark.svg has no <path> to compare");
+  for (const d of paths) if (!js.includes(`d="${d}"`)) problems.push("theme/bh.js LOGO_SVG has drifted from theme/logo/mark.svg: copy the paths across");
+  for (const f of ["mark.svg", "mark-tile.svg", "lockup.svg", "og-card.svg"]) {
+    const t = read(path.join(LOGO_DIR, f));
+    if (!t) { problems.push(`theme/logo/${f} is missing`); continue; }
+    if (!/role="img"/.test(t) || !/<title\b/.test(t)) problems.push(`theme/logo/${f} needs role="img" and a <title>`);
+    if (/<(image|text)\b|font-family|@import|url\(\s*["']?https?:/.test(t)) problems.push(`theme/logo/${f} must be self-contained: no raster, <text>, fonts or remote references`);
+  }
+  for (const f of ["apple-touch-icon.png", "og.png"]) if (!fs.existsSync(path.join(LOGO_DIR, f))) problems.push(`theme/logo/${f} is missing`);
+  return problems;
+}
+
 function cmdCheck() {
   let errors = 0, warnings = 0;
   const templates = fs.readdirSync(TEMPLATES).filter((f) => f.endsWith(".html")).sort().map((f) => path.join(TEMPLATES, f));
@@ -755,8 +778,9 @@ function cmdCheck() {
     const problems = [
       ...fs.readdirSync(path.join(ROOT, "theme")).filter((f) => f.endsWith(".css")).flatMap((f) => cssImportProblems(path.join(ROOT, "theme", f))),
       ...contrastProblems(),
+      ...logoProblems(),
     ];
-    console.log((problems.length ? c.red("✗ ") : c.green("✓ ")) + "theme (import order, token contrast)");
+    console.log((problems.length ? c.red("✗ ") : c.green("✓ ")) + "theme (import order, token contrast, logo)");
     problems.forEach((p) => console.log(c.red("  error  ") + p));
     errors += problems.length;
   }
@@ -840,6 +864,11 @@ function cmdCheck() {
     if (!isTemplate && /\{\{\w+\}\}/.test(html)) err("unfilled {{placeholder}} left from template");
     if (!/<html[^>]*\slang=/.test(html)) err("<html> is missing lang");
     if (!/name="viewport"/.test(html)) err("missing viewport meta");
+    // Favicon and touch icon: present, and the files exist (bundle inlines them).
+    if (!/<link\s+rel="icon"/.test(html)) err('missing <link rel="icon"> (see theme/logo/)');
+    for (const m of html.matchAll(/<link\s+rel="(?:icon|apple-touch-icon)"[^>]*\shref="([^"]+)"/g)) {
+      if (!/^(https?:|data:)/.test(m[1]) && !fs.existsSync(path.resolve(path.dirname(file), m[1]))) err(`icon ${m[1]} does not exist`);
+    }
 
     if (isDoc) {
       const kind = getMeta(html, "bh:kind");
@@ -1004,6 +1033,15 @@ function bundleOne(file) {
   html = html.replace(/(<img\b[^>]*\ssrc=")([^"]+)(")/g, (m, a, src, b) => {
     if (/^(https?:|data:)/.test(src)) return m;
     const p = path.resolve(dir, src);
+    const mime = MIME[path.extname(p).toLowerCase()];
+    if (!mime || !fs.existsSync(p)) return m;
+    return a + `data:${mime};base64,${fs.readFileSync(p).toString("base64")}` + b;
+  });
+
+  // A standalone file has no theme/ beside it: carry the favicon and touch icon inside it.
+  html = html.replace(/(<link\s+rel="(?:icon|apple-touch-icon)"[^>]*\shref=")([^"]+)(")/g, (m, a, href, b) => {
+    if (/^(https?:|data:)/.test(href)) return m;
+    const p = path.resolve(dir, href);
     const mime = MIME[path.extname(p).toLowerCase()];
     if (!mime || !fs.existsSync(p)) return m;
     return a + `data:${mime};base64,${fs.readFileSync(p).toString("base64")}` + b;

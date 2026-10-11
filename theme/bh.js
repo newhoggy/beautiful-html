@@ -150,7 +150,7 @@
 
     const home = doc.body.dataset.home;
     const site = doc.body.dataset.site || "Bitwise Engineering";
-    const brandChildren = [el("span", { class: "bh-brand-mark", "aria-hidden": "true" }), el("span", { text: site })];
+    const brandChildren = [el("span", { class: "bh-brand-mark", "aria-hidden": "true", html: LOGO_SVG }), el("span", { text: site })];
     const brand = home && !root.hasAttribute("data-bundled")
       ? el("a", { class: "bh-brand", href: home, title: "Back to index" }, brandChildren)
       : el("span", { class: "bh-brand" }, brandChildren);
@@ -265,6 +265,9 @@
 
   // ---- Deep links: copy a link to any section, figure or glossary entry ---------------------
 
+  /** The Bitwise Engineering mark (a "B" of two bits: a solid 1 over a hollow 0), inline so it follows the page's colours.
+      `check` keeps these paths identical to theme/logo/mark.svg, the self-contained copy for <img> and favicons. */
+  const LOGO_SVG = '<svg viewBox="0 0 32 32" fill="currentColor" focusable="false" aria-hidden="true"><path d="M9 3H18A5.75 5.75 0 0 1 18 14.5H9A2 2 0 0 1 7 12.5V5A2 2 0 0 1 9 3Z"/><path fill-rule="evenodd" d="M9 16.5H19A6.25 6.25 0 0 1 19 29H9A2 2 0 0 1 7 27V18.5A2 2 0 0 1 9 16.5ZM11.5 19.75V25.75H19A3 3 0 0 0 19 19.75Z"/></svg>';
   const LINK_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
 
   function linkLabel(target) {
@@ -1282,6 +1285,8 @@
 
   whenReady(() => {
     buildChrome();
+    // [data-bh-logo] elements (decorative marks in a page) get the same inline mark as the top bar.
+    for (const n of doc.querySelectorAll("[data-bh-logo]")) n.innerHTML = LOGO_SVG;
     buildMeta();
     buildToc(buildHeadings());
     buildSidenotes();

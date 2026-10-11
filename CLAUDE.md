@@ -23,6 +23,23 @@ Run `npm run index` after **any** change to a document. It regenerates the catal
 `theme/glossary.js`, `theme/site.js` (backlinks) and `theme/search-index.js`. `check`
 fails while any of these are stale. Never edit the generated files by hand.
 
+## Brand assets
+
+The logo is a "B" made of two bits: a solid upper bowl (1) over a hollow lower bowl (0).
+Files live in `theme/logo/`; `theme/logo/README.md` says which to use where.
+
+- **On a page, use the inline mark**, never an `<img>`: it takes its colour from the page,
+  so it follows both the `data-theme` toggle and `prefers-color-scheme`. The top bar already
+  has it. For a decorative mark elsewhere write
+  `<span class="bh-hero-mark" data-bh-logo aria-hidden="true"></span>`; `bh.js` fills it in.
+- **Standalone SVGs** (`mark.svg`, `mark-tile.svg`, `lockup.svg`) carry their own colours and
+  switch with `prefers-color-scheme` only: an `<img>` or a favicon cannot see page CSS
+  variables or the manual toggle. Use `mark-tile.svg` wherever the background is unknown.
+- Every page links the favicon (`<link rel="icon">`) and touch icon; the templates already do.
+  `check` fails without them. `bundle` inlines both so a standalone file keeps its icon.
+- The paths in `bh.js` (`LOGO_SVG`) must equal those in `theme/logo/mark.svg`; `check` fails on drift.
+- No raster, `<text>` or fonts inside the SVGs (`check` enforces it): the wordmark is converted to paths.
+
 ## Private pages
 
 The repo and its GitHub Pages site are public, so a page that must stay private is never
