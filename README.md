@@ -1,11 +1,30 @@
-# beautiful-html
+# Bitwise Engineering
 
-Technical explainers, design docs, decision records, incident reviews and change
-walkthroughs, written as rich, interactive HTML with one consistent theme.
+A software engineering blog on **functional programming**, **succinct data structures** and
+**AI workflows**. Every post is a self-contained, interactive HTML page: explainers, design
+docs, decision records, incident reviews and change walkthroughs, with one consistent theme.
 
 **Live site: [newhoggy.github.io/beautiful-html](https://newhoggy.github.io/beautiful-html/)**
-Start with the [design doc demo](https://newhoggy.github.io/beautiful-html/docs/edge-rate-limiting-design.html)
-or the [component gallery](https://newhoggy.github.io/beautiful-html/docs/component-gallery.html).
+Start with the [component gallery](https://newhoggy.github.io/beautiful-html/docs/component-gallery.html)
+to see what a page can do.
+
+The theme and toolkit that build the site are called **beautiful-html**. Their names stay:
+the `bh` / `bh-*` prefixes (`bh.css`, `bh.js`, `bh:` meta tags, the `bh-review/1` format) and the
+`beautiful-html private page: <slug>` 1Password item titles are implementation, baked into
+every page and key, so the rebrand changes the site's name and not these.
+
+## Topics, examples and the site address
+
+- **Topics.** A post joins a topic by carrying its name in `bh:tags`: `functional
+  programming`, `succinct data structures` or `ai workflows`. The home page's topic chips
+  are built from those tags (a topic with no posts yet gets no chip).
+- **Examples.** The rate-limiting design doc, its two ADRs and the token-bucket explainer
+  are worked examples of the document kinds, not posts. They carry the tag `examples`, and
+  the home page labels them "Example · …".
+- **Address.** The repository, and so the Pages URL, keep the name `beautiful-html`. Renaming
+  the repo would break every Pages link, including private-page `#k=` links already shared
+  (GitHub redirects the repo URL but not Pages). If the blog gets its own address, use a
+  custom domain rather than a rename.
 
 - **No build step to write.** Pages are plain HTML. Open one straight from disk.
 - **One theme.** Design tokens drive typography, colour (light and dark), spacing and motion.

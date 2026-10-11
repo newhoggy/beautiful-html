@@ -2,7 +2,7 @@
   "name": "beautiful-html",
   "private": true,
   "type": "module",
-  "description": "Technical explainers, designs and decisions as rich, interactive, single-theme HTML.",
+  "description": "Bitwise Engineering: a software engineering blog, built on the beautiful-html theme.",
   "repository": "github:newhoggy/beautiful-html",
   "engines": { "node": ">=20" },
   "scripts": {
