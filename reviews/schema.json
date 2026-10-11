@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://newhoggy.github.io/beautiful-html/reviews/schema.json",
+  "$id": "https://bitwise.john-ky.io/reviews/schema.json",
   "title": "beautiful-html review file (bh-review/1)",
   "description": "Comments and replies one reviewer made on one document, exported from the page's Review panel (theme/modules/review.js). May be gzipped (.json.gz). Merged files under reviews/ are compiled into theme/reviews.js and shown on the published page as threads.",
   "type": "object",
