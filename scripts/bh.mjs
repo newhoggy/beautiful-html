@@ -727,6 +727,20 @@ function readReview(file) {
   return JSON.parse((file.endsWith(".gz") ? zlib.gunzipSync(buf) : buf).toString("utf8"));
 }
 
+/**
+ * True when a review's `document` is a private page: its plaintext source
+ * (docs/<slug>.private.html, whether or not it exists here) or the sealed shell
+ * (docs/<slug>.html carrying bh:sealed). Both repo and Pages site are public, so
+ * nothing about such a page, quotes and comment bodies included, may be published.
+ */
+function isPrivateDocument(document) {
+  if (typeof document !== "string") return false;
+  const rel = path.posix.normalize(document.replace(/\\/g, "/"));
+  if (rel.endsWith(PRIVATE_EXT)) return true;
+  const file = path.join(ROOT, rel);
+  return file.startsWith(DOCS + path.sep) && fs.existsSync(file) && fs.statSync(file).isFile() && isSealed(file);
+}
+
 /** Every merged comment and reply, grouped by document, oldest first → theme/reviews.js. */
 function compileReviews() {
   const byDoc = {};
@@ -734,6 +748,7 @@ function compileReviews() {
     let r;
     try { r = readReview(file); } catch { continue; } // reported by reviewProblems()
     if (r.format !== "bh-review/1" || !Array.isArray(r.comments)) continue;
+    if (isPrivateDocument(r.document)) continue; // reported by reviewProblems(); never published
     for (const cm of r.comments) {
       const { outdated, ...keep } = cm; // export-time observation, not part of the record
       void outdated;
@@ -761,6 +776,10 @@ function reviewProblems() {
     let r;
     try { r = readReview(file); } catch (e) { out.push(`${rel}: not readable JSON (${e.message})`); continue; }
     if (r.format !== "bh-review/1") { out.push(`${rel}: format must be "bh-review/1"`); continue; }
+    if (isPrivateDocument(r.document)) {
+      out.push(`${rel}: reviews "${r.document}", a private page. The repo and the published site are public, so keep this review file out of the repo (send it to the author privately)`);
+      continue;
+    }
     if (!r.document || !fs.existsSync(path.join(ROOT, r.document))) out.push(`${rel}: document "${r.document}" doesn't exist`);
     if (!Array.isArray(r.comments)) { out.push(`${rel}: comments must be an array`); continue; }
     r.comments.forEach((cm, i) => {

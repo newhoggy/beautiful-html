@@ -65,6 +65,11 @@ carries its key.
   its shell is outdated, or when a private page was never sealed.
 - Private pages stay out of the catalogue, search, backlinks and `bundle --all`. Public
   pages, glossary entries included, must not link to them; `check` fails if one does.
+- Private pages stay out of the published review threads too. `index` skips any review whose
+  `document` is a private page (`docs/<slug>.private.html`, or a sealed `docs/<slug>.html`), so
+  its quotes and comments never reach `theme/reviews.js` or `theme/site.js`. The review file
+  itself would be public in git, so `check` fails if one under `reviews/` targets a private
+  page: keep such review files out of the repo.
 - After decrypting, the page removes the key from the address bar and remembers it for the
   browser session. Copied section links therefore have no key: share the full `#k=` link.
 - Never put a `#k=` link in a commit message, PR, issue or any other public place.
