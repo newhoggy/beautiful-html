@@ -26,6 +26,9 @@ jobs:
 
       # Links, ids, arrows, labels, contrast, glossary, decision links, and that the
       # generated files (index, glossary, site data, search index) are up to date.
+      - name: Review ingestion regression tests
+        run: npm test
+
       - name: npm run check
         run: npm run check
 

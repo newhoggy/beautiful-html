@@ -16,6 +16,7 @@ import http from "node:http";
 import { execSync, execFileSync } from "node:child_process";
 import zlib from "node:zlib";
 import crypto from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -983,9 +984,20 @@ function isPrivateDocument(document) {
   return file.startsWith(DOCS + path.sep) && fs.existsSync(file) && fs.statSync(file).isFile() && isSealed(file);
 }
 
+/** Export-time location status is not part of a message; attribution is. */
+function reviewRecord(cm, review) {
+  const { outdated, ...keep } = cm;
+  void outdated;
+  return { ...keep, author: cm.author || review.reviewer || null };
+}
+
+function sameReviewMessage(a, b) {
+  return a.document === b.document && isDeepStrictEqual(a.record, b.record);
+}
+
 /** Every merged comment and reply, grouped by document, oldest first → theme/reviews.js. */
 function compileReviews() {
-  const byDoc = {};
+  const byDoc = {}, ids = new Map();
   for (const file of reviewFiles().sort()) {
     let r;
     try { r = readReview(file); } catch { continue; } // reported by reviewProblems()
@@ -993,9 +1005,11 @@ function compileReviews() {
     if (isPrivateDocument(r.document)) continue; // reported by reviewProblems(); never published
     const docKey = canonicalDocument(r.document);
     for (const cm of r.comments) {
-      const { outdated, ...keep } = cm; // export-time observation, not part of the record
-      void outdated;
-      (byDoc[docKey] = byDoc[docKey] || []).push({ ...keep, author: cm.author || r.reviewer || null, file: path.relative(ROOT, file).split(path.sep).join("/") });
+      const record = reviewRecord(cm, r);
+      const message = { document: docKey, record };
+      if (cm.id && ids.has(cm.id) && sameReviewMessage(ids.get(cm.id), message)) continue;
+      if (cm.id && !ids.has(cm.id)) ids.set(cm.id, message);
+      (byDoc[docKey] = byDoc[docKey] || []).push({ ...record, file: path.relative(ROOT, file).split(path.sep).join("/") });
     }
   }
   for (const list of Object.values(byDoc)) list.sort((a, b) => String(a.created).localeCompare(String(b.created)));
@@ -1016,7 +1030,7 @@ function compileReviews() {
 function reviewProblems() {
   const out = [];
   const ids = new Map(), replies = [];
-  for (const file of reviewFiles()) {
+  for (const file of reviewFiles().sort()) {
     const rel = path.relative(ROOT, file);
     let r;
     try { r = readReview(file); } catch (e) { out.push(`${rel}: not readable JSON (${e.message})`); continue; }
@@ -1036,8 +1050,10 @@ function reviewProblems() {
       else if (cm.target && cm.target.quote && typeof cm.target.quote.exact !== "string") out.push(`${where}: target.quote.exact must be text`);
       if (typeof cm.created !== "string" || Number.isNaN(Date.parse(cm.created))) out.push(`${where}: created must be an ISO date-time`);
       if (cm.id) {
-        if (ids.has(cm.id)) out.push(`${where}: id "${cm.id}" is also used in ${ids.get(cm.id).rel}`);
-        ids.set(cm.id, { rel, document: canonicalDocument(r.document) });
+        const message = { rel, document: canonicalDocument(r.document), record: reviewRecord(cm, r) };
+        if (ids.has(cm.id)) {
+          if (!sameReviewMessage(ids.get(cm.id), message)) out.push(`${where}: id "${cm.id}" is also used in ${ids.get(cm.id).rel} with different content or document`);
+        } else ids.set(cm.id, message);
       }
       if (cm.inReplyTo) replies.push([where, cm.inReplyTo, canonicalDocument(r.document)]);
     });

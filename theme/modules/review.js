@@ -569,7 +569,7 @@
         el("button", { type: "button", class: "btn primary", "data-export": "json", text: "Download drafts .json", onclick: () => exportFile(false) }),
         el("button", { type: "button", class: "btn", "data-export": "gz", text: ".json.gz", onclick: () => exportFile(true) }),
       ]),
-      el("p", { class: "bh-review-help muted", text: "Drafts stay in this browser until you export them. To submit: add the file to reviews/inbox/ in a pull request (GitHub → Add file → Upload files). Once merged, they appear here for everyone. Delete drafts you have already submitted before exporting again: the same comment can't be merged twice." }),
+      el("p", { class: "bh-review-help muted", text: "Drafts stay in this browser until they are published. To submit: add the file to reviews/inbox/ in a pull request (GitHub → Add file → Upload files). Once merged, they appear here for everyone. You can export again with new drafts: unchanged messages are published once. Editing an already-submitted draft causes an id conflict; submit a new reply instead." }),
       clear,
       el("label", { class: "bh-review-check" }, [pageToggle, " Show comments on the page when not reviewing"]),
     ]);

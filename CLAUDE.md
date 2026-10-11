@@ -317,8 +317,12 @@ for everyone: highlights and pins, opening into threads.
   the thread, and `false` reopens it.
 - Resolved threads are hidden unless "Show resolved threads" is ticked.
 - Drafts that have since been merged are dropped from the browser automatically.
-- `check` requires ids to be unique across all review files, and every `inReplyTo` to
-  point at a message that exists.
+- Re-exporting drafts is safe: unchanged messages on the same document are published
+  once, even across multiple files. JSON property order and export-time `outdated` status
+  do not affect identity; effective author and every other comment field do. Editing an
+  already-submitted draft causes an id conflict: submit a new reply instead.
+- `check` rejects ids reused for different content or documents, and requires every
+  `inReplyTo` to point at a message that exists on the same document.
 
 **Applying a review file (for an agent or a person):**
 1. Read it (`gunzip` if it's `.json.gz`). For each comment, see the page as the reviewer
