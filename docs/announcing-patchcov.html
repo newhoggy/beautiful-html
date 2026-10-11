@@ -40,6 +40,23 @@
     #patch-sim .pc-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
     #patch-sim .pc-key { margin: 0; font-size: var(--step--1); color: var(--text-muted); }
     @media (prefers-reduced-motion: reduce) { #patch-sim .pc-diff li { transition: none; } }
+    .bh-hero .pc-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-5); align-items: center; }
+    .bh-hero .pc-hero-text > * + * { margin-top: var(--space-4); }
+    .bh-hero .pc-mascot { grid-column: 2; grid-row: 1; width: 200px; height: auto; }
+    @media (max-width: 640px) {
+      .bh-hero .pc-hero { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+      .bh-hero .pc-mascot { grid-column: 1; width: 128px; }
+    }
+    .pc-repos { list-style: none; padding: 0; display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(15em, 1fr)); }
+    .pc-repos li, .pc-repos li + li { margin: 0; }
+    .pc-repo { display: grid; gap: var(--space-1); height: 100%; box-sizing: border-box; padding: var(--space-3) var(--space-4); border: 1px solid var(--border-strong); border-left: 4px solid var(--accent); border-radius: var(--radius); background: var(--surface); color: var(--text); text-decoration: none; transition: border-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out); }
+    .pc-repo:hover, .pc-repo:focus-visible { border-color: var(--accent); transform: translateY(-1px); }
+    .pc-repo:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .pc-repo-kind { font-size: var(--step--1); color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+    .pc-repo-name { font-family: var(--font-mono); font-weight: 600; color: var(--accent); overflow-wrap: anywhere; }
+    .pc-repo-name::after { content: " →"; }
+    .pc-repo-desc { font-size: var(--step--1); color: var(--text-muted); }
+    @media (prefers-reduced-motion: reduce) { .pc-repo { transition: none; } .pc-repo:hover, .pc-repo:focus-visible { transform: none; } }
   </style>
 </head>
 <body data-home="../index.html">
@@ -48,8 +65,17 @@
 
     <header class="bh-hero">
       <p class="eyebrow">Announcement · Testing</p>
-      <h1>Announcing patchcov</h1>
-      <p class="lede">patchcov answers one question precisely: <em>which lines did this change add that no test ran?</em> It is a command-line tool that reads the coverage report you already produce, and a GitHub Action that turns its answer into a pull-request comment and a gate. Neither needs an account, a token or a server.</p>
+      <div class="pc-hero">
+        <img class="pc-mascot" src="assets/patchcov/patch.svg" width="200" height="200" alt="Patch, the patchcov hermit crab, mending a hole in its quilted shell">
+        <div class="pc-hero-text">
+          <h1>Announcing patchcov</h1>
+          <p class="lede">patchcov answers one question precisely: <em>which lines did this change add that no test ran?</em> It is a command-line tool that reads the coverage report you already produce, and a GitHub Action that turns its answer into a pull-request comment and a gate. Neither needs an account, a token or a server.</p>
+        </div>
+      </div>
+      <ul class="pc-repos">
+        <li><a class="pc-repo" href="https://github.com/rust-works/patchcov"><span class="pc-repo-kind">Command line &amp; Rust library</span><span class="pc-repo-name">rust-works/patchcov</span><span class="pc-repo-desc">Install it, run <code>patchcov diff</code>, read the docs</span></a></li>
+        <li><a class="pc-repo" href="https://github.com/action-works/patchcov-action"><span class="pc-repo-kind">GitHub Action</span><span class="pc-repo-name">action-works/patchcov-action</span><span class="pc-repo-desc">Comment and gate on every pull request</span></a></li>
+      </ul>
       <dl class="bh-meta" data-auto></dl>
     </header>
 
@@ -330,6 +356,10 @@ patchcov diff --report head.lcov --fail-under-patch 80</code></pre>
       <li><strong>Run it on your branch.</strong> Produce a per-line report from your test run, then <code>patchcov diff --report head.lcov</code>.</li>
       <li><strong>Add the gate.</strong> Add <code>action-works/patchcov-action@v2</code> to your pull-request workflow with <code>fail-under-patch</code>, and let the comment and the exit code do the rest.</li>
     </ol>
+    <ul class="pc-repos wide" id="repos" data-linkable>
+      <li><a class="pc-repo" href="https://github.com/rust-works/patchcov"><span class="pc-repo-kind">Command line &amp; Rust library</span><span class="pc-repo-name">rust-works/patchcov</span><span class="pc-repo-desc">Install it, run <code>patchcov diff</code>, read the docs</span></a></li>
+      <li><a class="pc-repo" href="https://github.com/action-works/patchcov-action"><span class="pc-repo-kind">GitHub Action</span><span class="pc-repo-name">action-works/patchcov-action</span><span class="pc-repo-desc">Comment and gate on every pull request</span></a></li>
+    </ul>
 
     <h2 id="further-reading">Further reading</h2>
     <ul>
