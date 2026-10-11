@@ -130,6 +130,13 @@ scripts/visual.mjs      Visual regression: Chrome via DevTools protocol, PNG dif
 dist/                   Bundled single-file outputs (git-ignored)
 ```
 
+`npm run serve` and the static server used by visual/card rendering allow symlinks
+only when their canonical targets stay within the canonical served root. A root
+reached through a symlink is supported. Outside file or directory targets (including
+CLI directory indexes) return 403; missing, dangling or looping paths return 404.
+These preview servers assume the filesystem is not being changed by a hostile local
+process while requests are served.
+
 ## Document kinds
 
 | Template     | `bh:kind`   | Use it for                                                   |
