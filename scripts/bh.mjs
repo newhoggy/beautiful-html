@@ -758,13 +758,23 @@ function logoProblems() {
   const paths = [...mark.matchAll(/<path\b[^>]*\sd="([^"]+)"/g)].map((m) => m[1]);
   if (!paths.length) problems.push("theme/logo/mark.svg has no <path> to compare");
   for (const d of paths) if (!js.includes(`d="${d}"`)) problems.push("theme/bh.js LOGO_SVG has drifted from theme/logo/mark.svg: copy the paths across");
+  const tokens = read(path.join(ROOT, "theme", "tokens.css")) || "";
+  const accent = tokens.match(/--accent:\s*light-dark\((#[0-9a-f]{6}),\s*(#[0-9a-f]{6})\)/i);
   for (const f of ["mark.svg", "mark-tile.svg", "lockup.svg", "og-card.svg"]) {
     const t = read(path.join(LOGO_DIR, f));
     if (!t) { problems.push(`theme/logo/${f} is missing`); continue; }
+    for (const d of paths) if (!t.includes(`d="${d}"`)) problems.push(`theme/logo/${f} has drifted from theme/logo/mark.svg: copy the paths across`);
+    if (f !== "og-card.svg" && accent && !(t.includes(accent[1]) && t.includes(accent[2]))) problems.push(`theme/logo/${f} does not use the --accent values from tokens.css (${accent[1]} / ${accent[2]})`);
     if (!/role="img"/.test(t) || !/<title\b/.test(t)) problems.push(`theme/logo/${f} needs role="img" and a <title>`);
     if (/<(image|text)\b|font-family|@import|url\(\s*["']?https?:/.test(t)) problems.push(`theme/logo/${f} must be self-contained: no raster, <text>, fonts or remote references`);
   }
-  for (const f of ["apple-touch-icon.png", "og.png"]) if (!fs.existsSync(path.join(LOGO_DIR, f))) problems.push(`theme/logo/${f} is missing`);
+  // The PNGs are renders: check their size (IHDR width/height), which og:image:width/height in index.html declare.
+  for (const [f, w, h] of [["apple-touch-icon.png", 180, 180], ["og.png", 1200, 630]]) {
+    const file = path.join(LOGO_DIR, f);
+    if (!fs.existsSync(file)) { problems.push(`theme/logo/${f} is missing`); continue; }
+    const b = fs.readFileSync(file);
+    if (b.readUInt32BE(16) !== w || b.readUInt32BE(20) !== h) problems.push(`theme/logo/${f} must be ${w}x${h}px (is ${b.readUInt32BE(16)}x${b.readUInt32BE(20)})`);
+  }
   return problems;
 }
 
@@ -865,9 +875,11 @@ function cmdCheck() {
     if (!/<html[^>]*\slang=/.test(html)) err("<html> is missing lang");
     if (!/name="viewport"/.test(html)) err("missing viewport meta");
     // Favicon and touch icon: present, and the files exist (bundle inlines them).
-    if (!/<link\s+rel="icon"/.test(html)) err('missing <link rel="icon"> (see theme/logo/)');
-    for (const m of html.matchAll(/<link\s+rel="(?:icon|apple-touch-icon)"[^>]*\shref="([^"]+)"/g)) {
-      if (!/^(https?:|data:)/.test(m[1]) && !fs.existsSync(path.resolve(path.dirname(file), m[1]))) err(`icon ${m[1]} does not exist`);
+    const iconLinks = [...html.matchAll(/<link\b[^>]*\brel="([^"]*)"[^>]*>/g)].filter((m) => /(^|\s)(icon|apple-touch-icon)(\s|$)/.test(m[1]));
+    if (!iconLinks.some((m) => /(^|\s)icon(\s|$)/.test(m[1]))) err('missing <link rel="icon"> (see theme/logo/)');
+    for (const m of iconLinks) {
+      const href = (m[0].match(/\bhref="([^"]+)"/) || [])[1];
+      if (href && !/^(https?:|data:)/.test(href) && !fs.existsSync(path.resolve(path.dirname(file), href))) err(`icon ${href} does not exist`);
     }
 
     if (isDoc) {
@@ -1039,13 +1051,13 @@ function bundleOne(file) {
   });
 
   // A standalone file has no theme/ beside it: carry the favicon and touch icon inside it.
-  html = html.replace(/(<link\s+rel="(?:icon|apple-touch-icon)"[^>]*\shref=")([^"]+)(")/g, (m, a, href, b) => {
+  html = html.replace(/<link\b[^>]*\brel="(?:[^"]*\s)?(?:icon|apple-touch-icon)(?:\s[^"]*)?"[^>]*>/g, (tag) => tag.replace(/(\bhref=")([^"]+)(")/, (m, a, href, b) => {
     if (/^(https?:|data:)/.test(href)) return m;
     const p = path.resolve(dir, href);
     const mime = MIME[path.extname(p).toLowerCase()];
     if (!mime || !fs.existsSync(p)) return m;
     return a + `data:${mime};base64,${fs.readFileSync(p).toString("base64")}` + b;
-  });
+  }));
 
   // Links back into the site don't exist in a standalone file.
   html = html.replace(/<html\b/, "<html data-bundled");

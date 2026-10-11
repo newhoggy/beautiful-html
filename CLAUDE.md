@@ -37,7 +37,7 @@ Files live in `theme/logo/`; `theme/logo/README.md` says which to use where.
   variables or the manual toggle. Use `mark-tile.svg` wherever the background is unknown.
 - Every page links the favicon (`<link rel="icon">`) and touch icon; the templates already do.
   `check` fails without them. `bundle` inlines both so a standalone file keeps its icon.
-- The paths in `bh.js` (`LOGO_SVG`) must equal those in `theme/logo/mark.svg`; `check` fails on drift.
+- The glyph paths in `bh.js` (`LOGO_SVG`), `mark-tile.svg`, `lockup.svg` and `og-card.svg` must equal those in `theme/logo/mark.svg`, and the SVG colours the `--accent` tokens; `check` fails on drift. The PNGs are renders of them: re-render after a change (sizes are checked, content is not).
 - No raster, `<text>` or fonts inside the SVGs (`check` enforces it): the wordmark is converted to paths.
 
 ## Private pages
