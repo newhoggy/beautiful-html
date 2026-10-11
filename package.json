@@ -8,6 +8,7 @@
   "bh": { "siteName": "Bitwise Engineering" },
   "engines": { "node": ">=20" },
   "scripts": {
+    "test": "node --test tests/*.test.mjs",
     "new": "node scripts/bh.mjs new",
     "index": "node scripts/bh.mjs index",
     "check": "node scripts/bh.mjs check",
