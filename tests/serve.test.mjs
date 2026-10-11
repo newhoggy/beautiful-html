@@ -13,6 +13,18 @@ const source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 async function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bh-serve-"));
+  let proc;
+  t.after(async () => {
+    try {
+      if (proc?.pid && proc.exitCode === null && proc.signalCode === null) {
+        const exited = once(proc, "exit");
+        proc.kill();
+        await exited;
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
   const root = path.join(dir, "repo");
   fs.mkdirSync(path.join(root, "scripts"), { recursive: true });
   fs.copyFileSync(path.join(source, "scripts/bh.mjs"), path.join(root, "scripts/bh.mjs"));
@@ -28,7 +40,6 @@ async function fixture(t) {
     fs.mkdirSync(path.join(dir, name));
     fs.writeFileSync(path.join(dir, name, "secret.txt"), "Must not be served");
   }
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 
   // Allocate an available port before launching the actual CLI, which accepts a port argument.
   const reservation = http.createServer();
@@ -36,16 +47,9 @@ async function fixture(t) {
   await once(reservation, "listening");
   const port = reservation.address().port;
   await new Promise((resolve) => reservation.close(resolve));
-  const proc = spawn(process.execPath, [path.join(root, "scripts/bh.mjs"), "serve", String(port)], { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
+  proc = spawn(process.execPath, [path.join(root, "scripts/bh.mjs"), "serve", String(port)], { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
   let output = "";
   proc.stderr.on("data", (data) => { output += data; });
-  t.after(async () => {
-    if (proc.exitCode === null && proc.signalCode === null) {
-      const exited = once(proc, "exit");
-      proc.kill();
-      await exited;
-    }
-  });
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => finish(new Error(`Server startup timed out: ${output}`)), 5000);
     const onExit = () => finish(new Error(`Server exited during startup: ${output}`));
