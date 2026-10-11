@@ -91,7 +91,9 @@ need Node ≥ 22 and a local Chrome.)
   no build step. It stays off until you opt in:
   1. Go to Settings → Pages and set the source to **GitHub Actions**.
   2. Add the repository variable `PAGES_ENABLED=true`.
-  Pages work under a project sub-path such as `/beautiful-html/`.
+  The custom domain is a Pages setting (Settings → Pages → Custom domain, plus DNS), not a file in
+  the repo. Pages also work under a project sub-path such as `/beautiful-html/`; a fork sets
+  `homepage` in `package.json` (or `BH_SITE_URL`) to wherever it is served from.
 
 ## Layout
 
