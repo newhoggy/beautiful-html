@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-labelledby="t"><title id="t">Bitwise Engineering</title>
+  <style>.t{fill:#4338ca}.g{fill:#ffffff}@media(prefers-color-scheme:dark){.t{fill:#a5a8ff}.g{fill:#0c0e12}}</style>
+  <rect class="t" width="32" height="32" rx="7"/>
+  <g class="g" transform="translate(5.33 5.33) scale(.667)">
+    <path d="M9 3H18A5.75 5.75 0 0 1 18 14.5H9A2 2 0 0 1 7 12.5V5A2 2 0 0 1 9 3Z"/>
+    <path fill-rule="evenodd" d="M9 16.5H19A6.25 6.25 0 0 1 19 29H9A2 2 0 0 1 7 27V18.5A2 2 0 0 1 9 16.5ZM11.5 19.75V25.75H19A3 3 0 0 0 19 19.75Z"/>
+  </g>
+</svg>
