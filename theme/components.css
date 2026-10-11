@@ -651,6 +651,9 @@ bh-playground output { font-variant-numeric: tabular-nums; }
 
 .bh-filter { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .bh-filter input[type="search"] { flex: 1 1 14rem; min-width: 0; }
+.bh-filter-empty { color: var(--text-muted); }
+.bh-filter-empty[hidden] { display: none; }
+.bh-filter-group { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .chip {
   padding: 0.3em 0.85em;
   border: 1px solid var(--border-strong);
