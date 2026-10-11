@@ -133,27 +133,28 @@ const DESCRIPTION_MAX = 200; // chat apps and crawlers truncate beyond about thi
 const sha256 = (data) => crypto.createHash("sha256").update(data).digest("hex");
 const attr = (s) => String(s).replace(/"/g, "&quot;");
 
-/** HTML text → plain text, for drawing a title on a card. */
+/** HTML text → plain text, for drawing a title on a card. One pass, so "&amp;#65;" stays "&#65;". */
 function decodeHtml(s) {
-  const named = { mdash: "—", ndash: "–", hellip: "…", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", times: "×", middot: "·" };
-  return decodeEntities(s)
-    .replace(/&#(\d+);/g, (m, n) => String.fromCodePoint(+n))
-    .replace(/&#x([0-9a-f]+);/gi, (m, n) => String.fromCodePoint(parseInt(n, 16)))
-    .replace(/&([a-z]+);/gi, (m, n) => named[n] ?? m);
+  const named = { amp: "&", lt: "<", gt: ">", quot: '"', nbsp: " ", mdash: "—", ndash: "–", hellip: "…", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", times: "×", middot: "·" };
+  return s.replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi, (m, dec, hex, name) =>
+    dec ? String.fromCodePoint(+dec) : hex ? String.fromCodePoint(parseInt(hex, 16)) : named[name] ?? m);
 }
 
-/** The block of social tags for `m`: { type, title, description, url, image, alt, published?, authors?, tags? }. */
+/**
+ * The block of social tags for `m`: { type, title, description, url, image, alt, published?, authors?, tags? }.
+ * title, description, alt, authors and tags are HTML text as written in the page; urls and the site name are plain.
+ */
 function socialBlock(m) {
   const tag = (k, v, a = "property") => `  <meta ${a}="${k}" content="${attr(v)}">`;
   return [
     `  ${SOCIAL_START}`,
-    `  <link rel="canonical" href="${attr(m.url)}">`,
+    `  <link rel="canonical" href="${escapeHtml(m.url)}">`,
     tag("og:type", m.type),
-    tag("og:site_name", SITE_NAME),
+    tag("og:site_name", escapeHtml(SITE_NAME)),
     tag("og:title", m.title),
     tag("og:description", m.description),
-    tag("og:url", m.url),
-    tag("og:image", m.image),
+    tag("og:url", escapeHtml(m.url)),
+    tag("og:image", escapeHtml(m.image)),
     tag("og:image:type", "image/png"),
     tag("og:image:width", String(CARD_W)),
     tag("og:image:height", String(CARD_H)),
@@ -211,8 +212,17 @@ function withSocial(raw, block) {
  * or { tier, image } (a file), plus `label` (its aria-label/alt), `source` and `files`
  * (what the card's staleness key hashes) and `problem` when an override can't be resolved.
  */
+const visuals = new Map();
 function chooseVisual(file) {
   const raw = fs.readFileSync(file, "utf8");
+  const hit = visuals.get(file);
+  if (hit?.raw === raw) return hit.result; // `index` and `check` ask twice per page
+  const result = pickVisual(file, raw);
+  visuals.set(file, { raw, result });
+  return result;
+}
+
+function pickVisual(file, raw) {
   const { root, src } = parseTree(raw);
   const dir = path.dirname(file);
   const article = findNode(root, (n) => hasClass(n, "bh-article"));
@@ -254,17 +264,26 @@ function chooseVisual(file) {
   return { tier: "logo", image: LOGO_TILE, label: "", source: "logo", files: [LOGO_TILE] };
 }
 
+/** Hash of the shared files every card is drawn from: the card layout, the logo, the theme CSS and bh.js (which adds a diagram's arrowhead markers). */
+let sharedCardInputs = null;
+const cardInputsHash = (withModules) => {
+  sharedCardInputs ??= sha256(["scripts/cards.mjs", "theme/logo/mark.svg", "theme/bh.js", ...["tokens", "base", "layout", "components", "diagrams"].map((f) => `theme/${f}.css`)]
+    .map((f) => fs.readFileSync(path.join(ROOT, f))).join("\0"));
+  if (!withModules) return sharedCardInputs;
+  // <bh-…> components (charts, sequences, …) are drawn by the on-demand modules.
+  const dir = path.join(ROOT, "theme", "modules");
+  return sha256(sharedCardInputs + fs.readdirSync(dir).filter((f) => f.endsWith(".js")).sort().map((f) => fs.readFileSync(path.join(dir, f), "utf8")).join("\0"));
+};
+
 /** Everything that decides how a page's card looks. Any change here makes the card stale. */
 function cardJob(file) {
   const d = readDoc(file);
   const sel = chooseVisual(file);
-  const theme = ["tokens", "base", "diagrams"].map((f) => fs.readFileSync(path.join(ROOT, "theme", `${f}.css`), "utf8")).join("\n");
   const styles = [...stripComments(fs.readFileSync(file, "utf8")).matchAll(/<style\b[\s\S]*?<\/style>/g)].map((m) => m[0]).join("\n");
   const kind = KIND_LABELS[d.kind] || d.kind;
   const bytes = (f) => (fs.existsSync(f) ? sha256(fs.readFileSync(f)) : "missing");
   const key = sha256(JSON.stringify([
-    sha256(fs.readFileSync(path.join(ROOT, "scripts", "cards.mjs"))), sha256(theme), bytes(path.join(ROOT, "theme", "logo", "mark.svg")),
-    d.title, kind, d.date, SITE_NAME, sel.tier, sel.css, sel.index, sel.source, styles, sel.files.map(bytes),
+    cardInputsHash(/<bh-/.test(sel.source)), d.title, kind, d.date, SITE_NAME, sel.tier, sel.css, sel.index, sel.source, styles, sel.files.map(bytes),
   ]));
   return {
     slug: path.basename(file, ".html"), href: d.href, out: cardPath(file), key, selection: sel,
@@ -312,6 +331,7 @@ async function cmdCards(argv) {
   const { renderCards } = await import("./cards.mjs");
   const r = await renderCards(todo, { sharedCard: path.join(ROOT, SHARED_CARD), systemFonts: argv.includes("--system-fonts") });
   console.log(c.green(`Rendered ${r.rendered} card${r.rendered === 1 ? "" : "s"}`) + (r.fallback ? c.yellow(`, ${r.fallback} fell back to the shared card`) : "") + c.dim(`, ${jobs.length - todo.length} already up to date`));
+  if (r.failed.length) throw new Error(`could not render the card of ${r.failed.join(", ")}`);
 }
 
 // ---- new --------------------------------------------------------------------------
@@ -1137,8 +1157,10 @@ function cmdCheck() {
       const source = path.join(DOCS, slug + PRIVATE_EXT);
       if (fs.existsSync(source)) {
         const plain = stripComments(fs.readFileSync(source, "utf8"));
+        const generic = sealedShell("", "", "");
         for (const [what, value] of [["title", getTitle(plain)], ["description", getMeta(plain, "description")]]) {
-          if (value && value !== "Private page" && text.includes(value)) problems.push(`docs/${slug}.html leaks the page's ${what}`);
+          // A value the generic shell already contains (a title like "Private") can't be told apart; the exact comparison above covers it.
+          for (const v of new Set([value, decodeHtml(value)])) if (v && !generic.includes(v) && text.includes(v)) problems.push(`docs/${slug}.html leaks the page's ${what}`);
         }
       }
     }
@@ -1200,7 +1222,7 @@ function cmdCheck() {
       const png = fs.existsSync(job.out) ? readPng(job.out) : undefined;
       if (png === undefined) err(`no social card ${path.relative(ROOT, job.out)}: run \`npm run cards\``);
       else if (!png || png.width !== CARD_W || png.height !== CARD_H) err(`social card ${path.relative(ROOT, job.out)} must be a ${CARD_W}x${CARD_H} PNG`);
-      else if (png.card === "fallback") warn("social card is the shared site card (rendered without Chrome): run `npm run cards` where Chrome is installed");
+      else if (png.card === "fallback") (process.env.CI ? err : warn)("social card is the shared site card (rendered without Chrome): run `npm run cards` where Chrome is installed");
       else if (png.card !== job.key) err(`social card ${path.relative(ROOT, job.out)} is stale: run \`npm run cards\``);
     }
 
@@ -1492,14 +1514,14 @@ function sealedShell(payload, digest, shell = SHELL_VERSION()) {
   <meta name="referrer" content="no-referrer">
   <!-- A link preview must reveal nothing: this card is the same for every private page. -->
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="${attr(SITE_NAME)}">
+  <meta property="og:site_name" content="${escapeHtml(SITE_NAME)}">
   <meta property="og:title" content="Private page">
   <meta property="og:description" content="This page is private. Open it with the full link you were given.">
-  <meta property="og:image" content="${attr(SITE_URL + SHARED_CARD)}">
+  <meta property="og:image" content="${escapeHtml(SITE_URL + SHARED_CARD)}">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="${CARD_W}">
   <meta property="og:image:height" content="${CARD_H}">
-  <meta property="og:image:alt" content="${attr(SHARED_CARD_ALT)}">
+  <meta property="og:image:alt" content="${escapeHtml(SHARED_CARD_ALT)}">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="bh:sealed" content="aes-256-gcm+gzip">
   <meta name="bh:sealed-digest" content="${digest}">

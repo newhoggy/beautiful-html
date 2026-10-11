@@ -111,6 +111,8 @@ async function captureVisual(send, base, job, systemFonts) {
       document.head.append(st);
       const root = document.querySelectorAll(${JSON.stringify(sel.css)})[${sel.index}];
       if (!root) return { error: "no element matches " + ${JSON.stringify(sel.css)} + " [" + ${sel.index} + "]" };
+      // A figure in a closed <details> has no box until it is opened.
+      for (let d = root.closest("details"); d; d = d.parentElement?.closest("details")) d.open = true;
       const inner = root.matches(${JSON.stringify(VISUAL)}) ? root : [...root.querySelectorAll(${JSON.stringify(VISUAL)})].find((e) => !e.closest("button, a")) || root;
       inner.scrollIntoView({ block: "center", behavior: "instant" });
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -118,7 +120,7 @@ async function captureVisual(send, base, job, systemFonts) {
       return { x: r.left + scrollX, y: r.top + scrollY, width: r.width, height: r.height, bg: getComputedStyle(document.body).backgroundColor };
     })()` })).result.value;
     if (found.error) throw new Error(`${job.href}: ${found.error}`);
-    if (found.width < 8 || found.height < 8) throw new Error(`${job.href}: the chosen visual is ${found.width}×${found.height}px (is it hidden?)`);
+    if (found.width < 8 || found.height < 8) throw new Error(`${job.href}: the chosen visual is ${found.width}×${found.height}px, so it is hidden (an inactive tab or version?). Point the card at a visible one with <meta name="bh:image" content="#figure-id">`);
     await sleep(300);
     const { data } = await s("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip: { x: found.x, y: found.y, width: found.width, height: found.height, scale: 1 } });
     return { src: `data:image/png;base64,${data}`, bg: found.bg };
@@ -191,30 +193,38 @@ export async function renderCards(jobs, { sharedCard, systemFonts = false }) {
     for (const j of jobs) {
       fs.mkdirSync(path.dirname(j.out), { recursive: true });
       fs.writeFileSync(j.out, tagPng(fs.readFileSync(sharedCard), "fallback"));
-      console.log(c.yellow("~ ") + path.relative(ROOT, j.out) + c.dim(" shared card (fallback)"));
+      console.log(c.yellow("~ ") + path.relative(ROOT, j.out) + c.dim(" shared card (fallback); render it again where Chrome is installed"));
     }
-    return { rendered: 0, fallback: jobs.length };
+    return { rendered: 0, fallback: jobs.length, failed: [] };
   }
+  if (typeof WebSocket === "undefined") throw new Error("rendering cards needs Node >= 22 (global WebSocket); this is Node " + process.versions.node);
   const routes = new Map();
   const server = await serveStatic(ROOT, routes);
   const base = `http://127.0.0.1:${server.address().port}/`;
   const chrome = await launchChrome();
   let rendered = 0;
+  const failed = [];
   try {
     for (const j of jobs) {
       const sel = j.selection;
-      let visual;
-      if (sel.css) visual = await captureVisual(chrome.send, base, j, systemFonts);
-      else visual = { src: dataUrl(sel.image), bg: "#f6f7f9", tile: sel.tier === "logo" || sel.tier === "glyph" };
-      const png = await composeCard(chrome.send, base, routes, j, visual, systemFonts);
-      fs.mkdirSync(path.dirname(j.out), { recursive: true });
-      fs.writeFileSync(j.out, tagPng(png, j.key));
-      rendered++;
-      console.log(c.green("✓ ") + path.relative(ROOT, j.out) + c.dim(` ${sel.tier}${sel.css ? ` · ${sel.css}` : ""}`));
+      try {
+        let visual;
+        if (sel.css) visual = await captureVisual(chrome.send, base, j, systemFonts);
+        else visual = { src: dataUrl(sel.image), bg: "#f6f7f9", tile: sel.tier === "logo" || sel.tier === "glyph" };
+        const png = await composeCard(chrome.send, base, routes, j, visual, systemFonts);
+        fs.mkdirSync(path.dirname(j.out), { recursive: true });
+        fs.writeFileSync(j.out, tagPng(png, j.key));
+        rendered++;
+        console.log(c.green("✓ ") + path.relative(ROOT, j.out) + c.dim(` ${sel.tier}${sel.css ? ` · ${sel.css}` : ""}`));
+      } catch (e) {
+        // One page that can't be drawn must not stop the rest.
+        failed.push(j.href);
+        console.log(c.red("✗ ") + path.relative(ROOT, j.out) + c.dim(` ${e.message}`));
+      }
     }
   } finally {
     await chrome.close();
     server.close();
   }
-  return { rendered, fallback: 0 };
+  return { rendered, fallback: 0, failed };
 }

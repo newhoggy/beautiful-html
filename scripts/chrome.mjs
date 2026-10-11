@@ -81,10 +81,11 @@ export async function launchChrome() {
 export function serveStatic(root, routes = new Map()) {
   const types = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml", ".png": "image/png" };
   const server = http.createServer((req, res) => {
-    const pathname = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    let pathname;
+    try { pathname = decodeURIComponent(new URL(req.url, "http://x").pathname); } catch { res.writeHead(400).end(); return; }
     if (routes.has(pathname)) { const r = routes.get(pathname); res.writeHead(200, { "content-type": r.type }).end(r.body); return; }
     const file = path.join(root, pathname);
-    if (!file.startsWith(root)) { res.writeHead(403).end(); return; }
+    if (file !== root && !file.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
     fs.readFile(file, (e, data) => {
       if (e) { res.writeHead(404).end(); return; }
       res.writeHead(200, { "content-type": types[path.extname(file)] || "application/octet-stream" }).end(data);

@@ -53,12 +53,12 @@ image. Two generated pieces make that work, and an author writes neither.
 - **Card images.** `npm run cards` renders `docs/assets/og/<slug>.png` in your local Chrome, and
   skips cards that are already current. Commit the PNGs with the page. `check` fails when one
   is missing or stale (it hashes the chosen visual, the title, kind, date and the card layout,
-  and needs no browser). Without Chrome, `cards` falls back to the shared site card and `check`
-  only warns.
+  and needs no browser). Without Chrome, `cards` falls back to the shared site card; `check`
+  only warns locally, and fails in CI.
 
 The picture is the first of: a `<meta name="bh:image" content="#figure-id">` override (or an
 image path), the first `<figure>` with a diagram or image, a standalone `<img>`, the hero glyph,
-and the logo tile. Set `bh:image` when the automatic pick isn't the page's best picture.
+and the logo tile. A theme change makes every card stale, so re-run `npm run cards` after one. Set `bh:image` when the automatic pick isn't the page's best picture.
 
 The site address the tags use is `homepage` in `package.json`; a fork changes that (or sets
 `BH_SITE_URL`). Private pages unfurl as one generic "Private page" card and reveal nothing.

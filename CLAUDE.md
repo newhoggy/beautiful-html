@@ -81,14 +81,19 @@ nothing for this; two generated things do the work.
   theme colours. Because the choice is made from the source, put the diagram that best
   explains the page first, or set `bh:image`.
 - **Staleness.** Each PNG records a hash (a `tEXt` chunk named `bh-card`) of the chosen
-  visual's source, the title, kind, date, site name, the page's `<style>`, `tokens.css`,
-  `base.css`, `diagrams.css`, the logo and `scripts/cards.mjs`. `check` recomputes it with no
-  browser and fails on a missing, wrong-sized or stale card, and on a card whose page is
-  gone or private. `npm run cards` skips cards that are current and deletes orphans. Commit
-  the PNGs. They differ slightly from machine to machine; only the hash is compared.
-- **No Chrome.** `npm run cards` then copies the shared site card (`theme/logo/og.png`),
-  tagged `fallback`. `check` accepts it with a warning, so you are not blocked; re-run
-  `cards` where Chrome exists before merging.
+  visual's source and image files, the title, kind, date, site name, the page's `<style>`,
+  `theme/{tokens,base,layout,components,diagrams}.css`, `theme/bh.js`, the logo and
+  `scripts/cards.mjs` (plus `theme/modules/*.js` when the visual is a `<bh-…>` component).
+  So a theme change makes every card stale: re-run `npm run cards` along with
+  `npm run visual`. `check` recomputes the hash with no browser and fails on a missing,
+  wrong-sized or stale card, and on a card whose page is gone or private. `npm run cards`
+  skips cards that are current, deletes orphans, and keeps going when one page can't be drawn
+  (it then exits non-zero and names it; a figure hidden in an inactive tab needs `bh:image`).
+  Commit the PNGs. They differ slightly from machine to machine; only the hash is compared.
+- **No Chrome.** `npm run cards` then replaces each missing or stale card with a copy of the
+  shared site card (`theme/logo/og.png`), tagged `fallback`. `check` accepts that locally with
+  a warning, so you are not blocked, but **fails under `CI`**: render the card where Chrome
+  exists before the PR merges. Rendering needs Node ≥ 22.
 - **The home page** uses the shared site card. **Bundles** (`npm run bundle`) keep
   `og:title`, `og:description` and `article:*` but drop `canonical`, `og:url`, `og:image*` and
   `twitter:*`, since a standalone file has no URL or card of its own.
