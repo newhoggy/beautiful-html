@@ -149,7 +149,7 @@
     doc.body.prepend(el("a", { class: "skip-link", href: "#" + (main ? main.id : "main"), text: "Skip to content" }));
 
     const home = doc.body.dataset.home;
-    const site = doc.body.dataset.site || "beautiful-html";
+    const site = doc.body.dataset.site || "Bitwise Engineering";
     const brandChildren = [el("span", { class: "bh-brand-mark", "aria-hidden": "true" }), el("span", { text: site })];
     const brand = home && !root.hasAttribute("data-bundled")
       ? el("a", { class: "bh-brand", href: home, title: "Back to index" }, brandChildren)
@@ -830,8 +830,10 @@
   function coerce(s) { return s !== "" && !isNaN(s) ? +s : s; }
 
   /**
-   * <bh-filter for="list-id"></bh-filter>
+   * <bh-filter for="list-id" [topics="A, B"]></bh-filter>
    * Builds a search box + chips from data-kind on the list's children; matches data-search text.
+   * With `topics`, a second row of chips filters on the items' data-tags (comma-separated,
+   * lowercase). A topic with no items gets no chip.
    */
   class BhFilter extends HTMLElement {
     connectedCallback() { whenReady(() => this.init()); }
@@ -841,23 +843,33 @@
       const list = doc.getElementById(this.getAttribute("for"));
       if (!list) return;
       const items = [...list.children];
+      const tagsOf = (i) => (i.dataset.tags || "").split(",").map((t) => t.trim().toLowerCase());
       const kinds = [...new Set(items.map((i) => i.dataset.kind).filter(Boolean))].sort();
-      let kind = "";
+      const topics = (this.getAttribute("topics") || "").split(",").map((t) => t.trim())
+        .filter((t) => t && items.some((i) => tagsOf(i).includes(t.toLowerCase())));
+      let kind = "", topic = "";
       const search = el("input", { type: "search", placeholder: "Filter documents…", "aria-label": "Filter documents" });
-      const chips = ["", ...kinds].map((k) => el("button", {
-        class: "chip", type: "button", "aria-pressed": String(k === ""), text: k ? k[0].toUpperCase() + k.slice(1) : "All",
-        onclick: (e) => { kind = k; chips.forEach((c) => c.setAttribute("aria-pressed", String(c === e.currentTarget))); apply(); },
-      }));
+      const group = (label, all, values, show, pick) => {
+        const chips = ["", ...values].map((v) => el("button", {
+          class: "chip", type: "button", "aria-pressed": String(v === ""), text: v ? show(v) : all,
+          onclick: (e) => { pick(v); chips.forEach((c) => c.setAttribute("aria-pressed", String(c === e.currentTarget))); apply(); },
+        }));
+        return el("div", { class: "bh-filter-group", role: "group", "aria-label": label }, chips);
+      };
       const apply = () => {
         const q = search.value.trim().toLowerCase();
         for (const item of items) {
           const okKind = !kind || item.dataset.kind === kind;
+          const okTopic = !topic || tagsOf(item).includes(topic.toLowerCase());
           const okText = !q || (item.dataset.search || item.textContent).toLowerCase().includes(q);
-          item.hidden = !(okKind && okText);
+          item.hidden = !(okKind && okTopic && okText);
         }
       };
       search.addEventListener("input", apply);
-      this.append(el("div", { class: "bh-filter" }, [search, ...chips]));
+      const groups = [];
+      if (topics.length) groups.push(group("Topic", "All topics", topics, (t) => t, (v) => { topic = v; }));
+      groups.push(group("Type", "All types", kinds, (k) => k[0].toUpperCase() + k.slice(1), (v) => { kind = v; }));
+      this.append(el("div", { class: "bh-filter" }, [search, ...groups]));
       // "/" focuses the filter.
       doc.addEventListener("keydown", (e) => {
         if (e.key === "/" && !e.target.closest("input, textarea, select, [contenteditable]")) { e.preventDefault(); search.focus(); }

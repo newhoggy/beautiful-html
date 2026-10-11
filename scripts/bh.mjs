@@ -271,9 +271,12 @@ function cmdIndex() {
   const cards = docs.map((d) => {
     const search = [d.title, d.description, d.tags, d.kind].join(" ").toLowerCase();
     const replaced = d.supersededBy ? `\n        <p class="card-replaced">Replaced by <a href="${escapeHtml(d.supersededBy)}">${escapeHtml(titles.get(d.supersededBy) || d.supersededBy)}</a></p>` : "";
-    return `      <li class="card doc-card${d.supersededBy ? " is-superseded" : ""}" data-kind="${escapeHtml(d.kind)}" data-search="${escapeHtml(search)}">
+    const tags = (d.tags || "").split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
+    const kindLabel = KIND_LABELS[d.kind] || d.kind;
+    const eyebrow = tags.includes("examples") ? `Example · ${kindLabel}` : kindLabel;
+    return `      <li class="card doc-card${d.supersededBy ? " is-superseded" : ""}" data-kind="${escapeHtml(d.kind)}" data-tags="${escapeHtml(tags.join(","))}" data-search="${escapeHtml(search)}">
         <a class="card-link" href="${escapeHtml(d.href)}">
-          <span class="eyebrow">${escapeHtml(KIND_LABELS[d.kind] || d.kind)}</span>
+          <span class="eyebrow">${escapeHtml(eyebrow)}</span>
           <h3>${escapeHtml(d.title)}</h3>
           <p>${escapeHtml(d.description)}</p>
         </a>
