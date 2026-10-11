@@ -864,7 +864,10 @@
           const okText = !q || (item.dataset.search || item.textContent).toLowerCase().includes(q);
           item.hidden = !(okKind && okTopic && okText);
         }
+        empty.hidden = items.some((i) => !i.hidden);
       };
+      const empty = el("p", { class: "bh-filter-empty", role: "status", text: "Nothing matches. Try another topic, type or search.", hidden: "" });
+      list.after(empty);
       search.addEventListener("input", apply);
       const groups = [];
       if (topics.length) groups.push(group("Topic", "All topics", topics, (t) => t, (v) => { topic = v; }));

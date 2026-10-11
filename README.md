@@ -13,6 +13,16 @@ the `bh` / `bh-*` prefixes (`bh.css`, `bh.js`, `bh:` meta tags, the `bh-review/1
 `beautiful-html private page: <slug>` 1Password item titles are implementation, baked into
 every page and key, so the rebrand changes the site's name and not these.
 
+- **No build step to write.** Pages are plain HTML. Open one straight from disk.
+- **One theme.** Design tokens drive typography, colour (light and dark), spacing and motion.
+- **Interactive where it helps.** Diagrams you can step through, live parameter
+  playgrounds, tabs, predict-then-reveal panels.
+- **Works without JS.** Steppers become numbered lists, tabs become sections, and nothing is hidden.
+- **Shareable.** `bundle` inlines everything into one `.html` file you can send to anyone.
+- **Private pages.** A page written as `docs/<slug>.private.html` is never committed. `seal`
+  publishes an encrypted copy that opens only from its `#k=<key>` link, with the key kept
+  in 1Password. `unseal` recovers the source from that copy (see CLAUDE.md).
+
 ## Topics, examples and the site address
 
 - **Topics.** A post joins a topic by carrying its name in `bh:tags`: `functional
@@ -25,16 +35,6 @@ every page and key, so the rebrand changes the site's name and not these.
   the repo would break every Pages link, including private-page `#k=` links already shared
   (GitHub redirects the repo URL but not Pages). If the blog gets its own address, use a
   custom domain rather than a rename.
-
-- **No build step to write.** Pages are plain HTML. Open one straight from disk.
-- **One theme.** Design tokens drive typography, colour (light and dark), spacing and motion.
-- **Interactive where it helps.** Diagrams you can step through, live parameter
-  playgrounds, tabs, predict-then-reveal panels.
-- **Works without JS.** Steppers become numbered lists, tabs become sections, and nothing is hidden.
-- **Shareable.** `bundle` inlines everything into one `.html` file you can send to anyone.
-- **Private pages.** A page written as `docs/<slug>.private.html` is never committed. `seal`
-  publishes an encrypted copy that opens only from its `#k=<key>` link, with the key kept
-  in 1Password. `unseal` recovers the source from that copy (see CLAUDE.md).
 
 ## Quick start
 
