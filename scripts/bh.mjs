@@ -1250,7 +1250,10 @@ function cmdCheck() {
     // Example pages are shown or hidden by theme/examples.js, which must run in <head> before first paint.
     {
       const head = html.split("</head>")[0];
-      if (!/<script\s+src="[^"]*theme\/examples\.js"\s*><\/script>/.test(head)) err('missing <script src="…/theme/examples.js"></script> in <head> (synchronous, after the theme script)');
+      const script = head.search(/<script\s+src="[^"]*theme\/examples\.js"\s*><\/script>/);
+      if (script < 0) err('missing <script src="…/theme/examples.js"></script> in <head> (synchronous, after the theme script)');
+      // The script reads the marker as it runs, so the marker must come first.
+      else if (head.search(/<meta\s+name="bh:example"/) > script) err('<meta name="bh:example"> must come before the theme/examples.js script in <head>');
     }
 
     // Social meta: generated, so it must be present and current (templates carry the empty markers).
@@ -1299,7 +1302,7 @@ function cmdCheck() {
       // Off the local machine, links to example pages become plain text. Glossary definitions point at them by design.
       if (!isTemplate && !example && file !== GLOSSARY_SRC) {
         const seenLinks = new Set();
-        for (const m of html.matchAll(/\shref="([^"#?]+\.html)(?:[#?][^"]*)?"/g)) {
+        for (const m of html.matchAll(/<a\b[^>]*?\shref="([^"#?]+\.html)(?:[#?][^"]*)?"/g)) {
           if (/^[a-z]+:/i.test(m[1])) continue;
           const target = path.relative(ROOT, path.resolve(path.dirname(file), m[1])).split(path.sep).join("/");
           if (exampleHrefs.has(target) && !seenLinks.has(target)) { seenLinks.add(target); warn(`links to example page ${m[1]}: on the published site the link becomes plain text`); }

@@ -37,6 +37,10 @@
 
   root.classList.add("js");
 
+  // An example page off the local machine is replaced by a notice before anything initialises,
+  // so none of its components starts and the top bar is built from the notice.
+  if (EXAMPLES.page && !EXAMPLES.visible && doc.readyState !== "loading") showExampleNotice();
+
   // ---- Helpers -----------------------------------------------------------
 
   function whenReady(fn) {
@@ -1232,9 +1236,13 @@
   /** A URL's path relative to the site root ("docs/glossary.html"), or null outside the site. */
   function siteRelative(url) {
     if (!SITE_ROOT) return null;
-    const u = new URL(url, location.href);
-    if (u.protocol !== SITE_ROOT.protocol || u.host !== SITE_ROOT.host || !u.pathname.startsWith(SITE_ROOT.pathname)) return null;
-    return decodeURIComponent(u.pathname.slice(SITE_ROOT.pathname.length));
+    try {
+      const u = new URL(url, location.href);
+      if (u.protocol !== SITE_ROOT.protocol || u.host !== SITE_ROOT.host || !u.pathname.startsWith(SITE_ROOT.pathname)) return null;
+      return decodeURIComponent(u.pathname.slice(SITE_ROOT.pathname.length));
+    } catch (e) {
+      return null; // a malformed address is no page of ours
+    }
   }
 
   /** A link to a hidden example page would lead to its notice: leave the words, drop the link. */
@@ -1316,7 +1324,9 @@
   /** What a reader of the published site sees at an example page's address, in place of the page. */
   function showExampleNotice() {
     const main = doc.querySelector("main");
-    if (!main) return;
+    if (!main || main.classList.contains("bh-example-blocked")) return;
+    doc.body.dataset.review = "off";
+    doc.body.dataset.present = "off";
     const home = (SITE_ROOT && new URL("index.html", SITE_ROOT).href) || new URL(doc.body.dataset.home || "/", location.href).href;
     doc.title = "Example page";
     main.className = "bh-page no-toc bh-example-blocked";
@@ -1352,14 +1362,16 @@
   }
 
   whenReady(() => {
-    buildChrome();
-    // An example page off the local machine is replaced by a notice; nothing else on it is built.
+    // An example page off the local machine is just its notice (already in place unless the
+    // script ran while the page was still loading); nothing else on it is built.
     if (EXAMPLES.page && !EXAMPLES.visible) {
       showExampleNotice();
+      buildChrome();
       if (doc.fonts && doc.fonts.ready) settle(doc.fonts.ready);
       signalWhenSettled();
       return;
     }
+    buildChrome();
     // [data-bh-logo] elements (decorative marks in a page) get the same inline mark as the top bar.
     for (const n of doc.querySelectorAll("[data-bh-logo]")) n.innerHTML = LOGO_SVG;
     buildMeta();
@@ -1371,9 +1383,10 @@
     buildReveal();
     buildDiagramRefs();
     const siteData = loadSiteData();
-    const linksHidden = siteData.then((site) => { noteHiddenExamples(site); hideExampleLinks(doc.querySelector(".bh-article")); });
+    // Only where examples are hidden does anything wait for the site data (where they show, nothing changes).
+    const linksHidden = EXAMPLES.visible ? Promise.resolve() : siteData.then((site) => { noteHiddenExamples(site); hideExampleLinks(doc.querySelector(".bh-article")); });
     settle(buildGlossary(linksHidden));
-    settle(siteData.then((site) => linksHidden.then(() => site)).then((site) => {
+    settle(Promise.all([siteData, linksHidden]).then(([site]) => {
       buildBacklinks(site);
       buildLifecycle(site);
       // Published review threads on this page: show them to every reader.

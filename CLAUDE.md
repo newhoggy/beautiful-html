@@ -175,7 +175,8 @@ generated data serves both.
   them in the Pages workflow too.
 - **One place decides.** `theme/examples.js` holds the only list of local hosts. It is a
   synchronous script in every page's `<head>`, after the theme script, so `<html data-examples>`
-  is set before first paint and nothing flashes. `check` fails if a page or template lacks it.
+  is set before first paint and nothing flashes. `check` fails if a page or template lacks it, or
+  if the `bh:example` marker comes after it (the script reads the marker as it runs).
   `bh.js` and the search module read `window.bhExamples`; never copy the list.
 - **Override.** `?examples` (or `=on`) shows them anywhere, `?examples=off` hides them locally,
   and `?examples=auto` forgets the choice. It is remembered for the tab session

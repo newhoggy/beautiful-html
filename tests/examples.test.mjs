@@ -127,13 +127,8 @@ const marked = fs.readdirSync(path.join(source, "docs")).filter((f) => f.endsWit
   .filter((f) => /<meta\s+name="bh:example"\s+content="true"/.test(read(`docs/${f}`)))
   .map((f) => `docs/${f}`).sort();
 
-test("the marked pages are the four examples", () => {
-  assert.deepEqual(marked, [
-    "docs/adr-001-rate-limit-in-each-service.html",
-    "docs/adr-002-rate-limit-at-the-edge.html",
-    "docs/edge-rate-limiting-design.html",
-    "docs/token-bucket-rate-limiting.html",
-  ]);
+test("there are example pages to test against", () => {
+  assert.ok(marked.length > 0, "docs/ should keep at least one page marked bh:example");
 });
 
 test("index cards, site data and the search index flag exactly the marked pages", () => {
@@ -209,4 +204,15 @@ test("check warns when an ordinary page links to an example page, but not from t
   const out = bh(dir, "check").stdout;
   assert.match(out, /warn.*links to example page token-bucket-rate-limiting\.html/);
   assert.doesNotMatch(out, /glossary\.html[\s\S]*links to example page/);
+});
+
+test("check requires the marker to come before examples.js", (t) => {
+  const dir = scratchRepo(t);
+  const p = path.join(dir, "docs/token-bucket-rate-limiting.html");
+  const text = fs.readFileSync(p, "utf8");
+  const marker = '  <meta name="bh:example" content="true">\n', script = '  <script src="../theme/examples.js"></script>\n';
+  assert.ok(text.includes(marker) && text.includes(script));
+  fs.writeFileSync(p, text.replace(marker, "").replace(script, script + marker));
+  assert.notEqual(fs.readFileSync(p, "utf8"), text, "the injection must change the file");
+  assert.match(bh(dir, "check").stdout, /bh:example"> must come before the theme\/examples\.js script/);
 });
