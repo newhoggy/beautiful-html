@@ -22,6 +22,16 @@ window.BH_SITE = {
    "supersededBy": ""
   },
   {
+   "href": "docs/announcing-patchcov.html",
+   "title": "Announcing patchcov",
+   "kind": "explainer",
+   "status": "draft",
+   "date": "2026-10-11",
+   "description": "Patch coverage for git diffs, as a command and a GitHub Action: a precise, gateable answer to what a change left untested, with no service in the loop.",
+   "supersedes": "",
+   "supersededBy": ""
+  },
+  {
    "href": "docs/component-gallery.html",
    "title": "Component gallery",
    "kind": "reference",
@@ -101,6 +111,13 @@ window.BH_SITE = {
     "href": "docs/edge-rate-limiting-design.html#decision",
     "title": "Moving rate limiting to the edge",
     "section": "Decision"
+   }
+  ],
+  "docs/announcing-patchcov.html": [
+   {
+    "href": "docs/glossary.html",
+    "title": "Glossary",
+    "section": ""
    }
   ]
  }
