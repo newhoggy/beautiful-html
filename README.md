@@ -33,8 +33,11 @@ every page and key, so the rebrand changes the site's name and not these.
   programming`, `succinct data structures` or `ai workflows`. The home page's topic chips
   are built from those tags (a topic with no posts yet gets no chip).
 - **Examples.** The rate-limiting design doc, its two ADRs and the token-bucket explainer
-  are worked examples of the document kinds, not posts. They carry the tag `examples`, and
-  the home page labels them "Example · …".
+  are worked examples of the document kinds, not posts. They carry `<meta name="bh:example"
+  content="true">`. On a local host (`npm run serve`, `file://`) they appear as always, labelled
+  "Example · …"; on the published site they are hidden from the home page, search and
+  backlinks, and their addresses show a short notice. `?examples` and `?examples=off` switch
+  the view (see CLAUDE.md, "Example pages").
 - **Address.** The repository, and so the Pages URL, keep the name `beautiful-html`. Renaming
   the repo would break every Pages link, including private-page `#k=` links already shared
   (GitHub redirects the repo URL but not Pages). If the blog gets its own address, use a
@@ -120,6 +123,7 @@ theme/
   reviews.js            GENERATED: published review threads from reviews/
   print.css             Print: chrome removed, all steps and tabs expanded
   bh.js                 Runtime: chrome, TOC/scroll-spy, web components, lazy Prism/Mermaid
+  examples.js           Early <head> script: which hosts show example pages (and the ?examples override)
 theme/modules/          On-demand components (loaded only by pages that use them)
 reviews/schema.json     Format of exported review files (bh-review/1)
 reviews/inbox/          Where review files arrive, via pull request

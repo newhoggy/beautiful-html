@@ -22,7 +22,7 @@ jobs:
       - name: Syntax-check scripts
         run: |
           node --check theme/bh.js
-          for f in theme/modules/*.js scripts/*.mjs; do node --check "$f"; done
+          for f in theme/examples.js theme/modules/*.js scripts/*.mjs; do node --check "$f"; done
 
       # Links, ids, arrows, labels, contrast, glossary, decision links, and that the
       # generated files (index, glossary, site data, search index) are up to date.

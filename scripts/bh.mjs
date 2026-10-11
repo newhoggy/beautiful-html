@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // beautiful-html CLI — zero dependencies, Node ≥ 20.
 //
-//   node scripts/bh.mjs new <template> <slug> "<Title>" ["<description>"]
+//   node scripts/bh.mjs new [--private | --example] <template> <slug> "<Title>" ["<description>"]
 //   node scripts/bh.mjs index                 regenerate index.html list, social meta, theme/{glossary,site,search-index}.js
 //   node scripts/bh.mjs check                 lint docs/ and index.html
 //   node scripts/bh.mjs cards                 render docs/assets/og/<slug>.png (needs Chrome; see scripts/cards.mjs)
@@ -96,11 +96,20 @@ function readDoc(file) {
     status: getMeta(html, "bh:status"),
     date: getMeta(html, "bh:date"),
     tags: getMeta(html, "bh:tags"),
+    // Pages that only demonstrate the theme and templates: shown on a local host, hidden on the
+    // published domain (theme/examples.js decides in the browser).
+    example: getMeta(html, "bh:example") === "true",
     authors: getMeta(html, "bh:authors"),
     // Lifecycle links (relative to the doc in the source; root-relative here).
     supersedes: resolveDocLink(file, getMeta(html, "bh:supersedes")),
     supersededBy: resolveDocLink(file, getMeta(html, "bh:superseded-by")),
   };
+}
+
+/** The page's topics, lowercase. An example page is also under "examples". */
+function docTopics(d) {
+  const tags = (d.tags || "").split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
+  return d.example && !tags.includes("examples") ? ["examples", ...tags] : tags;
 }
 
 /** A doc-relative link from a meta tag as a root-relative path ("docs/x.html"), or "". */
@@ -339,10 +348,15 @@ async function cmdCards(argv) {
 
 function cmdNew(argv) {
   const isPrivate = argv.includes("--private");
-  const [template, slug, title, description] = argv.filter((a) => a !== "--private");
+  const isExample = argv.includes("--example");
+  const [template, slug, title, description] = argv.filter((a) => a !== "--private" && a !== "--example");
   const templates = fs.readdirSync(TEMPLATES).filter((f) => f.endsWith(".html")).map((f) => f.replace(/\.html$/, ""));
   if (!template || !slug || !title) {
-    console.error(`Usage: bh new [--private] <template> <slug> "<Title>" ["<description>"]\nTemplates: ${templates.join(", ")}`);
+    console.error(`Usage: bh new [--private | --example] <template> <slug> "<Title>" ["<description>"]\nTemplates: ${templates.join(", ")}`);
+    process.exit(2);
+  }
+  if (isPrivate && isExample) {
+    console.error(c.red("--private and --example don't combine: a private page is never listed, so it is never an example."));
     process.exit(2);
   }
   if (!templates.includes(template)) {
@@ -367,13 +381,21 @@ function cmdNew(argv) {
     author: escapeHtml(author),
     slug,
   };
-  const html = fs.readFileSync(path.join(TEMPLATES, `${template}.html`), "utf8")
+  let html = fs.readFileSync(path.join(TEMPLATES, `${template}.html`), "utf8")
     .replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars ? vars[k] : m));
+  if (isExample) {
+    const marked = html.replace(/^(  <meta name="bh:tags" content="[^"]*">\n)/m, `$1  <meta name="bh:example" content="true">\n`);
+    if (marked === html) { console.error(c.red(`templates/${template}.html has no bh:tags line to add the example marker after`)); process.exit(1); }
+    html = marked;
+  }
   fs.mkdirSync(DOCS, { recursive: true });
   fs.writeFileSync(out, html);
   console.log(c.green(`Created ${path.relative(ROOT, out)}`));
   if (isPrivate) console.log(c.dim("Private page: it is git-ignored. Run `npm run seal` to publish an encrypted copy."));
-  else console.log(c.dim("When the page is written, run `npm run cards` to render its social card."));
+  else {
+    if (isExample) console.log(c.dim("Example page: shown on a local host, hidden on the published site."));
+    console.log(c.dim("When the page is written, run `npm run cards` to render its social card."));
+  }
   cmdIndex();
 }
 
@@ -465,12 +487,12 @@ function extractSections(html) {
 function buildSiteData() {
   const docs = docFiles().map((f) => ({ ...readDoc(f), html: fs.readFileSync(f, "utf8") }));
   const known = new Set(docs.map((d) => d.href));
-  const pages = docs.map(({ href, title, kind, status, date, description, supersedes, supersededBy }) => ({ href, title, kind, status, date, description, supersedes, supersededBy }));
+  const pages = docs.map(({ href, title, kind, status, date, description, supersedes, supersededBy, example }) => ({ href, title, kind, status, date, description, supersedes, supersededBy, ...(example ? { example: true } : {}) }));
   const backlinks = {};
   const search = [];
   for (const d of docs) {
     const sections = extractSections(d.html);
-    search.push({ href: d.href, title: d.title, kind: d.kind, sections: sections.map(({ id, heading, text }) => ({ id, heading, text })).filter((x) => x.text || x.heading) });
+    search.push({ href: d.href, title: d.title, kind: d.kind, ...(d.example ? { example: true } : {}), sections: sections.map(({ id, heading, text }) => ({ id, heading, text })).filter((x) => x.text || x.heading) });
     for (const sec of sections) {
       for (const m of sec.html.matchAll(/\shref="([^"#?]+\.html)(?:[#?][^"]*)?"/g)) {
         if (/^[a-z]+:/i.test(m[1])) continue;
@@ -501,12 +523,12 @@ function cmdIndex() {
     .sort((a, b) => (b.date || "").localeCompare(a.date || "") || a.title.localeCompare(b.title));
   const titles = new Map(docs.map((d) => [d.href, d.title]));
   const cards = docs.map((d) => {
-    const search = [d.title, d.description, d.tags, d.kind].join(" ").toLowerCase();
+    const tags = docTopics(d);
+    const search = [d.title, d.description, tags.join(", "), d.kind].join(" ").toLowerCase();
     const replaced = d.supersededBy ? `\n        <p class="card-replaced">Replaced by <a href="${escapeHtml(d.supersededBy)}">${escapeHtml(titles.get(d.supersededBy) || d.supersededBy)}</a></p>` : "";
-    const tags = (d.tags || "").split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
     const kindLabel = KIND_LABELS[d.kind] || d.kind;
-    const eyebrow = tags.includes("examples") ? `Example · ${kindLabel}` : kindLabel;
-    return `      <li class="card doc-card${d.supersededBy ? " is-superseded" : ""}" data-kind="${escapeHtml(d.kind)}" data-tags="${escapeHtml(tags.join(","))}" data-search="${escapeHtml(search)}">
+    const eyebrow = d.example ? `Example · ${kindLabel}` : kindLabel;
+    return `      <li class="card doc-card${d.supersededBy ? " is-superseded" : ""}"${d.example ? " data-example" : ""} data-kind="${escapeHtml(d.kind)}" data-tags="${escapeHtml(tags.join(","))}" data-search="${escapeHtml(search)}">
         <a class="card-link" href="${escapeHtml(d.href)}">
           <span class="eyebrow">${escapeHtml(eyebrow)}</span>
           <h3>${escapeHtml(d.title)}</h3>
@@ -1201,6 +1223,7 @@ function cmdCheck() {
     errors += problems.length;
   }
 
+  const exampleHrefs = new Set(docFiles().map(readDoc).filter((d) => d.example).map((d) => d.href));
   for (const file of files) {
     const rel = path.relative(ROOT, file);
     const raw = fs.readFileSync(file, "utf8");
@@ -1222,6 +1245,15 @@ function cmdCheck() {
     for (const m of iconLinks) {
       const href = (m[0].match(/\bhref="([^"]+)"/) || [])[1];
       if (href && !/^(https?:|data:)/.test(href) && !fs.existsSync(path.resolve(path.dirname(file), href))) err(`icon ${href} does not exist`);
+    }
+
+    // Example pages are shown or hidden by theme/examples.js, which must run in <head> before first paint.
+    {
+      const head = html.split("</head>")[0];
+      const script = head.search(/<script\s+src="[^"]*theme\/examples\.js"\s*><\/script>/);
+      if (script < 0) err('missing <script src="…/theme/examples.js"></script> in <head> (synchronous, after the theme script)');
+      // The script reads the marker as it runs, so the marker must come first.
+      else if (head.search(/<meta\s+name="bh:example"/) > script) err('<meta name="bh:example"> must come before the theme/examples.js script in <head>');
     }
 
     // Social meta: generated, so it must be present and current (templates carry the empty markers).
@@ -1260,6 +1292,22 @@ function cmdCheck() {
       if (!/class="bh-article"/.test(html)) err('missing <article class="bh-article">');
       if (!/theme\/bh\.css/.test(html)) err("does not link theme/bh.css");
       for (const p of linkTargetProblems(raw)) err(p);
+
+      // Example pages: a dedicated marker, never the `examples` tag (a tag is a topic).
+      const example = getMeta(html, "bh:example");
+      if (example && example !== "true") err(`bh:example must be "true" (got "${example}")`);
+      if (!isTemplate && getMeta(html, "bh:tags").split(",").some((t) => t.trim().toLowerCase() === "examples")) {
+        err('the "examples" tag is reserved: mark an example page with <meta name="bh:example" content="true"> instead (the index adds the topic)');
+      }
+      // Off the local machine, links to example pages become plain text. Glossary definitions point at them by design.
+      if (!isTemplate && !example && file !== GLOSSARY_SRC) {
+        const seenLinks = new Set();
+        for (const m of html.matchAll(/<a\b[^>]*?\shref="([^"#?]+\.html)(?:[#?][^"]*)?"/g)) {
+          if (/^[a-z]+:/i.test(m[1])) continue;
+          const target = path.relative(ROOT, path.resolve(path.dirname(file), m[1])).split(path.sep).join("/");
+          if (exampleHrefs.has(target) && !seenLinks.has(target)) { seenLinks.add(target); warn(`links to example page ${m[1]}: on the published site the link becomes plain text`); }
+        }
+      }
     }
 
     // Duplicate ids
@@ -1732,7 +1780,7 @@ const commands = { new: cmdNew, index: cmdIndex, check: cmdCheck, cards: cmdCard
 if (!commands[cmd]) {
   console.log(`beautiful-html
 
-  new [--private] <template> <slug> "<Title>" ["<desc>"]
+  new [--private | --example] <template> <slug> "<Title>" ["<desc>"]
                                                create docs/<slug>.html (or a git-ignored <slug>.private.html)
   index                                        regenerate the document list in index.html
   check                                        lint docs/ and index.html (links, ids, stepper refs, a11y)
