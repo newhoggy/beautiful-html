@@ -11,6 +11,7 @@ from it rather than inventing new markup.
 
 1. `npm run new -- <template> <slug> "<Title>" "<one-sentence description>"`
    - Templates: `explainer`, `design-doc`, `adr`, `incident`, `review`
+   - Add `--example` for a page that only demonstrates the theme (see [Example pages](#example-pages))
    - This creates `docs/<slug>.html` and refreshes `index.html`
 2. Replace every placeholder section. Delete sections that don't earn their place.
 3. `npm run check`. It must report 0 errors. Fix the warnings unless there is a reason not to.
@@ -152,6 +153,44 @@ carries its key.
 - Making a page public: rename it to `docs/<slug>.html` (replacing the sealed copy), archive
   its 1Password item, and run `npm run index`.
 
+## Example pages
+
+Some pages only demonstrate the theme and the templates (the rate-limiting design doc, its two
+ADRs and the token-bucket explainer). They are not posts. They are shown where you work and
+hidden on the published site, and the browser decides, so one set of files and one set of
+generated data serves both.
+
+- **Mark one** with `<meta name="bh:example" content="true">` in the `<head>`, or create it with
+  `npm run new -- --example <template> <slug> "<Title>"`. The marker is the only thing that
+  counts. `check` fails on the `examples` tag, which is reserved: the index adds the
+  "Examples" topic and the "Example · …" label itself.
+- **Shown** on a local host: `localhost`, `127.0.0.1`, `[::1]`, `*.localhost`, `*.local` and
+  `file://`. **Hidden** on anything else, including a LAN address such as `192.168.1.5`
+  (so serving on one is a way to preview the published site).
+- **What hidden means** on a non-local host: no home-page card, kind or topic chip; no search
+  result; no "Referenced by" entry; links to the page become plain text (also inside glossary
+  popups); and opening the page's address shows a short "This is an example page" notice with a
+  link to the posts. Review threads on the page go with the page. The files still ship and the
+  address still answers 200: client-side hiding cannot do more. If real removal is wanted, drop
+  them in the Pages workflow too.
+- **One place decides.** `theme/examples.js` holds the only list of local hosts. It is a
+  synchronous script in every page's `<head>`, after the theme script, so `<html data-examples>`
+  is set before first paint and nothing flashes. `check` fails if a page or template lacks it.
+  `bh.js` and the search module read `window.bhExamples`; never copy the list.
+- **Override.** `?examples` (or `=on`) shows them anywhere, `?examples=off` hides them locally,
+  and `?examples=auto` forgets the choice. It is remembered for the tab session
+  (`sessionStorage`), so it survives following links.
+- **Without JavaScript** the home page hides its example cards (fails closed, so locally too),
+  and an example page opened directly stays readable, since only script can swap in the notice.
+- **Linking to an example** from an ordinary page is allowed; `check` warns, because the link
+  becomes plain text on the published site. The glossary is exempt: its definitions point at
+  examples by design. An example may link to other examples freely.
+- **Bundles** (`npm run bundle`) always show their own content, wherever the file is opened or
+  hosted: `<html data-bundled>` overrides the host. A bundle has no index, search or backlinks.
+- **Cards and private pages.** Example pages keep their social cards (`check` still requires
+  them; a pasted link unfurls as before). Private and sealed pages are never examples and are
+  unaffected.
+
 ## Page contract
 
 - Pages are flat files in `docs/` and link `../theme/bh.css` and `../theme/bh.js`. Don't add a build step.
@@ -159,6 +198,8 @@ carries its key.
   - `title` and `description`
   - `bh:kind`, `bh:status`, `bh:date` (YYYY-MM-DD), `bh:authors`, `bh:tags`
   - optionally `bh:image` (which picture the social card shows; see [Social cards](#social-cards))
+  - optionally `bh:example` (`true` for an example page; see [Example pages](#example-pages))
+  - the synchronous `<script src="…/theme/examples.js">` after the theme script
   - the generated social meta block between its two `bh:social` markers: leave it alone
   - the inline theme script that prevents a flash of the wrong theme
 - Use exactly one `<h1>`, inside `.bh-hero`.
