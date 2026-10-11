@@ -12,6 +12,17 @@ window.BH_GLOSSARY = [
     "href": "docs/glossary.html#adr"
   },
   {
+    "id": "back-reference",
+    "term": "Back-reference",
+    "aliases": [
+      "back-references",
+      "backreference",
+      "backreferences"
+    ],
+    "html": "<p>In LZ77 compression, an instruction to copy <em>L</em> bytes starting <em>D</em> bytes back in the output already produced, instead of storing them again. DEFLATE allows distances up to 32,768 bytes.</p>",
+    "href": "docs/glossary.html#back-reference"
+  },
+  {
     "id": "backoff",
     "term": "Backoff",
     "aliases": [
@@ -19,6 +30,15 @@ window.BH_GLOSSARY = [
     ],
     "html": "<p>Waiting longer after each failed attempt before retrying, usually doubling the delay each time. Without <a href=\"docs/glossary.html#jitter\">jitter</a>, clients that failed together retry together.</p>",
     "href": "docs/glossary.html#backoff"
+  },
+  {
+    "id": "barrier",
+    "term": "Barrier",
+    "aliases": [
+      "barriers"
+    ],
+    "html": "<p>A GPU instruction that makes every thread in a threadgroup wait until all of them arrive, and makes their earlier memory writes visible to each other. There is no safe barrier across threadgroups.</p>",
+    "href": "docs/glossary.html#barrier"
   },
   {
     "id": "burst",
@@ -39,6 +59,57 @@ window.BH_GLOSSARY = [
     "href": "docs/glossary.html#cache-miss"
   },
   {
+    "id": "compute-kernel",
+    "term": "Compute kernel",
+    "aliases": [
+      "compute kernels",
+      "kernel",
+      "kernels",
+      "compute shader",
+      "compute shaders"
+    ],
+    "html": "<p>A function that runs on the GPU once per thread of a <a href=\"docs/glossary.html#dispatch\">dispatch</a>. Each thread reads its own index to decide which part of the work it does.</p>",
+    "href": "docs/glossary.html#compute-kernel"
+  },
+  {
+    "id": "crc-32",
+    "term": "CRC-32",
+    "aliases": [
+      "CRC",
+      "CRCs",
+      "CRC32"
+    ],
+    "html": "<p>A 32-bit checksum computed by polynomial division over the bits of the data. ZIP and gzip store one per file so a decoder can detect corruption. Checksums of adjacent pieces can be combined, which allows computing it in parallel.</p>\n        <p><a href=\"https://en.wikipedia.org/wiki/Cyclic_redundancy_check\">Cyclic redundancy check (Wikipedia)</a></p>",
+    "href": "docs/glossary.html#crc-32"
+  },
+  {
+    "id": "deflate",
+    "term": "DEFLATE",
+    "aliases": [],
+    "html": "<p>The compression format inside ZIP, gzip and PNG: <a href=\"docs/glossary.html#lz77\">LZ77</a> back-references plus <a href=\"docs/glossary.html#huffman-code\">Huffman coding</a>, organised in blocks. Its bit stream has no index, so decoding is serial.</p>\n        <p><a href=\"https://www.rfc-editor.org/rfc/rfc1951\">RFC 1951</a></p>",
+    "href": "docs/glossary.html#deflate"
+  },
+  {
+    "id": "dispatch",
+    "term": "Dispatch",
+    "aliases": [
+      "dispatches"
+    ],
+    "html": "<p>One launch of a <a href=\"docs/glossary.html#compute-kernel\">compute kernel</a> over a grid of threads, divided into <a href=\"docs/glossary.html#threadgroup\">threadgroups</a>. Dispatches in one command buffer run in order, which is the safe way to order work between threadgroups.</p>",
+    "href": "docs/glossary.html#dispatch"
+  },
+  {
+    "id": "divergence",
+    "term": "Divergence",
+    "aliases": [
+      "divergent",
+      "diverge",
+      "diverges"
+    ],
+    "html": "<p>When lanes of one <a href=\"docs/glossary.html#simd-group\">SIMD group</a> take different sides of a branch. The hardware runs each side in turn with the other lanes switched off, so the branch costs the sum of both sides.</p>",
+    "href": "docs/glossary.html#divergence"
+  },
+  {
     "id": "gcra",
     "term": "GCRA",
     "aliases": [
@@ -48,11 +119,32 @@ window.BH_GLOSSARY = [
     "href": "docs/glossary.html#gcra"
   },
   {
+    "id": "huffman-code",
+    "term": "Huffman code",
+    "aliases": [
+      "Huffman codes",
+      "Huffman coding",
+      "Huffman table",
+      "Huffman tables"
+    ],
+    "html": "<p>A variable-length binary code that gives frequent symbols short bit patterns and rare ones long patterns. No code is a prefix of another, so a decoder can read them back to back without separators.</p>\n        <p><a href=\"https://en.wikipedia.org/wiki/Huffman_coding\">Huffman coding (Wikipedia)</a></p>",
+    "href": "docs/glossary.html#huffman-code"
+  },
+  {
     "id": "jitter",
     "term": "Jitter",
     "aliases": [],
     "html": "<p>Randomness added to retry or polling delays, so many clients that start together don't keep acting in lock-step and overload a recovering service.</p>",
     "href": "docs/glossary.html#jitter"
+  },
+  {
+    "id": "lane",
+    "term": "Lane",
+    "aliases": [
+      "lanes"
+    ],
+    "html": "<p>One thread's slot within a <a href=\"docs/glossary.html#simd-group\">SIMD group</a>. Each lane has its own registers, but all lanes execute the same instruction at the same time.</p>",
+    "href": "docs/glossary.html#lane"
   },
   {
     "id": "leaky-bucket",
@@ -64,6 +156,22 @@ window.BH_GLOSSARY = [
     "href": "docs/glossary.html#leaky-bucket"
   },
   {
+    "id": "lz77",
+    "term": "LZ77",
+    "aliases": [],
+    "html": "<p>The compression idea, from Lempel and Ziv in 1977, of replacing repeated data with <a href=\"docs/glossary.html#back-reference\">back-references</a> to an earlier occurrence.</p>\n        <p><a href=\"https://en.wikipedia.org/wiki/LZ77_and_LZ78\">LZ77 and LZ78 (Wikipedia)</a></p>",
+    "href": "docs/glossary.html#lz77"
+  },
+  {
+    "id": "marker",
+    "term": "Marker",
+    "aliases": [
+      "markers"
+    ],
+    "html": "<p>In rapidgzip-style decoding, a 16-bit placeholder meaning \"the byte <em>n</em> positions before this chunk started\". It lets a decoder start mid-stream without the history, and is replaced by the real byte once the previous chunk is decoded.</p>",
+    "href": "docs/glossary.html#marker"
+  },
+  {
     "id": "monotonic-clock",
     "term": "Monotonic clock",
     "aliases": [
@@ -71,6 +179,13 @@ window.BH_GLOSSARY = [
     ],
     "html": "<p>A clock that only moves forwards. Use it to measure elapsed time, because the wall clock can jump backwards when NTP corrects it.</p>",
     "href": "docs/glossary.html#monotonic-clock"
+  },
+  {
+    "id": "occupancy",
+    "term": "Occupancy",
+    "aliases": [],
+    "html": "<p>How many <a href=\"docs/glossary.html#simd-group\">SIMD groups</a> a GPU core keeps resident at once. More resident groups give the core more work to switch to while others wait for memory. Registers and <a href=\"docs/glossary.html#threadgroup-memory\">threadgroup memory</a> per group limit it.</p>",
+    "href": "docs/glossary.html#occupancy"
   },
   {
     "id": "p99",
@@ -119,6 +234,34 @@ window.BH_GLOSSARY = [
     "href": "docs/glossary.html#retry-budget"
   },
   {
+    "id": "shuffle",
+    "term": "Shuffle",
+    "aliases": [
+      "shuffles",
+      "lane shuffle",
+      "lane shuffles"
+    ],
+    "html": "<p>A GPU instruction in which every <a href=\"docs/glossary.html#lane\">lane</a> reads a register value from another lane of its SIMD group, without going through memory. In Metal it is <code>simd_shuffle</code>; in HLSL, <code>WaveReadLaneAt</code>.</p>",
+    "href": "docs/glossary.html#shuffle"
+  },
+  {
+    "id": "simd-group",
+    "term": "SIMD group",
+    "aliases": [
+      "SIMD groups",
+      "simdgroup",
+      "simdgroups",
+      "warp",
+      "warps",
+      "subgroup",
+      "subgroups",
+      "wavefront",
+      "wavefronts"
+    ],
+    "html": "<p>The set of threads a GPU executes in lock-step: 32 on Apple GPUs (NVIDIA calls it a warp, Vulkan a subgroup, HLSL a wave). One instruction is fetched once and executed by every <a href=\"docs/glossary.html#lane\">lane</a>.</p>",
+    "href": "docs/glossary.html#simd-group"
+  },
+  {
     "id": "slo",
     "term": "SLO",
     "aliases": [
@@ -128,6 +271,38 @@ window.BH_GLOSSARY = [
     ],
     "html": "<p>A service level objective: a reliability target, such as 99.9% of requests succeeding over 30 days. It is set below 100% on purpose, leaving an error budget.</p>",
     "href": "docs/glossary.html#slo"
+  },
+  {
+    "id": "spir-v",
+    "term": "SPIR-V",
+    "aliases": [],
+    "html": "<p>The Khronos binary intermediate language for GPU programs. Vulkan drivers consume it directly, and SPIRV-Cross can translate it into Metal Shading Language.</p>\n        <p><a href=\"https://registry.khronos.org/SPIR-V/\">SPIR-V registry</a></p>",
+    "href": "docs/glossary.html#spir-v"
+  },
+  {
+    "id": "threadgroup",
+    "term": "Threadgroup",
+    "aliases": [
+      "threadgroups",
+      "workgroup",
+      "workgroups",
+      "thread block",
+      "thread blocks"
+    ],
+    "html": "<p>A group of GPU threads that runs on one core and can share <a href=\"docs/glossary.html#threadgroup-memory\">threadgroup memory</a> and <a href=\"docs/glossary.html#barrier\">barriers</a>. Vulkan calls it a workgroup and CUDA a thread block.</p>",
+    "href": "docs/glossary.html#threadgroup"
+  },
+  {
+    "id": "threadgroup-memory",
+    "term": "Threadgroup memory",
+    "aliases": [
+      "groupshared",
+      "groupshared memory",
+      "shared memory",
+      "workgroup memory"
+    ],
+    "html": "<p>Small, fast on-chip memory shared by the threads of one <a href=\"docs/glossary.html#threadgroup\">threadgroup</a>: at most 32 KiB per threadgroup on Apple GPUs. HLSL calls it <code>groupshared</code>.</p>",
+    "href": "docs/glossary.html#threadgroup-memory"
   },
   {
     "id": "tls",
@@ -146,5 +321,12 @@ window.BH_GLOSSARY = [
     ],
     "html": "<p>A rate limiter that refills tokens at rate <em>r</em> up to a capacity <em>b</em>, and admits each request only by spending a token. It allows bursts up to <em>b</em> but enforces <em>r</em> on average.</p>\n        <p><a href=\"docs/token-bucket-rate-limiting.html\">Token bucket rate limiting</a></p>",
     "href": "docs/glossary.html#token-bucket"
+  },
+  {
+    "id": "unified-memory",
+    "term": "Unified memory",
+    "aliases": [],
+    "html": "<p>A design, used by Apple Silicon, in which the CPU and GPU share the same physical DRAM. A buffer can be visible to both without being copied, though first GPU use of a buffer still has a cost.</p>",
+    "href": "docs/glossary.html#unified-memory"
   }
 ];

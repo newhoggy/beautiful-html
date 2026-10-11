@@ -5,13 +5,16 @@
 //   node scripts/bh.mjs index                 regenerate index.html list + theme/{glossary,site,search-index}.js
 //   node scripts/bh.mjs check                 lint docs/ and index.html
 //   node scripts/bh.mjs bundle <page|--all>   inline theme → dist/<name>.html (single file)
+//   node scripts/bh.mjs seal [--show-links]   encrypt docs/*.private.html → docs/<slug>.html (see "Private pages")
+//   node scripts/bh.mjs unseal [slug…]        decrypt docs/<slug>.html → docs/<slug>.private.html
 //   node scripts/bh.mjs serve [port]          static server (pages also work from file://)
 
 import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import zlib from "node:zlib";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -23,6 +26,11 @@ const GLOSSARY_SRC = path.join(DOCS, "glossary.html");
 const GLOSSARY_OUT = path.join(ROOT, "theme", "glossary.js");
 const SITE_OUT = path.join(ROOT, "theme", "site.js");
 const SEARCH_OUT = path.join(ROOT, "theme", "search-index.js");
+// Private pages: plaintext in docs/<slug>.private.html (git-ignored), published only as an
+// encrypted docs/<slug>.html that decrypts in the browser with the key in the URL fragment.
+// Keys live in 1Password (vault $BH_OP_VAULT, default "Private"), never in the repo.
+const PRIVATE_EXT = ".private.html";
+const OP_VAULT = process.env.BH_OP_VAULT || "Private";
 
 const KIND_LABELS = {
   explainer: "Explainer",
@@ -59,10 +67,20 @@ function stripComments(html) {
   return html.replace(/<!--[\s\S]*?-->/g, "");
 }
 
-function docFiles() {
+function allDocFiles() {
   if (!fs.existsSync(DOCS)) return [];
   return fs.readdirSync(DOCS).filter((f) => f.endsWith(".html")).sort().map((f) => path.join(DOCS, f));
 }
+
+const isPrivateSource = (file) => file.endsWith(PRIVATE_EXT);
+const isSealed = (file) => !isPrivateSource(file) && /<meta\s+name="bh:sealed"/i.test(fs.readFileSync(file, "utf8"));
+
+/** Public documents only: what the catalogue, search, backlinks and bundles may see. */
+function docFiles() {
+  return allDocFiles().filter((f) => !isPrivateSource(f) && !isSealed(f));
+}
+const privateSources = () => allDocFiles().filter(isPrivateSource);
+const sealedFiles = () => allDocFiles().filter(isSealed);
 
 function readDoc(file) {
   const html = stripComments(fs.readFileSync(file, "utf8")); // example <meta> in comments must not count
@@ -89,10 +107,12 @@ function resolveDocLink(file, value) {
 
 // ---- new --------------------------------------------------------------------------
 
-function cmdNew([template, slug, title, description]) {
+function cmdNew(argv) {
+  const isPrivate = argv.includes("--private");
+  const [template, slug, title, description] = argv.filter((a) => a !== "--private");
   const templates = fs.readdirSync(TEMPLATES).filter((f) => f.endsWith(".html")).map((f) => f.replace(/\.html$/, ""));
   if (!template || !slug || !title) {
-    console.error(`Usage: bh new <template> <slug> "<Title>" ["<description>"]\nTemplates: ${templates.join(", ")}`);
+    console.error(`Usage: bh new [--private] <template> <slug> "<Title>" ["<description>"]\nTemplates: ${templates.join(", ")}`);
     process.exit(2);
   }
   if (!templates.includes(template)) {
@@ -103,8 +123,8 @@ function cmdNew([template, slug, title, description]) {
     console.error(c.red(`Slug must be kebab-case: "${slug}"`));
     process.exit(2);
   }
-  const out = path.join(DOCS, `${slug}.html`);
-  if (fs.existsSync(out)) {
+  const out = path.join(DOCS, `${slug}${isPrivate ? PRIVATE_EXT : ".html"}`);
+  if (fs.existsSync(out) || fs.existsSync(path.join(DOCS, `${slug}${isPrivate ? ".html" : PRIVATE_EXT}`))) {
     console.error(c.red(`Refusing to overwrite ${path.relative(ROOT, out)}`));
     process.exit(1);
   }
@@ -122,6 +142,7 @@ function cmdNew([template, slug, title, description]) {
   fs.mkdirSync(DOCS, { recursive: true });
   fs.writeFileSync(out, html);
   console.log(c.green(`Created ${path.relative(ROOT, out)}`));
+  if (isPrivate) console.log(c.dim("Private page: it is git-ignored. Run `npm run seal` to publish an encrypted copy."));
   cmdIndex();
 }
 
@@ -724,7 +745,7 @@ function reviewProblems() {
 function cmdCheck() {
   let errors = 0, warnings = 0;
   const templates = fs.readdirSync(TEMPLATES).filter((f) => f.endsWith(".html")).sort().map((f) => path.join(TEMPLATES, f));
-  const files = [INDEX, ...docFiles(), ...templates];
+  const files = [INDEX, ...docFiles(), ...privateSources(), ...templates];
 
   // Theme: stylesheet import order and token contrast in both themes.
   {
@@ -777,6 +798,30 @@ function cmdCheck() {
     problems.forEach((p) => console.log(c.red("  error  ") + p));
     errors += problems.length;
   }
+  // Private pages: every plaintext is sealed and current; sealed shells are well-formed.
+  const privateSlugs = new Set([...privateSources().map((f) => path.basename(f, PRIVATE_EXT)), ...sealedFiles().map((f) => path.basename(f, ".html"))]);
+  if (privateSlugs.size) {
+    const problems = [];
+    for (const shell of sealedFiles()) {
+      const slug = path.basename(shell, ".html"), text = fs.readFileSync(shell, "utf8");
+      if (!/id="sealed-payload">\s*[A-Za-z0-9+/=\s]{40,}<\/script>/.test(text)) problems.push(`docs/${slug}.html: sealed payload is missing or malformed`);
+      if (!/name="robots" content="noindex/.test(text)) problems.push(`docs/${slug}.html: sealed page must be noindex`);
+      if (getMeta(text, "bh:sealed-shell") !== SHELL_VERSION()) problems.push(`docs/${slug}.html uses an outdated shell: run \`npm run seal\``);
+    }
+    for (const src of privateSources()) {
+      const slug = path.basename(src, PRIVATE_EXT), out = path.join(DOCS, `${slug}.html`);
+      if (fs.existsSync(out) && !isSealed(out)) { problems.push(`docs/${slug}.html is public but docs/${slug}${PRIVATE_EXT} also exists`); continue; }
+      let keyText = null;
+      try { keyText = readKey(slug); } catch (e) { problems.push(`can't read the key for ${slug} from 1Password: ${e.message}`); continue; }
+      if (!keyText || !fs.existsSync(out)) { problems.push(`docs/${slug}${PRIVATE_EXT} has never been sealed: run \`npm run seal\``); continue; }
+      const digest = sealDigest(Buffer.from(keyText, "base64url"), fs.readFileSync(src));
+      if (getMeta(fs.readFileSync(out, "utf8"), "bh:sealed-digest") !== digest) problems.push(`docs/${slug}.html is stale: run \`npm run seal\``);
+    }
+    console.log((problems.length ? c.red("✗ ") : c.green("✓ ")) + `private pages (${privateSlugs.size} sealed)`);
+    problems.forEach((p) => console.log(c.red("  error  ") + p));
+    errors += problems.length;
+  }
+
   for (const file of files) {
     const rel = path.relative(ROOT, file);
     const raw = fs.readFileSync(file, "utf8");
@@ -837,6 +882,13 @@ function cmdCheck() {
     // In-page anchors (heading ids may also be generated at runtime: warn, not error)
     for (const m of html.matchAll(/href="#([^"]+)"/g)) {
       if (!seen.has(m[1])) warn(`link to #${m[1]} has no matching id in the source`);
+    }
+
+    // Public pages never link to private ones: the link would either break or reveal the page.
+    if (!isPrivateSource(file)) for (const m of html.matchAll(/\s(?:href|src)="([^"#?]+\.html)(?:[#?][^"]*)?"/g)) {
+      if (/^[a-z]+:/i.test(m[1])) continue;
+      const slug = path.basename(m[1]).replace(PRIVATE_EXT, ".html").replace(/\.html$/, "");
+      if (path.resolve(path.dirname(file), m[1]).startsWith(DOCS + path.sep) && privateSlugs.has(slug)) err(`links to private page ${m[1]}`);
     }
 
     // Relative links and assets exist
@@ -981,6 +1033,196 @@ function cmdBundle([target]) {
   }
 }
 
+// ---- seal / unseal (private pages) ---------------------------------------------------
+//
+// The repo and its Pages site are public, so hiding a page means never committing its
+// plaintext. docs/<slug>.private.html is git-ignored; `seal` gzips it, encrypts it with
+// AES-256-GCM under a per-page key kept in 1Password, and writes docs/<slug>.html: a small
+// shell that decrypts itself in the browser when opened as
+//   docs/<slug>.html#k=<key>            (optionally #k=<key>&<section-id>)
+// The fragment is never sent to the server. Without the key the shell shows only a notice.
+// The sealed file is the copy of record: `unseal` recreates the plaintext from it.
+
+const opTitle = (slug) => `beautiful-html private page: ${slug}`;
+const keyCache = new Map();
+
+/** Run the 1Password CLI. Secrets only ever travel on stdin/stdout, never in argv. */
+function op(args, input) {
+  try {
+    if (input == null) return execFileSync("op", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    // Node's stdin "pipe" is a socket, which op doesn't treat as piped input (it then creates an
+    // empty item). `cat |` hands op a real pipe; the secret still never appears in argv.
+    return execFileSync("/bin/sh", ["-c", 'cat | op "$@"', "sh", ...args], { input, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+  } catch (e) {
+    if (e.code === "ENOENT") throw new Error("the 1Password CLI (`op`) is not installed: `brew install 1password-cli`");
+    throw new Error(String(e.stderr || e.message).trim().replace(/^\[ERROR\]\s*\S+\s+\S+\s*/, ""));
+  }
+}
+
+/** The page's key from 1Password, or null if it has none yet. */
+function readKey(slug) {
+  if (!keyCache.has(slug)) {
+    let key = null;
+    try {
+      key = op(["item", "get", opTitle(slug), "--vault", OP_VAULT, "--fields", "label=password", "--reveal"]);
+    } catch (e) {
+      if (!/isn't an item|not found/i.test(e.message)) throw e;
+    }
+    keyCache.set(slug, key && /^[A-Za-z0-9_-]{43}$/.test(key) ? key : null);
+  }
+  return keyCache.get(slug);
+}
+
+/** Store a new key as a 1Password Password item. */
+function storeKey(slug, key = crypto.randomBytes(32).toString("base64url")) {
+  const item = {
+    title: opTitle(slug),
+    category: "PASSWORD",
+    fields: [
+      { id: "password", type: "CONCEALED", purpose: "PASSWORD", label: "password", value: key },
+      { id: "notesPlain", type: "STRING", purpose: "NOTES", label: "notesPlain",
+        value: `Decryption key for docs/${slug}.html in beautiful-html.\nShare as: docs/${slug}.html#k=<this password>\nRecreate the plaintext with: npm run unseal -- ${slug}` },
+    ],
+  };
+  const created = JSON.parse(op(["item", "create", "--vault", OP_VAULT, "--format", "json", "-"], JSON.stringify(item)));
+  // Read it back: never trust that a key reached 1Password until it can be fetched again.
+  keyCache.delete(slug);
+  if (readKey(slug) !== key) throw new Error(`1Password item ${created.id} doesn't hold the key that was sent; archive it and retry`);
+  keyCache.set(slug, key);
+  return key;
+}
+
+/** Identifies the sealed plaintext without revealing anything about it (keyed MAC). */
+const sealDigest = (key, plain) => crypto.createHmac("sha256", key).update(plain).digest("hex");
+
+function sealedShell(payload, digest, shell = SHELL_VERSION()) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="bh:sealed" content="aes-256-gcm+gzip">
+  <meta name="bh:sealed-digest" content="${digest}">
+  <meta name="bh:sealed-shell" content="${shell}">
+  <title>Private document</title>
+  <!-- GENERATED by \`npm run seal\` from a git-ignored docs/*.private.html. Do not edit. -->
+  <style>
+    :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: light-dark(#f6f7f9, #0c0e12); color: light-dark(#15181e, #e7e9ee); }
+    main { max-width: 32rem; padding: 2rem 1rem; }
+    h1 { font-size: 1.4rem; margin: 0 0 0.5rem; }
+    p { line-height: 1.6; color: light-dark(#596173, #9ba3b4); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Private document</h1>
+  <p id="sealed-message">This page is encrypted. Open it with the full link you were given, including the part after <code>#</code>.</p>
+</main>
+<script type="application/octet-stream" id="sealed-payload">
+${(payload.match(/.{1,120}/g) || []).join("\n")}
+</script>
+<script>
+const message = document.getElementById("sealed-message");
+const store = "bh-sealed-key:" + location.pathname;
+async function unseal(fromStorage) {
+  const m = location.hash.match(/^#k=([A-Za-z0-9_-]{43})(?:&(.*))?$/);
+  let key = m ? m[1] : null, anchor = m ? m[2] || "" : location.hash.slice(1);
+  if (!key && fromStorage) { try { key = sessionStorage.getItem(store); } catch {} }
+  if (!key) return;
+  const bytes = (b64) => Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+  try {
+    const raw = bytes(document.getElementById("sealed-payload").textContent.replace(/\\s+/g, ""));
+    const k = await crypto.subtle.importKey("raw", bytes(key.replace(/-/g, "+").replace(/_/g, "/") + "="), "AES-GCM", false, ["decrypt"]);
+    const gz = await crypto.subtle.decrypt({ name: "AES-GCM", iv: raw.slice(0, 12) }, k, raw.slice(12));
+    const html = await new Response(new Blob([gz]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
+    try { sessionStorage.setItem(store, key); } catch {}
+    // Keep the key out of the address bar, copied section links and screenshots.
+    history.replaceState(null, "", location.pathname + location.search + (anchor ? "#" + anchor : ""));
+    document.open();
+    document.write(html);
+    document.close();
+  } catch {
+    try { sessionStorage.removeItem(store); } catch {}
+    message.textContent = "This link's key doesn't open this page. Check that you copied the whole link.";
+  }
+}
+// A link pasted into a tab already showing this notice only changes the fragment.
+addEventListener("hashchange", () => unseal(false));
+unseal(true);
+</script>
+</body>
+</html>
+`;
+}
+
+/** Changes whenever the shell's markup or script changes, so stale shells get re-sealed. */
+function SHELL_VERSION() {
+  return crypto.createHash("sha256").update(sealedShell("", "", "")).digest("hex").slice(0, 16);
+}
+
+function cmdSeal(argv = []) {
+  const showLinks = argv.includes("--show-links");
+  const sources = privateSources();
+  if (!sources.length) { console.log(c.dim("No docs/*.private.html to seal.")); return; }
+  for (const src of sources) {
+    const slug = path.basename(src, PRIVATE_EXT);
+    let keyText = readKey(slug);
+    if (!keyText) { keyText = storeKey(slug); console.log(c.green(`Created a key in 1Password: "${opTitle(slug)}" (vault ${OP_VAULT})`)); }
+    const key = Buffer.from(keyText, "base64url");
+    const plain = fs.readFileSync(src);
+    const digest = sealDigest(key, plain);
+    const out = path.join(DOCS, `${slug}.html`);
+    const rel = path.relative(ROOT, out);
+    if (fs.existsSync(out) && !isSealed(out)) { console.error(c.red(`Refusing to overwrite public page ${rel}`)); process.exit(1); }
+    // Re-sealing unchanged plaintext would only change the IV, so leave the file alone.
+    const current = fs.existsSync(out) ? fs.readFileSync(out, "utf8") : "";
+    if (!(getMeta(current, "bh:sealed-digest") === digest && getMeta(current, "bh:sealed-shell") === SHELL_VERSION())) {
+      const iv = crypto.randomBytes(12);
+      const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+      const sealed = Buffer.concat([iv, cipher.update(zlib.gzipSync(plain, { level: 9 })), cipher.final(), cipher.getAuthTag()]);
+      fs.writeFileSync(out, sealedShell(sealed.toString("base64"), digest));
+      console.log(c.green(`Sealed ${path.relative(ROOT, src)} → ${rel}`));
+    } else console.log(c.dim(`${rel} is up to date`));
+    console.log(`  link: ${rel}#k=${showLinks ? keyText : `<password of "${opTitle(slug)}">`}`);
+  }
+  if (!showLinks) console.log(c.dim("Run `npm run seal -- --show-links` to print the full links."));
+}
+
+/** Decrypt a sealed page with its key; the inverse of the encryption in cmdSeal. */
+function unsealFile(file, keyText) {
+  const text = fs.readFileSync(file, "utf8");
+  const b64 = (text.match(/id="sealed-payload">([\s\S]*?)<\/script>/) || [])[1];
+  if (!b64) throw new Error(`${path.relative(ROOT, file)} has no sealed payload`);
+  const raw = Buffer.from(b64.replace(/\s+/g, ""), "base64");
+  const decipher = crypto.createDecipheriv("aes-256-gcm", Buffer.from(keyText, "base64url"), raw.subarray(0, 12));
+  decipher.setAuthTag(raw.subarray(raw.length - 16));
+  return zlib.gunzipSync(Buffer.concat([decipher.update(raw.subarray(12, raw.length - 16)), decipher.final()]));
+}
+
+function cmdUnseal(argv) {
+  const force = argv.includes("--force");
+  const wanted = argv.filter((a) => a !== "--force");
+  const shells = sealedFiles().filter((f) => !wanted.length || wanted.includes(path.basename(f, ".html")));
+  if (!shells.length) { console.log(c.dim(wanted.length ? `No sealed page named ${wanted.join(", ")}.` : "No sealed pages.")); return; }
+  for (const shell of shells) {
+    const slug = path.basename(shell, ".html");
+    const out = path.join(DOCS, slug + PRIVATE_EXT), rel = path.relative(ROOT, out);
+    const keyText = readKey(slug);
+    if (!keyText) { console.error(c.red(`No key for ${slug} in 1Password (vault ${OP_VAULT}, item "${opTitle(slug)}")`)); process.exitCode = 1; continue; }
+    let plain;
+    try { plain = unsealFile(shell, keyText); } catch (e) { console.error(c.red(`Can't decrypt docs/${slug}.html: ${e.message}`)); process.exitCode = 1; continue; }
+    if (fs.existsSync(out)) {
+      if (fs.readFileSync(out).equals(plain)) { console.log(c.dim(`${rel} is up to date`)); continue; }
+      if (!force) { console.error(c.red(`${rel} has edits that aren't sealed yet; run \`npm run seal\`, or \`unseal -- --force\` to discard them`)); process.exitCode = 1; continue; }
+    }
+    fs.writeFileSync(out, plain);
+    console.log(c.green(`Unsealed docs/${slug}.html → ${rel}`));
+  }
+}
+
 // ---- serve ------------------------------------------------------------------------
 
 /** What review comments are made against: repo, commit and whether the tree had edits.
@@ -1014,15 +1256,18 @@ function cmdServe([port = "8000"]) {
 // ---- main -------------------------------------------------------------------------
 
 const [cmd, ...args] = process.argv.slice(2);
-const commands = { new: cmdNew, index: cmdIndex, check: cmdCheck, bundle: cmdBundle, serve: cmdServe };
+const commands = { new: cmdNew, index: cmdIndex, check: cmdCheck, bundle: cmdBundle, seal: cmdSeal, unseal: cmdUnseal, serve: cmdServe };
 if (!commands[cmd]) {
   console.log(`beautiful-html
 
-  new <template> <slug> "<Title>" ["<desc>"]  create docs/<slug>.html from templates/<template>.html
+  new [--private] <template> <slug> "<Title>" ["<desc>"]
+                                               create docs/<slug>.html (or a git-ignored <slug>.private.html)
   index                                        regenerate the document list in index.html
   check                                        lint docs/ and index.html (links, ids, stepper refs, a11y)
   bundle <page | --all>                        inline the theme → dist/<page>.html (one shareable file)
+  seal [--show-links]                          encrypt docs/*.private.html → docs/<slug>.html (keys in 1Password)
+  unseal [slug…] [--force]                     recreate docs/<slug>.private.html from the sealed page and its key
   serve [port]                                 static server on http://localhost:8000/`);
   process.exit(cmd ? 2 : 0);
 }
-commands[cmd](args);
+try { commands[cmd](args); } catch (e) { console.error(c.red(`bh ${cmd}: ${e.message}`)); process.exit(1); }

@@ -35,8 +35,14 @@
       <dt id="adr" data-aliases="ADRs, architecture decision record, architecture decision records">ADR</dt>
       <dd><p>An architecture decision record: a short, permanent note of one significant decision, covering its context, the options considered and the consequences. ADRs are superseded by new records rather than edited.</p></dd>
 
+      <dt id="back-reference" data-aliases="back-references, backreference, backreferences">Back-reference</dt>
+      <dd><p>In LZ77 compression, an instruction to copy <em>L</em> bytes starting <em>D</em> bytes back in the output already produced, instead of storing them again. DEFLATE allows distances up to 32,768 bytes.</p></dd>
+
       <dt id="backoff" data-aliases="exponential backoff">Backoff</dt>
       <dd><p>Waiting longer after each failed attempt before retrying, usually doubling the delay each time. Without <a href="#jitter">jitter</a>, clients that failed together retry together.</p></dd>
+
+      <dt id="barrier" data-aliases="barriers">Barrier</dt>
+      <dd><p>A GPU instruction that makes every thread in a threadgroup wait until all of them arrive, and makes their earlier memory writes visible to each other. There is no safe barrier across threadgroups.</p></dd>
 
       <dt id="burst" data-aliases="bursts">Burst</dt>
       <dd><p>A short spike of requests above the average rate. In a token bucket, the largest burst allowed is the bucket's capacity <em>b</em>.</p></dd>
@@ -44,18 +50,52 @@
       <dt id="cache-miss" data-aliases="cache misses">Cache miss</dt>
       <dd><p>A lookup that finds nothing in the cache, so the request falls through to the slower source of truth and usually back-fills the cache.</p></dd>
 
+      <dt id="compute-kernel" data-aliases="compute kernels, kernel, kernels, compute shader, compute shaders">Compute kernel</dt>
+      <dd><p>A function that runs on the GPU once per thread of a <a href="#dispatch">dispatch</a>. Each thread reads its own index to decide which part of the work it does.</p></dd>
+
+      <dt id="crc-32" data-aliases="CRC, CRCs, CRC32">CRC-32</dt>
+      <dd><p>A 32-bit checksum computed by polynomial division over the bits of the data. ZIP and gzip store one per file so a decoder can detect corruption. Checksums of adjacent pieces can be combined, which allows computing it in parallel.</p>
+        <p><a href="https://en.wikipedia.org/wiki/Cyclic_redundancy_check">Cyclic redundancy check (Wikipedia)</a></p></dd>
+
+      <dt id="deflate">DEFLATE</dt>
+      <dd><p>The compression format inside ZIP, gzip and PNG: <a href="#lz77">LZ77</a> back-references plus <a href="#huffman-code">Huffman coding</a>, organised in blocks. Its bit stream has no index, so decoding is serial.</p>
+        <p><a href="https://www.rfc-editor.org/rfc/rfc1951">RFC 1951</a></p></dd>
+
+      <dt id="dispatch" data-aliases="dispatches">Dispatch</dt>
+      <dd><p>One launch of a <a href="#compute-kernel">compute kernel</a> over a grid of threads, divided into <a href="#threadgroup">threadgroups</a>. Dispatches in one command buffer run in order, which is the safe way to order work between threadgroups.</p></dd>
+
+      <dt id="divergence" data-aliases="divergent, diverge, diverges">Divergence</dt>
+      <dd><p>When lanes of one <a href="#simd-group">SIMD group</a> take different sides of a branch. The hardware runs each side in turn with the other lanes switched off, so the branch costs the sum of both sides.</p></dd>
+
       <dt id="gcra" data-aliases="generic cell rate algorithm">GCRA</dt>
       <dd><p>The generic cell rate algorithm. It is equivalent to a token bucket, but stores one timestamp per key: the theoretical arrival time of the next conforming request.</p>
         <p><a href="https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm">Generic cell rate algorithm (Wikipedia)</a></p></dd>
 
+      <dt id="huffman-code" data-aliases="Huffman codes, Huffman coding, Huffman table, Huffman tables">Huffman code</dt>
+      <dd><p>A variable-length binary code that gives frequent symbols short bit patterns and rare ones long patterns. No code is a prefix of another, so a decoder can read them back to back without separators.</p>
+        <p><a href="https://en.wikipedia.org/wiki/Huffman_coding">Huffman coding (Wikipedia)</a></p></dd>
+
       <dt id="jitter">Jitter</dt>
       <dd><p>Randomness added to retry or polling delays, so many clients that start together don't keep acting in lock-step and overload a recovering service.</p></dd>
+
+      <dt id="lane" data-aliases="lanes">Lane</dt>
+      <dd><p>One thread's slot within a <a href="#simd-group">SIMD group</a>. Each lane has its own registers, but all lanes execute the same instruction at the same time.</p></dd>
 
       <dt id="leaky-bucket" data-aliases="leaky buckets">Leaky bucket</dt>
       <dd><p>A queue that drains at a fixed rate. It smooths output to a constant pace instead of allowing bursts; compare with a <a href="#token-bucket">token bucket</a>.</p></dd>
 
+      <dt id="lz77">LZ77</dt>
+      <dd><p>The compression idea, from Lempel and Ziv in 1977, of replacing repeated data with <a href="#back-reference">back-references</a> to an earlier occurrence.</p>
+        <p><a href="https://en.wikipedia.org/wiki/LZ77_and_LZ78">LZ77 and LZ78 (Wikipedia)</a></p></dd>
+
+      <dt id="marker" data-aliases="markers">Marker</dt>
+      <dd><p>In rapidgzip-style decoding, a 16-bit placeholder meaning "the byte <em>n</em> positions before this chunk started". It lets a decoder start mid-stream without the history, and is replaced by the real byte once the previous chunk is decoded.</p></dd>
+
       <dt id="monotonic-clock" data-aliases="monotonic clocks">Monotonic clock</dt>
       <dd><p>A clock that only moves forwards. Use it to measure elapsed time, because the wall clock can jump backwards when NTP corrects it.</p></dd>
+
+      <dt id="occupancy">Occupancy</dt>
+      <dd><p>How many <a href="#simd-group">SIMD groups</a> a GPU core keeps resident at once. More resident groups give the core more work to switch to while others wait for memory. Registers and <a href="#threadgroup-memory">threadgroup memory</a> per group limit it.</p></dd>
 
       <dt id="p99" data-aliases="99th percentile">p99</dt>
       <dd><p>The 99th-percentile latency: 99% of requests complete at least this fast. Tail latency like this, rather than the average, is what users notice.</p></dd>
@@ -74,8 +114,24 @@
       <dt id="retry-budget" data-aliases="retry budgets">Retry budget</dt>
       <dd><p>A cap on retries as a fraction of normal traffic (for example 10%). It stops retries from multiplying load during an outage.</p></dd>
 
+      <dt id="shuffle" data-aliases="shuffles, lane shuffle, lane shuffles">Shuffle</dt>
+      <dd><p>A GPU instruction in which every <a href="#lane">lane</a> reads a register value from another lane of its SIMD group, without going through memory. In Metal it is <code>simd_shuffle</code>; in HLSL, <code>WaveReadLaneAt</code>.</p></dd>
+
+      <dt id="simd-group" data-aliases="SIMD groups, simdgroup, simdgroups, warp, warps, subgroup, subgroups, wavefront, wavefronts">SIMD group</dt>
+      <dd><p>The set of threads a GPU executes in lock-step: 32 on Apple GPUs (NVIDIA calls it a warp, Vulkan a subgroup, HLSL a wave). One instruction is fetched once and executed by every <a href="#lane">lane</a>.</p></dd>
+
       <dt id="slo" data-aliases="SLOs, service level objective, service level objectives">SLO</dt>
       <dd><p>A service level objective: a reliability target, such as 99.9% of requests succeeding over 30 days. It is set below 100% on purpose, leaving an error budget.</p></dd>
+
+      <dt id="spir-v">SPIR-V</dt>
+      <dd><p>The Khronos binary intermediate language for GPU programs. Vulkan drivers consume it directly, and SPIRV-Cross can translate it into Metal Shading Language.</p>
+        <p><a href="https://registry.khronos.org/SPIR-V/">SPIR-V registry</a></p></dd>
+
+      <dt id="threadgroup" data-aliases="threadgroups, workgroup, workgroups, thread block, thread blocks">Threadgroup</dt>
+      <dd><p>A group of GPU threads that runs on one core and can share <a href="#threadgroup-memory">threadgroup memory</a> and <a href="#barrier">barriers</a>. Vulkan calls it a workgroup and CUDA a thread block.</p></dd>
+
+      <dt id="threadgroup-memory" data-aliases="groupshared, groupshared memory, shared memory, workgroup memory">Threadgroup memory</dt>
+      <dd><p>Small, fast on-chip memory shared by the threads of one <a href="#threadgroup">threadgroup</a>: at most 32 KiB per threadgroup on Apple GPUs. HLSL calls it <code>groupshared</code>.</p></dd>
 
       <dt id="tls" data-aliases="transport layer security">TLS</dt>
       <dd><p>Transport Layer Security: the protocol that encrypts and authenticates a connection, as in HTTPS. A gateway that "terminates TLS" decrypts traffic there.</p></dd>
@@ -83,6 +139,9 @@
       <dt id="token-bucket" data-aliases="token buckets">Token bucket</dt>
       <dd><p>A rate limiter that refills tokens at rate <em>r</em> up to a capacity <em>b</em>, and admits each request only by spending a token. It allows bursts up to <em>b</em> but enforces <em>r</em> on average.</p>
         <p><a href="token-bucket-rate-limiting.html">Token bucket rate limiting</a></p></dd>
+
+      <dt id="unified-memory">Unified memory</dt>
+      <dd><p>A design, used by Apple Silicon, in which the CPU and GPU share the same physical DRAM. A buffer can be visible to both without being copied, though first GPU use of a buffer still has a cost.</p></dd>
     </dl>
 
     <footer class="bh-footer">
