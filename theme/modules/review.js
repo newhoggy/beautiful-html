@@ -283,6 +283,7 @@
         type: "button",
         class: `bh-review-pin kind-${t.root.kind}${t.draft ? " is-draft" : ""}${t.resolved ? " is-resolved" : ""}`,
         text: String(i + 1),
+        "data-thread": String(i + 1),
         title: `${t.root.body.slice(0, 100)}${n > 1 ? ` (${n} messages)` : ""}`,
         "aria-label": `Thread ${i + 1}${t.draft ? " (your draft)" : ""}: ${t.root.body.slice(0, 80)}`,
         style: `top:${top}px;left:${Math.min(right + 6, doc.documentElement.clientWidth - 30)}px`,
@@ -436,7 +437,7 @@
   }
 
   function pinRect(t) {
-    const pin = [...pinLayer.children].find((p) => p.textContent.startsWith(String(current.indexOf(t) + 1)));
+    const pin = pinLayer.querySelector(`[data-thread="${current.indexOf(t) + 1}"]`);
     return pin ? pin.getBoundingClientRect() : { left: 40, top: 120, bottom: 140, right: 60 };
   }
 
@@ -634,7 +635,7 @@
     root.classList.toggle("bh-reviewing", on);
     const btn = doc.querySelector(".bh-review-btn");
     if (btn) btn.setAttribute("aria-pressed", String(on));
-    if (on) { if (!panel) buildPanel(); addBlockButtons(); panel.hidden = false; }
+    if (on) { if (!panel) buildPanel(); addBlockButtons(); panel.hidden = false; renderPanel(); }
     else { if (panel) panel.hidden = true; removeBlockButtons(); selBtn.hidden = true; closePop(); }
     requestAnimationFrame(paint);
   }

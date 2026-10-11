@@ -758,9 +758,11 @@ function compileReviews() {
   for (const list of Object.values(byDoc)) list.sort((a, b) => String(a.created).localeCompare(String(b.created)));
   const summary = {};
   for (const [docPath, list] of Object.entries(byDoc)) {
+    const byId = new Map(list.map((m) => [m.id, m]));
+    const rootOf = (m) => { let r = m, guard = 0; while (r.inReplyTo && byId.has(r.inReplyTo) && guard++ < 50) r = byId.get(r.inReplyTo); return r; };
     const roots = list.filter((m) => !m.inReplyTo);
     const resolved = roots.filter((rt) => {
-      const replies = list.filter((m) => m.inReplyTo === rt.id && typeof m.resolves === "boolean");
+      const replies = list.filter((m) => m.inReplyTo && typeof m.resolves === "boolean" && rootOf(m).id === rt.id);
       return replies.length && replies[replies.length - 1].resolves;
     });
     summary[docPath] = { threads: roots.length, open: roots.length - resolved.length };
@@ -788,14 +790,18 @@ function reviewProblems() {
       else if (!cm.inReplyTo && !cm.target) out.push(`${where} needs a target (or inReplyTo for a reply)`);
       else if (!["comment", "suggestion", "question", "blocker"].includes(cm.kind)) out.push(`${where}: kind "${cm.kind}" is unknown`);
       else if (cm.target && cm.target.quote && typeof cm.target.quote.exact !== "string") out.push(`${where}: target.quote.exact must be text`);
+      if (typeof cm.created !== "string" || Number.isNaN(Date.parse(cm.created))) out.push(`${where}: created must be an ISO date-time`);
       if (cm.id) {
-        if (ids.has(cm.id)) out.push(`${where}: id "${cm.id}" is also used in ${ids.get(cm.id)}`);
-        ids.set(cm.id, rel);
+        if (ids.has(cm.id)) out.push(`${where}: id "${cm.id}" is also used in ${ids.get(cm.id).rel}`);
+        ids.set(cm.id, { rel, document: r.document });
       }
-      if (cm.inReplyTo) replies.push([where, cm.inReplyTo]);
+      if (cm.inReplyTo) replies.push([where, cm.inReplyTo, r.document]);
     });
   }
-  for (const [where, parent] of replies) if (!ids.has(parent)) out.push(`${where}: replies to "${parent}", which isn't in any review file`);
+  for (const [where, parent, document] of replies) {
+    if (!ids.has(parent)) out.push(`${where}: replies to "${parent}", which isn't in any review file`);
+    else if (ids.get(parent).document !== document) out.push(`${where}: replies to "${parent}", which is a comment on ${ids.get(parent).document}, not ${document}`);
+  }
   return out;
 }
 
@@ -1085,7 +1091,11 @@ function bundleOne(file) {
     const abs = path.resolve(dir, src);
     // bh.js loads the glossary at runtime; a standalone file must carry it inline, first.
     if (abs === path.join(ROOT, "theme", "bh.js")) {
-      for (const data of [GLOSSARY_OUT, REVIEWS_OUT]) if (fs.existsSync(data)) scripts.push(fs.readFileSync(data, "utf8").replace(/<\/script/gi, "<\\/script"));
+      if (fs.existsSync(GLOSSARY_OUT)) scripts.push(fs.readFileSync(GLOSSARY_OUT, "utf8").replace(/<\/script/gi, "<\\/script"));
+      // Only this page's threads: a standalone file leaves the repo, so it must not carry other pages' comments.
+      const mine = path.relative(ROOT, file).split(path.sep).join("/");
+      const own = { [mine]: compileReviews().byDoc[mine] || [] };
+      if (own[mine].length) scripts.push(`window.BH_REVIEWS = ${JSON.stringify(own)};`.replace(/<\/script/gi, "<\\/script"));
     }
     scripts.push(fs.readFileSync(abs, "utf8").replace(/<\/script/gi, "<\\/script"));
     // On-demand modules can't be fetched from a standalone file: inline them all after bh.js.

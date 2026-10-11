@@ -268,7 +268,15 @@ for everyone: highlights and pins, opening into threads.
    - `inReplyTo` is the comment's id;
    - the `body` says what changed (quote the new wording) or why not;
    - set `resolves: true` when the comment is fully dealt with.
-   After merge, readers see the answer in the thread on the page.
+   After merge, readers see the answer in the thread on the page. The file is a full
+   `bh-review/1` file (see `reviews/schema.json`); each reply needs `id`, `created`
+   (ISO date-time), `kind` and `body` as well, and `document` must be the path of the
+   page the comment is on, and every `inReplyTo` must be a comment on that same page:
+   ```json
+   {"format": "bh-review/1", "document": "docs/<slug>.html", "reviewer": "Claude",
+    "build": {"commit": null}, "comments": [{"id": "r-1", "kind": "comment", "created": "2026-10-11T09:00:00Z",
+                  "inReplyTo": "<comment id>", "resolves": true, "body": "Reworded to …"}]}
+   ```
 5. Leave the reviewer's file in the PR as the record. Don't edit it.
 
 ## Charts
