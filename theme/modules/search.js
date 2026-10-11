@@ -18,8 +18,9 @@
   const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   function load() {
-    if (window.BH_SEARCH) return Promise.resolve(window.BH_SEARCH);
-    return bh.loadScript(new URL("theme/search-index.js", root).href).then(() => window.BH_SEARCH || []);
+    const shown = (all) => bh.examples.visible ? all : all.filter((page) => !page.example); // examples are hidden off the local machine
+    if (window.BH_SEARCH) return Promise.resolve(shown(window.BH_SEARCH));
+    return bh.loadScript(new URL("theme/search-index.js", root).href).then(() => shown(window.BH_SEARCH || []));
   }
 
   function score(terms, page, sec) {

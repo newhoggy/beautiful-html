@@ -20,6 +20,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <!-- bh:social:end -->
   <script>try{var t=localStorage.getItem("bh-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script src="theme/examples.js"></script>
   <link rel="icon" type="image/svg+xml" href="theme/logo/mark-tile.svg">
   <link rel="apple-touch-icon" href="theme/logo/apple-touch-icon.png">
   <link rel="stylesheet" href="theme/bh.css">
@@ -55,7 +56,7 @@
         </a>
         <span class="card-meta"><span class="badge draft">draft</span><time datetime="2026-10-11">2026-10-11</time></span>
       </li>
-      <li class="card doc-card" data-kind="decision" data-tags="examples,rate limiting,architecture" data-search="adr-002: rate limit at the edge gateway enforce one per-client token bucket in the gateway, with state in redis, so limits hold however many services and replicas run behind it. examples, rate limiting, architecture decision">
+      <li class="card doc-card" data-example data-kind="decision" data-tags="examples,rate limiting,architecture" data-search="adr-002: rate limit at the edge gateway enforce one per-client token bucket in the gateway, with state in redis, so limits hold however many services and replicas run behind it. examples, rate limiting, architecture decision">
         <a class="card-link" href="docs/adr-002-rate-limit-at-the-edge.html">
           <span class="eyebrow">Example · Decision</span>
           <h3>ADR-002: Rate limit at the edge gateway</h3>
@@ -79,7 +80,7 @@
         </a>
         <span class="card-meta"><span class="badge accepted">accepted</span><time datetime="2026-10-05">2026-10-05</time></span>
       </li>
-      <li class="card doc-card" data-kind="design" data-tags="examples,rate limiting,gateway,redis" data-search="moving rate limiting to the edge replace per-service limiters with one token bucket per client in the gateway, backed by redis, so a client&#39;s limit holds however far we scale. examples, rate limiting, gateway, redis design">
+      <li class="card doc-card" data-example data-kind="design" data-tags="examples,rate limiting,gateway,redis" data-search="moving rate limiting to the edge replace per-service limiters with one token bucket per client in the gateway, backed by redis, so a client&#39;s limit holds however far we scale. examples, rate limiting, gateway, redis design">
         <a class="card-link" href="docs/edge-rate-limiting-design.html">
           <span class="eyebrow">Example · Design doc</span>
           <h3>Moving rate limiting to the edge</h3>
@@ -87,7 +88,7 @@
         </a>
         <span class="card-meta"><span class="badge review">review</span><time datetime="2026-10-05">2026-10-05</time></span>
       </li>
-      <li class="card doc-card" data-kind="explainer" data-tags="examples,rate limiting,networking,distributed systems" data-search="token bucket rate limiting how a token bucket admits bursts but enforces an average rate — with a live simulation, implementations, and the mistakes that bite in production. examples, rate limiting, networking, distributed systems explainer">
+      <li class="card doc-card" data-example data-kind="explainer" data-tags="examples,rate limiting,networking,distributed systems" data-search="token bucket rate limiting how a token bucket admits bursts but enforces an average rate — with a live simulation, implementations, and the mistakes that bite in production. examples, rate limiting, networking, distributed systems explainer">
         <a class="card-link" href="docs/token-bucket-rate-limiting.html">
           <span class="eyebrow">Example · Explainer</span>
           <h3>Token bucket rate limiting</h3>
@@ -95,7 +96,7 @@
         </a>
         <span class="card-meta"><span class="badge accepted">accepted</span><time datetime="2026-10-05">2026-10-05</time></span>
       </li>
-      <li class="card doc-card is-superseded" data-kind="decision" data-tags="examples,rate limiting,architecture" data-search="adr-001: rate limit inside each service each service enforces its own per-client token bucket in process, so we can ship limits before launch without new infrastructure. examples, rate limiting, architecture decision">
+      <li class="card doc-card is-superseded" data-example data-kind="decision" data-tags="examples,rate limiting,architecture" data-search="adr-001: rate limit inside each service each service enforces its own per-client token bucket in process, so we can ship limits before launch without new infrastructure. examples, rate limiting, architecture decision">
         <a class="card-link" href="docs/adr-001-rate-limit-in-each-service.html">
           <span class="eyebrow">Example · Decision</span>
           <h3>ADR-001: Rate limit inside each service</h3>

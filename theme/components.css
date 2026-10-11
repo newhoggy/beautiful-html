@@ -649,6 +649,13 @@ bh-playground output { font-variant-numeric: tabular-nums; }
 }
 .doc-card[hidden] { display: none; }
 
+/* Example pages (bh:example) are shown on the local machine only. theme/examples.js sets
+   data-examples before first paint, so nothing flashes; without it (or without JavaScript) the
+   cards stay hidden. On a hidden example page the content is held back until bh.js swaps in the
+   notice, which is marked .bh-example-blocked. */
+html:not([data-examples="on"]) [data-example] { display: none; }
+html[data-examples="off"][data-example-page] main:not(.bh-example-blocked) { display: none; }
+
 .bh-filter { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .bh-filter input[type="search"] { flex: 1 1 14rem; min-width: 0; }
 .bh-filter-empty { color: var(--text-muted); }

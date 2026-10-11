@@ -9,7 +9,8 @@ window.BH_SITE = {
    "date": "2025-11-12",
    "description": "Each service enforces its own per-client token bucket in process, so we can ship limits before launch without new infrastructure.",
    "supersedes": "",
-   "supersededBy": "docs/adr-002-rate-limit-at-the-edge.html"
+   "supersededBy": "docs/adr-002-rate-limit-at-the-edge.html",
+   "example": true
   },
   {
    "href": "docs/adr-002-rate-limit-at-the-edge.html",
@@ -19,7 +20,8 @@ window.BH_SITE = {
    "date": "2026-10-05",
    "description": "Enforce one per-client token bucket in the gateway, with state in Redis, so limits hold however many services and replicas run behind it.",
    "supersedes": "docs/adr-001-rate-limit-in-each-service.html",
-   "supersededBy": ""
+   "supersededBy": "",
+   "example": true
   },
   {
    "href": "docs/announcing-patchcov.html",
@@ -49,7 +51,8 @@ window.BH_SITE = {
    "date": "2026-10-05",
    "description": "Replace per-service limiters with one token bucket per client in the gateway, backed by Redis, so a client's limit holds however far we scale.",
    "supersedes": "",
-   "supersededBy": ""
+   "supersededBy": "",
+   "example": true
   },
   {
    "href": "docs/glossary.html",
@@ -69,7 +72,8 @@ window.BH_SITE = {
    "date": "2026-10-05",
    "description": "How a token bucket admits bursts but enforces an average rate — with a live simulation, implementations, and the mistakes that bite in production.",
    "supersedes": "",
-   "supersededBy": ""
+   "supersededBy": "",
+   "example": true
   }
  ],
  "backlinks": {
