@@ -147,6 +147,16 @@ window.BH_GLOSSARY = [
     "href": "docs/glossary.html#lane"
   },
   {
+    "id": "lcov",
+    "term": "lcov",
+    "aliases": [
+      "lcov report",
+      "lcov reports"
+    ],
+    "html": "<p>A plain-text coverage format that lists, per source file, how many times each line ran. Most coverage tools can write it, which makes it the common currency between them and tools like patchcov.</p>",
+    "href": "docs/glossary.html#lcov"
+  },
+  {
     "id": "leaky-bucket",
     "term": "Leaky bucket",
     "aliases": [
@@ -172,6 +182,17 @@ window.BH_GLOSSARY = [
     "href": "docs/glossary.html#marker"
   },
   {
+    "id": "merge-base",
+    "term": "Merge base",
+    "aliases": [
+      "merge bases",
+      "fork point",
+      "fork points"
+    ],
+    "html": "<p>The newest commit that a branch and its target (usually <code>main</code>) share: where the branch forked. Comparing against it, rather than the tip of <code>main</code>, shows only what the branch itself changed.</p>",
+    "href": "docs/glossary.html#merge-base"
+  },
+  {
     "id": "monotonic-clock",
     "term": "Monotonic clock",
     "aliases": [
@@ -195,6 +216,15 @@ window.BH_GLOSSARY = [
     ],
     "html": "<p>The 99th-percentile latency: 99% of requests complete at least this fast. Tail latency like this, rather than the average, is what users notice.</p>",
     "href": "docs/glossary.html#p99"
+  },
+  {
+    "id": "patch-coverage",
+    "term": "Patch coverage",
+    "aliases": [
+      "diff coverage"
+    ],
+    "html": "<p>The share of the executable lines a change added that the tests ran. Unlike the project-wide total, it shows the gaps in new code even when they are too small to move the total.</p>\n        <p><a href=\"docs/announcing-patchcov.html#patch-coverage\">Announcing patchcov</a> lets you try it.</p>",
+    "href": "docs/glossary.html#patch-coverage"
   },
   {
     "id": "rate-limiting",

@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Announcing patchcov</title>
+  <meta name="description" content="Patch coverage for git diffs, as a command and a GitHub Action: a precise, gateable answer to what a change left untested, with no service in the loop.">
+  <meta name="bh:kind" content="explainer">
+  <meta name="bh:status" content="draft">
+  <meta name="bh:date" content="2026-10-11">
+  <meta name="bh:authors" content="John Ky">
+  <meta name="bh:tags" content="coverage, testing, ci, github actions, agents, rust">
+  <script>try{var t=localStorage.getItem("bh-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+  <link rel="stylesheet" href="../theme/bh.css">
+  <script src="../theme/bh.js" defer></script>
+  <style>
+    #patch-sim .pc-layout { display: grid; gap: var(--space-4); grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
+    @media (max-width: 760px) { #patch-sim .pc-layout { grid-template-columns: minmax(0, 1fr); } }
+    #patch-sim .pc-diff { margin: 0; padding: var(--space-2) 0; list-style: none; font-family: var(--font-mono); font-size: var(--step--1); background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--radius); overflow-x: auto; }
+    #patch-sim .pc-diff li { margin: 0; display: grid; grid-template-columns: 2.6em 1.4em 2.2em max-content; align-items: center; min-height: 1.9em; padding-inline-end: var(--space-3); white-space: pre; transition: background-color var(--dur-2) var(--ease-out); }
+    #patch-sim .pc-diff li + li { margin: 0; }
+    #patch-sim .pc-diff code { background: none; border: 0; padding: 0; border-radius: 0; font-size: inherit; color: var(--text); }
+    #patch-sim .pc-diff .ln { color: var(--text-muted); text-align: right; padding-inline-end: .6em; }
+    #patch-sim .pc-diff .sign { color: var(--text-muted); text-align: center; }
+    #patch-sim .pc-diff li.add { background: color-mix(in oklab, var(--ok) 9%, transparent); }
+    #patch-sim .pc-diff li.add .sign { color: var(--ok); font-weight: 700; }
+    #patch-sim .pc-diff li.miss { background: color-mix(in oklab, var(--danger) 16%, transparent); }
+    #patch-sim .pc-diff li.flash { background: color-mix(in oklab, var(--accent) 30%, transparent); }
+    #patch-sim .pc-hit { all: unset; box-sizing: border-box; cursor: pointer; width: 1.7em; height: 1.5em; display: inline-grid; place-items: center; border-radius: var(--radius-s); font-weight: 700; border: 1px solid var(--border-strong); background: var(--surface); }
+    #patch-sim .pc-hit[aria-pressed="true"] { color: var(--ok); }
+    #patch-sim .pc-hit[aria-pressed="false"] { color: var(--danger); }
+    #patch-sim .pc-hit:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    #patch-sim .pc-hit:hover { border-color: var(--accent); }
+    #patch-sim .pc-side { display: grid; gap: var(--space-3); }
+    #patch-sim .metrics { margin: 0; grid-template-columns: repeat(auto-fit, minmax(9.5em, 1fr)); }
+    #patch-sim .metric .value { font-size: var(--step-2); }
+    #patch-sim .pc-out { margin: 0; font-size: var(--step--1); white-space: pre-wrap; }
+    #patch-sim .pc-out .err { color: var(--danger); }
+    #patch-sim .pc-out .ok { color: var(--ok); }
+    #patch-sim .pc-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    #patch-sim .pc-key { margin: 0; font-size: var(--step--1); color: var(--text-muted); }
+    @media (prefers-reduced-motion: reduce) { #patch-sim .pc-diff li { transition: none; } }
+  </style>
+</head>
+<body data-home="../index.html">
+<main class="bh-page">
+  <article class="bh-article">
+
+    <header class="bh-hero">
+      <p class="eyebrow">Announcement · Testing</p>
+      <h1>Announcing patchcov</h1>
+      <p class="lede">patchcov answers one question precisely: <em>which lines did this change add that no test ran?</em> It is a command-line tool that reads the coverage report you already produce, and a GitHub Action that turns its answer into a pull-request comment and a gate. Neither needs an account, a token or a server.</p>
+      <dl class="bh-meta" data-auto></dl>
+    </header>
+
+    <div class="tldr">
+      <ul>
+        <li><strong>patchcov</strong> scores the lines a change <em>added</em>, lists the untested ones as <code>file:line</code>, and exits non-zero when a gate fails. <strong>patchcov-action</strong> runs it on every pull request, with a baseline from the merge base.</li>
+        <li>That output is meant for automation as much as for people. An AI agent can loop on it, "add tests until the gate passes", without reading a dashboard.</li>
+        <li>The project-wide percentage is the wrong signal for a pull request. A change can leave a third of its new code untested and barely move the total.</li>
+      </ul>
+    </div>
+
+    <h2 id="motivation">Why another coverage tool</h2>
+    <p class="lead">More and more code is written by agents in a loop: write, run the checks, read the result, fix, repeat. That loop is only as good as the signals it can read. Coverage tooling was built to give people a picture, and an agent needs an instruction.</p>
+    <p>Three things kept getting in the way:</p>
+    <ul>
+      <li><strong>The total hides the change.</strong> A 4,000-line project at 92% looks the same after a pull request that adds six lines and tests four. The new code's gap is real, but the total is too coarse to show it.</li>
+      <li><strong>Dashboards need interpreting.</strong> Trend graphs and coloured file trees are made for a person to look at. A script or an agent needs a number, a list of lines, and an exit code.</li>
+      <li><strong>A hosted service is a dependency of your merge button.</strong> If the coverage gate lives on someone else's server, an outage, an expired upload token or a rate limit blocks merges. Nothing can be checked before you push, either.</li>
+    </ul>
+    <p>patchcov is the smallest tool that fixes all three. It reads report files from disk, joins them to <code>git diff</code>, and prints a result that needs no human to interpret it.<span class="sidenote">The mission, from the README: help projects that use agentic workflows keep their new code properly tested, with minimal friction.</span></p>
+
+    <details class="predict">
+      <summary>Predict: a project has 4,000 executable lines at 92.00%. A pull request adds 6 executable lines and tests 4 of them. How far does the project total move?</summary>
+      <p><strong>From 92.00% to 91.96%, a move of −0.04 percentage points.</strong> (3,680 + 4) ÷ (4,000 + 6) = 91.96%. That is under the 0.05 pp tolerance patchcov uses for its headline delta, so the total renders as neutral ⚪. The patch coverage for the same change is <strong>66.67%</strong>, with two lines named. Try it below.</p>
+    </details>
+
+    <h2 id="patch-coverage">Patch coverage, hands on</h2>
+    <p class="lead">Patch coverage is the share of the <em>added</em> executable lines that some test ran. Click a line's mark to decide whether a test covers it, and watch both numbers.</p>
+
+    <figure class="frame wide" id="patch-sim">
+      <div class="pc-layout">
+        <div>
+          <ol class="pc-diff" aria-label="A diff to src/parser.rs; added executable lines have a covered or uncovered toggle">
+            <li><span class="ln">40</span><span class="sign"> </span><span></span><code>pub fn parse_header(line: &amp;str) -&gt; Result&lt;Header, Error&gt; {</code></li>
+            <li><span class="ln">41</span><span class="sign"> </span><span></span><code>    let line = line.trim();</code></li>
+            <li class="add"><span class="ln">42</span><span class="sign">+</span><span></span><code>    // A shebang is not a header.</code></li>
+            <li class="add" data-line="43"><span class="ln">43</span><span class="sign">+</span><span><button class="pc-hit" type="button" aria-pressed="true" aria-label="Line 43: covered">✓</button></span><code>    if line.starts_with("#!") {</code></li>
+            <li class="add" data-line="44"><span class="ln">44</span><span class="sign">+</span><span><button class="pc-hit" type="button" aria-pressed="true" aria-label="Line 44: covered">✓</button></span><code>        return Ok(Header::Shebang);</code></li>
+            <li class="add"><span class="ln">45</span><span class="sign">+</span><span></span><code>    }</code></li>
+            <li class="add" data-line="46"><span class="ln">46</span><span class="sign">+</span><span><button class="pc-hit" type="button" aria-pressed="true" aria-label="Line 46: covered">✓</button></span><code>    let Some((key, value)) = line.split_once(':') else {</code></li>
+            <li class="add miss" data-line="47"><span class="ln">47</span><span class="sign">+</span><span><button class="pc-hit" type="button" aria-pressed="false" aria-label="Line 47: not covered">✗</button></span><code>        return Err(Error::MissingColon);</code></li>
+            <li class="add"><span class="ln">48</span><span class="sign">+</span><span></span><code>    };</code></li>
+            <li class="add" data-line="49"><span class="ln">49</span><span class="sign">+</span><span><button class="pc-hit" type="button" aria-pressed="true" aria-label="Line 49: covered">✓</button></span><code>    if key.is_empty() {</code></li>
+            <li class="add miss" data-line="50"><span class="ln">50</span><span class="sign">+</span><span><button class="pc-hit" type="button" aria-pressed="false" aria-label="Line 50: not covered">✗</button></span><code>        return Err(Error::EmptyKey);</code></li>
+            <li class="add"><span class="ln">51</span><span class="sign">+</span><span></span><code>    }</code></li>
+            <li><span class="ln">52</span><span class="sign"> </span><span></span><code>    Ok(Header::Field(key.into(), value.trim().into()))</code></li>
+            <li><span class="ln">53</span><span class="sign"> </span><span></span><code>}</code></li>
+          </ol>
+          <p class="pc-key">Lines 42, 45, 48 and 51 are added but not executable: a comment and closing braces never appear in a coverage report, so they are not counted.</p>
+        </div>
+        <div class="pc-side">
+          <div class="metrics">
+            <div class="metric"><span class="value" id="pc-patch">66.67%</span><span class="label">Patch coverage <span id="pc-patch-n">(4/6 new lines)</span></span></div>
+            <div class="metric"><span class="value" id="pc-total">91.96%</span><span class="label">Project total <span id="pc-delta">⚪ −0.04 pp, neutral</span></span></div>
+          </div>
+          <label class="control"><span><code>--fail-under-patch</code> <output id="pc-threshold-out">80</output></span>
+            <input type="range" id="pc-threshold" min="0" max="100" step="5" value="80"></label>
+<pre class="pc-out" data-title="patchcov diff" aria-live="polite"><code id="pc-out">Patch: <b>66.67%</b> (4/6 new lines covered)
+Uncovered new lines: src/parser.rs:47, src/parser.rs:50
+<span class="err">Error: patch coverage 66.67% is below the --fail-under-patch threshold of 80.00%</span>
+exit 1</code></pre>
+          <div class="pc-actions">
+            <button class="btn primary" type="button" id="pc-loop">Loop until the gate passes</button>
+            <button class="btn" type="button" id="pc-step">Add one test</button>
+            <button class="btn ghost" type="button" id="pc-reset">Reset</button>
+          </div>
+        </div>
+      </div>
+      <figcaption>The total barely moves however many lines you leave untested; patch coverage swings by 16.67 points per line and names each gap. “Loop” plays the agent’s part: it writes a test for the first line patchcov lists, runs the gate again, and stops when it exits 0.</figcaption>
+    </figure>
+
+    <h2 id="how-it-works">How patchcov works</h2>
+    <p class="lead">patchcov is a join between two things you already have: a per-line coverage report, and the lines git says the change added.</p>
+
+    <figure class="diagram wide" id="pipeline">
+      <svg viewBox="-16 -16 772 288" role="img" aria-label="A head coverage report and an optional baseline report are parsed and given repo-relative paths, then joined with the lines git diff added; the analysis produces a report and an exit code">
+        <g class="node c2" data-id="head"><rect x="0" y="0" width="150" height="56" rx="10"/><text x="75" y="21">Head report</text><text class="sub" x="75" y="39">lcov · Cobertura · …</text></g>
+        <g class="node c2" data-id="base"><rect x="0" y="100" width="150" height="56" rx="10"/><text x="75" y="121">Baseline report</text><text class="sub" x="75" y="139">optional</text></g>
+        <g class="node c2" data-id="diff"><rect x="0" y="200" width="150" height="56" rx="10"/><text x="75" y="221">git diff</text><text class="sub" x="75" y="239">merge-base..HEAD</text></g>
+        <g class="node c1" data-id="parse"><rect x="210" y="50" width="140" height="56" rx="10"/><text x="280" y="71">Parse</text><text class="sub" x="280" y="89">map paths to git</text></g>
+        <g class="node c1" data-id="analyze"><rect x="410" y="100" width="130" height="56" rx="10"/><text x="475" y="121">Analyze</text><text class="sub" x="475" y="139">line by line</text></g>
+        <g class="node c1" data-id="report"><rect x="600" y="40" width="140" height="56" rx="10"/><text x="670" y="61">Report</text><text class="sub" x="670" y="79">md · JSON · YAML</text></g>
+        <g class="node c1" data-id="exit"><rect x="600" y="160" width="140" height="56" rx="10"/><text x="670" y="181">Exit code</text><text class="sub" x="670" y="199">0 pass · 1 gate</text></g>
+
+        <path class="edge" data-id="e-head-parse" d="M150 28 C180 28 180 66 199 66"/>
+        <path class="edge" data-id="e-base-parse" d="M150 128 C180 128 180 90 199 90"/>
+        <path class="edge" data-id="e-parse-analyze" d="M350 78 C380 78 380 118 399 118"/>
+        <path class="edge" data-id="e-diff-analyze" d="M150 228 C300 228 370 140 399 140"/>
+        <path class="edge" data-id="e-analyze-report" d="M540 118 C570 118 570 68 589 68"/>
+        <path class="edge" data-id="e-analyze-exit" d="M540 138 C570 138 570 188 589 188"/>
+      </svg>
+      <figcaption>Notice that nothing leaves the machine: every input is a file or a git object, and every output is stdout or an exit code.</figcaption>
+    </figure>
+    <bh-stepper for="pipeline">
+      <bh-step highlight="head e-head-parse parse"><p><strong>Read the report you already have.</strong> lcov, llvm-cov JSON, Cobertura, JaCoCo XML and Go coverprofiles are detected from the content, so one command serves Rust, Go, Java, Kotlin, TypeScript, Python, C++ and more. Paths are made repo-relative by a fixed, configurable pipeline, with no guessing: a wrong guess would attribute coverage to the wrong file without a sign.</p></bh-step>
+      <bh-step highlight="diff e-diff-analyze analyze"><p><strong>Ask git what the change added.</strong> By default that is everything from the merge base with the default branch to <code>HEAD</code>, so lines that reached <code>main</code> while your branch was open are not counted against you.</p></bh-step>
+      <bh-step highlight="parse e-parse-analyze analyze"><p><strong>Score each added line.</strong> It is covered, uncovered, or not executable. Lines the report doesn't mention, such as comments and braces, are left out of the denominator.</p></bh-step>
+      <bh-step highlight="base e-base-parse parse e-parse-analyze analyze"><p><strong>Optionally, compare with a baseline.</strong> A report from the merge base adds per-file deltas and indirect changes: lines whose coverage flipped without their text changing. These are scoped to the files the diff touched, because two separate test runs always differ a little elsewhere.</p></bh-step>
+      <bh-step class="no-glossary" highlight="analyze e-analyze-report report e-analyze-exit exit"><p><strong>Print, then exit.</strong> The markdown is a ready-made pull-request comment; JSON and YAML follow a documented schema. The exit code is <code>0</code>, or <code>1</code> when <code>--fail-under-patch</code> or <code>--fail-under-lines</code> fails, and <code>2</code>–<code>8</code> for a usage, report, marker, config, git or path problem. So a script can tell a failed gate from a broken run.</p></bh-step>
+    </bh-stepper>
+
+    <h2 id="agent-loop">Built for the agent loop</h2>
+    <p class="lead">Because the answer is a list of <code>file:line</code> and an exit code, an agent can act on it without a person in between.</p>
+    <figure class="diagram wide" id="loop">
+      <bh-sequence aria-label="An agent runs the tests with coverage, runs patchcov, gets exit 1 with two uncovered lines, writes tests for them, and runs again until patchcov exits 0">
+        <bh-actor data-id="agent" class="c3">Agent</bh-actor>
+        <bh-actor data-id="tests" class="c6">Test run</bh-actor>
+        <bh-actor data-id="patchcov" class="c1">patchcov</bh-actor>
+        <bh-msg data-id="m-run" from="agent" to="tests">tests + coverage</bh-msg>
+        <bh-msg data-id="m-lcov" from="tests" to="agent" reply>head.lcov</bh-msg>
+        <bh-msg data-id="m-diff" from="agent" to="patchcov">diff --fail-under-patch 80</bh-msg>
+        <bh-msg data-id="m-fail" from="patchcov" to="agent" reply>exit 1 · parser.rs:47, :50</bh-msg>
+        <bh-note data-id="n-write" over="agent">write 2 tests</bh-note>
+        <bh-msg data-id="m-run2" from="agent" to="tests">tests + coverage</bh-msg>
+        <bh-msg data-id="m-diff2" from="agent" to="patchcov">diff --fail-under-patch 80</bh-msg>
+        <bh-msg data-id="m-pass" from="patchcov" to="agent" reply>exit 0</bh-msg>
+      </bh-sequence>
+      <figcaption>The agent never reads a chart. Each round trip is a command, a list of lines, and a yes or no.</figcaption>
+    </figure>
+    <bh-stepper for="loop">
+      <bh-step highlight="agent m-run tests m-lcov"><p>The agent runs the test suite under any coverage tool that writes a supported report, such as <code>cargo llvm-cov</code>, <code>go test -coverprofile</code>, <code>coverage.py</code> or JaCoCo.</p></bh-step>
+      <bh-step highlight="agent m-diff patchcov m-fail"><p>patchcov exits <code>1</code> and names the gaps. With <code>-o json</code>, they arrive as <code>uncovered_new_lines</code>, and <code>--error-format json</code> puts the cause on stderr as an object too.</p></bh-step>
+      <bh-step highlight="n-write m-run2 m-diff2 m-pass"><p>The agent writes tests for exactly those lines and runs both steps again. The same command works on a laptop, in a sandbox and in CI, so the agent can pass the gate <em>before</em> it pushes.</p></bh-step>
+    </bh-stepper>
+
+    <h2 id="trustworthy">A signal you can trust</h2>
+    <p class="lead">A gate that cries wolf gets ignored, by people and agents alike. patchcov is quiet where coverage is noisy and loud where it is broken.</p>
+    <ul class="cards wide no-glossary">
+      <li class="card"><span class="card-icon">1</span><h3>Quiet by construction</h3><p>Deltas are scoped to the files the diff touched. The headline ignores moves under 0.05 pp. Code that flaps between runners, such as a path gated on a CPU feature, can be wrapped in a <code>tolerate</code> marker, so a flap isn't reported as a regression.</p></li>
+      <li class="card"><span class="card-icon">2</span><h3>Fails loudly</h3><p>An empty report, a failed shard, report paths that match no tracked file, or a malformed marker is an error with its own exit code, not a quietly lower number.</p></li>
+      <li class="card"><span class="card-icon">3</span><h3>Silencing is visible</h3><p>Every marker needs a <code>reason=</code>, and every exclusion is listed in the comment. Settings live in <code>.patchcov/config.yaml</code>, in version control, so a reviewer can see what the gate does.</p></li>
+    </ul>
+    <pre data-title="src/simd.rs"><code class="language-rust">// patchcov: coverage tolerate reason="AVX2 path; runners differ in CPU"
+fn popcount_avx2(words: &amp;[u64]) -&gt; u64 { /* … */ }
+// patchcov: coverage end</code></pre>
+    <details class="disclosure">
+      <summary>Go deeper: why tolerated lines still count in the patch</summary>
+      <p>A <code>tolerate</code> region masks <em>deltas</em>: each tolerated line is scored with its status in the baseline, so a flap reads as no change. The displayed percentages stay the real, measured values. An <em>added</em> line has no baseline counterpart, so it keeps its real status and stays in the patch-coverage denominator: new code should still be tested, even if it flaps later. To remove lines from every number, use <code>ignore</code> instead.</p>
+    </details>
+
+    <h2 id="action">patchcov-action: the same answer on every pull request</h2>
+    <p class="lead">The command answers the question; the action wires it into GitHub. It installs a cached patchcov binary, finds the right baseline, posts one sticky comment, and applies the gates last.</p>
+
+    <figure class="diagram wide" id="action-flow">
+      <svg viewBox="-16 -16 772 288" role="img" aria-label="A push to main publishes a baseline artifact; a pull-request run downloads the merge base's baseline, runs patchcov diff, posts a sticky comment, then applies the gates">
+        <g class="node c1" data-id="main"><rect x="0" y="10" width="150" height="56" rx="10"/><text x="75" y="31">main CI run</text><text class="sub" x="75" y="49">on push to main</text></g>
+        <g class="node c2" data-id="artifact"><rect x="290" y="10" width="160" height="56" rx="10"/><text x="370" y="31">Baseline artifact</text><text class="sub" x="370" y="49">one per commit</text></g>
+        <g class="node c1" data-id="pr"><rect x="0" y="150" width="150" height="56" rx="10"/><text x="75" y="171">PR CI run</text><text class="sub" x="75" y="189">on pull_request</text></g>
+        <g class="node c1" data-id="diff"><rect x="290" y="150" width="160" height="56" rx="10"/><text x="370" y="171">patchcov diff</text><text class="sub" x="370" y="189">head vs baseline</text></g>
+        <g class="node c3" data-id="comment"><rect x="580" y="110" width="150" height="56" rx="10"/><text x="655" y="131">Sticky comment</text><text class="sub" x="655" y="149">posted first</text></g>
+        <g class="node c1" data-id="gate"><rect x="580" y="200" width="150" height="56" rx="10"/><text x="655" y="221">Gates</text><text class="sub" x="655" y="239">applied last</text></g>
+
+        <path class="edge" data-id="e-publish" d="M150 38 H279"/>
+        <path class="edge" data-id="e-download" d="M370 66 V139"/>
+        <path class="edge" data-id="e-pr-diff" d="M150 178 H279"/>
+        <path class="edge" data-id="e-comment" d="M450 170 C510 170 510 138 569 138"/>
+        <path class="edge" data-id="e-gate" d="M450 186 C510 186 510 228 569 228"/>
+        <text class="label" x="215" y="26" text-anchor="middle">publish</text>
+        <text class="label" x="382" y="106">merge base’s</text>
+      </svg>
+      <figcaption>Notice that the baseline is pinned to the pull request’s fork point, not to the tip of <code>main</code>, so the deltas belong to this pull request alone.</figcaption>
+    </figure>
+    <bh-stepper for="action-flow">
+      <bh-step highlight="main e-publish artifact"><p><strong>Every push to <code>main</code> publishes a baseline:</strong> that commit's per-line report, as an artifact named <code>coverage-baseline</code>.</p></bh-step>
+      <bh-step highlight="pr e-pr-diff diff"><p><strong>On a pull request, produce the head report.</strong> In fat mode (the default) the action runs <code>cargo-llvm-cov</code> for a Rust workspace. In thin mode you bring a report from any language, and the action only diffs, comments and gates.</p></bh-step>
+      <bh-step highlight="artifact e-download diff"><p><strong>Fetch the baseline for the merge base.</strong> If that commit has none, it tries up to 10 first-parent ancestors, nearest first, and says so in the comment. As a last resort in fat mode, it rebuilds coverage at the merge base in a git worktree. A miss is a warning: patch coverage never needs a baseline.</p></bh-step>
+      <bh-step highlight="diff e-comment comment"><p><strong>Post one comment and keep it current.</strong> It has the patch coverage, the per-file deltas and the uncovered <code>file:line</code> list, and is updated in place on every push.</p></bh-step>
+      <bh-step highlight="diff e-gate gate"><p><strong>Gate last.</strong> <code>fail-under-patch</code> and <code>fail-under-lines</code> run after the comment posts, so a failing pull request still gets its explanation.</p></bh-step>
+    </bh-stepper>
+
+    <p>The action also handles the topologies real projects grow into: sharded test runs merged into one result, merge queues, and files a CI runner can't execute.</p>
+    <bh-tabs>
+      <section data-label="Rust (fat mode)">
+<pre data-title=".github/workflows/ci.yml"><code class="language-yaml">jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read            # download the merge base's baseline
+      pull-requests: write     # post the coverage comment
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0       # full history, so the merge base resolves
+      - uses: action-works/patchcov-action@v2
+        with:
+          fail-under-patch: 80</code></pre>
+      </section>
+      <section data-label="Any language (thin mode)">
+<pre data-title=".github/workflows/ci.yml"><code class="language-yaml">      - run: pytest --cov --cov-report=lcov:coverage.lcov
+      - uses: action-works/patchcov-action@v2
+        with:
+          run-coverage: false
+          report: coverage.lcov
+          fail-under-patch: 80</code></pre>
+      </section>
+      <section data-label="Sharded">
+<pre data-title=".github/workflows/ci.yml"><code class="language-yaml">  coverage:
+    needs: shard               # a failed shard fails this job
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-shard-*
+          merge-multiple: true
+          path: shards
+      - uses: action-works/patchcov-action@v2
+        with:
+          run-coverage: false
+          shard-reports: shards/shard-*.lcov
+          fail-under-patch: 80</code></pre>
+      </section>
+      <section data-label="Locally">
+<pre data-title="terminal"><code class="language-bash">cargo install patchcov --locked     # or: cargo binstall patchcov
+cargo llvm-cov --lcov --output-path head.lcov
+patchcov diff --report head.lcov --fail-under-patch 80</code></pre>
+      </section>
+    </bh-tabs>
+
+    <h2 id="when-to-choose">When to choose patchcov</h2>
+    <p class="lead">patchcov is a signal, not a dashboard. Pick it for the question it answers, and keep the other tools for the questions they answer.</p>
+    <div class="compare wide">
+      <div class="option chosen">
+        <h3>patchcov</h3>
+        <p>A command and an action that score the change, in your own CI.</p>
+        <ul class="pros"><li>Answers "what did this change leave untested, and where?"</li><li>Machine-readable output and distinct exit codes, ready for agents</li><li>No service, account or upload token: the gate works whenever your CI does</li><li>Runs the same locally, in a sandbox and in CI</li><li>Built for noisy coverage and sharded runs</li></ul>
+        <ul class="cons"><li>No history, trend graphs or cross-repository views</li><li>Line coverage; branch scoring is opt-in and limited to lcov and Cobertura</li></ul>
+      </div>
+      <div class="option">
+        <h3>A hosted coverage service</h3>
+        <p>You upload reports; the service keeps them and comments on pull requests.</p>
+        <ul class="pros"><li>Coverage history and trends over months</li><li>Dashboards and views across many repositories</li></ul>
+        <ul class="cons"><li>A third party between your tests and your merge button</li><li>Reports leave your CI; tokens to manage</li><li>The result is learned after pushing, not before</li></ul>
+      </div>
+      <div class="option">
+        <h3>A code-quality platform</h3>
+        <p>Coverage as one input to a wider quality gate.</p>
+        <ul class="pros"><li>Static analysis, security scanning and coverage in one place</li></ul>
+        <ul class="cons"><li>Another server to run or to depend on</li><li>Much more to set up than a coverage gate needs</li></ul>
+      </div>
+    </div>
+    <div class="table-wrap wide" id="choose-by-need" data-linkable>
+      <table>
+        <caption>Choose by the question you need answered.</caption>
+        <thead><tr><th>If you need…</th><th>Choose</th></tr></thead>
+        <tbody>
+          <tr><td>To know whether a pull request added untested code, and where</td><td>patchcov</td></tr>
+          <tr><td>A gate an agent or script can act on, in a loop</td><td>patchcov</td></tr>
+          <tr><td>A coverage gate that can't be blocked by someone else's outage</td><td>patchcov</td></tr>
+          <tr><td>One combined result from a sharded test run</td><td>patchcov</td></tr>
+          <tr><td>Coverage history, trend graphs, or views across repositories</td><td>A hosted service, alongside patchcov</td></tr>
+          <tr><td>Per-branch percentages, or JaCoCo and llvm-cov branch data</td><td>Your coverage tool's own report</td></tr>
+          <tr><td>Static analysis and security scanning as well</td><td>A code-quality platform</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <aside class="callout tip">
+      <p class="callout-title">You don't have to pick one</p>
+      <p>patchcov-action can upload to Codecov as well (<code>codecov: true</code>), so the history keeps flowing to a dashboard while the gate stays in your own CI.</p>
+    </aside>
+
+    <h2 id="limits">What it doesn't tell you</h2>
+    <aside class="callout warn">
+      <p class="callout-title">Covered is not tested</p>
+      <p>patchcov measures that a line <em>ran</em>, not that a test asserted anything about it. Treat it as a regression signal, and pair it with review, or with mutation testing, for confidence in the tests themselves.</p>
+    </aside>
+    <ul>
+      <li><strong>Measure the report at the revision you diff.</strong> A report from older code has line numbers that no longer match the diff, and the result is silently wrong.</li>
+      <li><strong>Check out full history in CI</strong> (<code>fetch-depth: 0</code>), or the merge base won't resolve.</li>
+      <li><strong>The library API is not stable at 0.x.</strong> The command line is the better-supported interface.</li>
+    </ul>
+
+    <h2 id="get-started">Get started</h2>
+    <ol class="steps">
+      <li><strong>Install.</strong> <code>cargo install patchcov --locked</code>, <code>cargo binstall patchcov</code>, or a prebuilt binary for Linux, macOS or Windows from the GitHub releases.</li>
+      <li><strong>Run it on your branch.</strong> Produce a per-line report from your test run, then <code>patchcov diff --report head.lcov</code>.</li>
+      <li><strong>Add the gate.</strong> Add <code>action-works/patchcov-action@v2</code> to your pull-request workflow with <code>fail-under-patch</code>, and let the comment and the exit code do the rest.</li>
+    </ol>
+
+    <h2 id="further-reading">Further reading</h2>
+    <ul>
+      <li><a href="https://github.com/rust-works/patchcov">rust-works/patchcov</a>: the command, its usage guide, the reference for every flag and the JSON schema.</li>
+      <li><a href="https://github.com/rust-works/patchcov/blob/main/docs/explanation.md">Explanation</a>: why patchcov's total differs from llvm-cov's summary, and how scoping and <code>tolerate</code> masking work.</li>
+      <li><a href="https://github.com/action-works/patchcov-action">action-works/patchcov-action</a>: fat and thin modes, sharded runs, merge queues and every input.</li>
+      <li><a href="https://docs.rs/patchcov">docs.rs/patchcov</a>: the analysis as a Rust library.</li>
+    </ul>
+
+    <footer class="bh-footer">
+      <span><a href="../index.html">← All documents</a></span>
+      <span>Updated 2026-10-11</span>
+    </footer>
+  </article>
+</main>
+<script>
+/* Patch-coverage toy: toggling a line re-scores the patch, the project total and the gate. */
+document.addEventListener("DOMContentLoaded", () => {
+  const fig = document.getElementById("patch-sim");
+  const FILE = "src/parser.rs", BASE_COVERED = 3680, BASE_TOTAL = 4000, BASE_PCT = 92;
+  const rows = [...fig.querySelectorAll("li[data-line]")];
+  const initial = rows.map((r) => r.querySelector(".pc-hit").getAttribute("aria-pressed") === "true");
+  const threshold = document.getElementById("pc-threshold");
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  const $ = (id) => document.getElementById(id);
+  const fmt = (x) => x.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+  let looping = null;
+
+  const isHit = (r) => r.querySelector(".pc-hit").getAttribute("aria-pressed") === "true";
+  function setHit(r, hit) {
+    const b = r.querySelector(".pc-hit");
+    b.setAttribute("aria-pressed", String(hit));
+    b.setAttribute("aria-label", `Line ${r.dataset.line}: ${hit ? "covered" : "not covered"}`);
+    b.textContent = hit ? "✓" : "✗";
+    r.classList.toggle("miss", !hit);
+  }
+  function ranges(lines) {
+    const out = [];
+    for (const n of lines) {
+      const last = out[out.length - 1];
+      if (last && n === last[1] + 1) last[1] = n; else out.push([n, n]);
+    }
+    return out.map(([a, b]) => `${FILE}:${a === b ? a : `${a}-${b}`}`);
+  }
+  function score() {
+    const covered = rows.filter(isHit).length, total = rows.length;
+    const patch = 100 * covered / total;
+    const after = 100 * (BASE_COVERED + covered) / (BASE_TOTAL + total);
+    const delta = Math.round((after - BASE_PCT) * 100) / 100;
+    const gate = +threshold.value;
+    const pass = patch >= gate;
+    const missing = rows.filter((r) => !isHit(r)).map((r) => +r.dataset.line);
+    $("pc-patch").textContent = `${fmt(patch)}%`;
+    $("pc-patch-n").textContent = `(${covered}/${total} new lines)`;
+    $("pc-total").textContent = `${after.toFixed(2)}%`;
+    const signed = delta === 0 ? "0" : `${delta > 0 ? "+" : "−"}${Math.abs(delta).toFixed(2)}`;
+    $("pc-delta").textContent = Math.abs(delta) < 0.05 ? `⚪ ${signed} pp, neutral` : delta < 0 ? `🔴 ${signed} pp, down` : `🟢 ${signed} pp, up`;
+    $("pc-threshold-out").textContent = gate;
+    const out = $("pc-out");
+    out.replaceChildren();
+    const add = (text, cls) => { const s = document.createElement(cls ? "span" : "b"); if (cls) s.className = cls; s.textContent = text; out.append(s); };
+    out.append("Patch: "); add(`${fmt(patch)}%`); out.append(` (${covered}/${total} new lines covered)\n`);
+    out.append(missing.length ? `Uncovered new lines: ${ranges(missing).join(", ")}\n` : "No uncovered new lines\n");
+    if (pass) { add("exit 0", "ok"); }
+    else { add(`Error: patch coverage ${patch.toFixed(2)}% is below the --fail-under-patch threshold of ${gate.toFixed(2)}%`, "err"); out.append("\nexit 1"); }
+    return pass;
+  }
+  function stop() { clearTimeout(looping); looping = null; $("pc-loop").textContent = "Loop until the gate passes"; }
+  function addTest() {
+    const r = rows.find((x) => !isHit(x));
+    if (!r) return false;
+    setHit(r, true);
+    if (!reduced.matches) { r.classList.add("flash"); setTimeout(() => r.classList.remove("flash"), 450); }
+    score();
+    return true;
+  }
+  function tick() {
+    if (score() || !addTest()) return stop();
+    looping = setTimeout(tick, reduced.matches ? 0 : 750);
+  }
+
+  fig.addEventListener("click", (e) => {
+    const b = e.target.closest(".pc-hit");
+    if (!b) return;
+    stop();
+    setHit(b.closest("li"), !isHit(b.closest("li")));
+    score();
+  });
+  threshold.addEventListener("input", () => { stop(); score(); });
+  $("pc-step").addEventListener("click", () => { stop(); addTest(); });
+  $("pc-reset").addEventListener("click", () => { stop(); rows.forEach((r, i) => setHit(r, initial[i])); score(); });
+  $("pc-loop").addEventListener("click", () => {
+    if (looping) return stop();
+    if (score()) return;
+    $("pc-loop").textContent = "Stop";
+    looping = setTimeout(tick, reduced.matches ? 0 : 400);
+  });
+  score();
+});
+</script>
+</body>
+</html>

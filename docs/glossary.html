@@ -81,6 +81,9 @@
       <dt id="lane" data-aliases="lanes">Lane</dt>
       <dd><p>One thread's slot within a <a href="#simd-group">SIMD group</a>. Each lane has its own registers, but all lanes execute the same instruction at the same time.</p></dd>
 
+      <dt id="lcov" data-aliases="lcov report, lcov reports">lcov</dt>
+      <dd><p>A plain-text coverage format that lists, per source file, how many times each line ran. Most coverage tools can write it, which makes it the common currency between them and tools like patchcov.</p></dd>
+
       <dt id="leaky-bucket" data-aliases="leaky buckets">Leaky bucket</dt>
       <dd><p>A queue that drains at a fixed rate. It smooths output to a constant pace instead of allowing bursts; compare with a <a href="#token-bucket">token bucket</a>.</p></dd>
 
@@ -91,6 +94,9 @@
       <dt id="marker" data-aliases="markers">Marker</dt>
       <dd><p>In rapidgzip-style decoding, a 16-bit placeholder meaning "the byte <em>n</em> positions before this chunk started". It lets a decoder start mid-stream without the history, and is replaced by the real byte once the previous chunk is decoded.</p></dd>
 
+      <dt id="merge-base" data-aliases="merge bases, fork point, fork points">Merge base</dt>
+      <dd><p>The newest commit that a branch and its target (usually <code>main</code>) share: where the branch forked. Comparing against it, rather than the tip of <code>main</code>, shows only what the branch itself changed.</p></dd>
+
       <dt id="monotonic-clock" data-aliases="monotonic clocks">Monotonic clock</dt>
       <dd><p>A clock that only moves forwards. Use it to measure elapsed time, because the wall clock can jump backwards when NTP corrects it.</p></dd>
 
@@ -99,6 +105,10 @@
 
       <dt id="p99" data-aliases="99th percentile">p99</dt>
       <dd><p>The 99th-percentile latency: 99% of requests complete at least this fast. Tail latency like this, rather than the average, is what users notice.</p></dd>
+
+      <dt id="patch-coverage" data-aliases="diff coverage">Patch coverage</dt>
+      <dd><p>The share of the executable lines a change added that the tests ran. Unlike the project-wide total, it shows the gaps in new code even when they are too small to move the total.</p>
+        <p><a href="announcing-patchcov.html#patch-coverage">Announcing patchcov</a> lets you try it.</p></dd>
 
       <dt id="rate-limiting" data-aliases="rate limit, rate limits, rate limiter, rate limiters">Rate limiting</dt>
       <dd><p>Capping how many requests a client may make in a period of time, to protect a service and share its capacity fairly.</p>
