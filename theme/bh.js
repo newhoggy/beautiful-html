@@ -1497,6 +1497,13 @@
     const modules = settle(loadModules());
     // Private cards join the catalogue before the page counts as ready (a no-op unless a key is at hand).
     settle(modules.then(() => window.bh.privateCards && window.bh.privateCards.start()));
+    // A key pasted into the open home page only changes the fragment (no reload): look again then.
+    if (doc.querySelector("ul[data-private-cards]")) {
+      addEventListener("hashchange", () => {
+        if (!/[#&]k=[A-Za-z0-9_-]{43}(?:&|$)/.test(location.hash)) return;
+        settle(loadModule("private-cards.js").then(() => window.bh.privateCards && window.bh.privateCards.start()));
+      });
+    }
     modules.then(() => {
       // Review: ?review opens review mode; stored comments for this page load the module
       // so they're shown on every revisit.

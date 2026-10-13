@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { site } from "./support/private-site.mjs";
 import {
-  CARD_FILE_HEADER, buildBlob, cardFromDoc, decryptCard, docCardHtml, encryptCard, escapeHtml, mergeEntries,
+  CARD_FILE_HEADER, KIND_LABELS, buildBlob, cardFromDoc, decryptCard, docCardHtml, encryptCard, escapeHtml, mergeEntries,
   parseCardsFile, renderCardsFile, tryDecryptCard, validateCardsFile,
 } from "../scripts/private-cards.mjs";
 
@@ -134,6 +134,18 @@ test("the browser's card equals the one npm run index writes", () => {
     const { tags, ...doc } = d;
     assert.equal(serialise(cardSpec(doc, tags, titles, false)), squash(docCardHtml(doc, tags, titles)), d.title);
   }
+});
+
+test("a card replaced by a page that can't be linked is still dimmed, without a Replaced line", () => {
+  const { cardSpec } = moduleApi();
+  const doc = { href: "docs/a.html#k=x", title: "T", description: "D", kind: "decision", status: "superseded", date: "", supersededBy: "", superseded: true, example: false };
+  const html = serialise(cardSpec(doc, [], new Map(), true));
+  assert.match(html, /class="card doc-card is-superseded"/);
+  assert.doesNotMatch(html, /card-replaced/);
+});
+
+test("the browser's kind labels are the ones npm run index uses", () => {
+  assert.deepEqual({ ...moduleApi().KIND_LABELS }, KIND_LABELS);
 });
 
 test("a private card adds a lock and the word Private, and nothing else", () => {
@@ -289,4 +301,35 @@ test("check accepts a clean site and fails each injected fault", { timeout: 2400
   const ci = s.run(["check"], { withOp: false });
   assert.equal(ci.code, 0, ci.out);
   assert.equal(errorsOf(ci.out), "0");
+});
+
+test("seal refuses a bad group before writing anything", (t) => {
+  const s = site(t);
+  s.newPrivate("alpha-plan", "Alpha plan", "kin-circle");
+  s.newPrivate("zeta-plan", "Zeta plan", "Not Kebab");
+  const before = s.read("theme/private-cards.js");
+  const r = s.run(["seal"]);
+  assert.notEqual(r.code, 0);
+  assert.equal(fs.existsSync(path.join(s.root, "docs/alpha-plan.html")), false, "a page was sealed before the problem was found");
+  assert.equal(s.read("theme/private-cards.js"), before);
+  assert.deepEqual(s.items(), []);
+});
+
+test("seal leaves a group item that holds no key alone instead of adding a second", (t) => {
+  const s = site(t);
+  s.seed({ title: "beautiful-html private group: kin-circle", category: "PASSWORD", fields: [{ id: "password", label: "password", value: "" }] });
+  s.newPrivate("alpha-plan", "Alpha plan", "kin-circle");
+  const r = s.run(["seal"]);
+  assert.notEqual(r.code, 0);
+  assert.match(r.out, /holds no valid key: fix or archive that item/);
+  assert.equal(s.items().filter((i) => i.title === "beautiful-html private group: kin-circle").length, 1);
+});
+
+test("a short group name is not mistaken for a leak", (t) => {
+  const s = site(t);
+  s.newPrivate("alpha-plan", "Alpha plan", "ai");
+  assert.equal(s.run(["seal"]).code, 0);
+  assert.equal(s.run(["index"]).code, 0);
+  const r = s.run(["check"]);
+  assert.equal(r.code, 0, r.out);
 });

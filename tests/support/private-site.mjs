@@ -41,9 +41,9 @@ export function site(t) {
   for (const entry of ["scripts", "theme", "docs", "templates", "reviews", "package.json", "index.html"]) {
     fs.cpSync(path.join(ROOT, entry), path.join(root, entry), { recursive: true });
   }
-  // The real sealed pages belong to the real vault: this site starts with none.
+  // The real sealed pages, and any plaintext unsealed from them, belong to the real vault: this site starts with none.
   for (const f of fs.readdirSync(path.join(root, "docs")).filter((f) => f.endsWith(".html"))) {
-    if (/<meta\s+name="bh:sealed"/.test(fs.readFileSync(path.join(root, "docs", f), "utf8"))) fs.rmSync(path.join(root, "docs", f));
+    if (f.endsWith(".private.html") || /<meta\s+name="bh:sealed"/.test(fs.readFileSync(path.join(root, "docs", f), "utf8"))) fs.rmSync(path.join(root, "docs", f));
   }
   fs.writeFileSync(path.join(root, "theme/private-cards.js"), renderCardsFile([]));
   fs.writeFileSync(path.join(bin, "op"), FAKE_OP, { mode: 0o755 });
@@ -73,6 +73,12 @@ export function site(t) {
     assert.notEqual(next, html, `${name} was not changed`);
     write(rel, next);
   };
-  return { root, run, read, write, items, field, entries, newPrivate, setGroup, setMeta };
+  /** Put an item in the fake vault as it is, for states `seal` would never make itself. */
+  const seed = (item) => {
+    const data = fs.existsSync(state) ? JSON.parse(fs.readFileSync(state, "utf8")) : { items: [], archived: [] };
+    data.items.push({ id: "seed" + data.items.length, ...item });
+    fs.writeFileSync(state, JSON.stringify(data));
+  };
+  return { root, run, read, write, items, field, entries, newPrivate, setGroup, setMeta, seed };
 }
 

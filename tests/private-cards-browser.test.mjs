@@ -111,6 +111,16 @@ test("the home page shows the private cards a key opens", { skip, timeout: 24000
     assert.equal(await r.evaluate("location.hash"), "#posts");
   });
 
+  await t.test("a key pasted into the open home page is picked up without a reload", async () => {
+    const p = await tab();
+    await p.goto(`${base}index.html`);
+    assert.deepEqual(await p.evaluate(privateCards), []);
+    await p.evaluate(`location.hash = "#k=${group}"`);
+    for (let i = 0; i < 50 && !(await p.evaluate(privateCards)).length; i++) await sleep(100);
+    assert.deepEqual(await p.evaluate(privateCards), ["alpha-plan", "beta-plan"]);
+    assert.equal(await p.evaluate("location.hash"), "");
+  });
+
   await t.test("a card opens its sealed page, and a page opened by its own link brings its card home", async () => {
     const p = await tab();
     await p.goto(`${base}index.html#k=${group}`);

@@ -34,6 +34,7 @@
 
   /**
    * d: { href, title, description, kind, status, date, supersededBy (href or ""), example }
+   * and, when the replacement can't be linked, `superseded: true` (dimmed, with no "Replaced by" line).
    * titles: Map from a supersededBy href to the title shown after "Replaced by".
    * `label` adds the "Private" mark (a lock and the word, so the state is not carried by colour).
    */
@@ -46,7 +47,7 @@
     if (d.status) meta.push(t("span", [["class", "badge " + d.status.toLowerCase()]], [d.status]));
     if (d.date) meta.push(t("time", [["datetime", d.date]], [d.date]));
     return t("li", [
-      ["class", "card doc-card" + (d.supersededBy ? " is-superseded" : "")],
+      ["class", "card doc-card" + (d.supersededBy || d.superseded ? " is-superseded" : "")],
       ...(d.example ? [["data-example", ""]] : []),
       ["data-kind", d.kind], ["data-tags", tags.join(",")], ["data-search", search],
     ], [
@@ -153,10 +154,19 @@
   function show(list, found) {
     const hrefs = new Map(found.map((f) => [f.slug, "docs/" + f.slug + ".html#k=" + f.key]));
     const titles = new Map(found.map((f) => [hrefs.get(f.slug), f.card.title]));
+    // A replacement is another card this key opened, or a public page already in the list; else the card is only dimmed.
+    const replacement = (slug) => {
+      if (!slug) return "";
+      if (hrefs.has(slug)) return hrefs.get(slug);
+      const link = list.querySelector('a.card-link[href="docs/' + slug + '.html"]');
+      if (!link) return "";
+      titles.set("docs/" + slug + ".html", (link.querySelector("h3") || {}).textContent || slug);
+      return "docs/" + slug + ".html";
+    };
     for (const f of found.slice().sort((a, b) => before(a.card, b.card))) {
       if (list.querySelector('[data-private-slug="' + f.slug + '"]')) continue;
-      const replacedBy = f.card.supersededBy && hrefs.get(f.card.supersededBy);
-      const li = build(cardSpec({ ...f.card, href: hrefs.get(f.slug), supersededBy: replacedBy || "", example: false }, f.card.tags, titles, true));
+      const replacedBy = replacement(f.card.supersededBy);
+      const li = build(cardSpec({ ...f.card, href: hrefs.get(f.slug), supersededBy: replacedBy, superseded: !!f.card.supersededBy, example: false }, f.card.tags, titles, true));
       li.dataset.privateSlug = f.slug;
       insert(list, li, f.card);
     }
@@ -186,10 +196,10 @@
       }
       const found = [], used = new Set();
       for (const { slug, blob } of file.cards) {
-        for (const { key, cryptoKey } of opened) {
-          const card = await open(blob, cryptoKey, slug);
-          if (card) { found.push({ slug, card, key }); used.add(key); break; }
-        }
+        // Every key is tried at once (the wrong ones fail fast); the first that opens it names the link.
+        const tried = await Promise.all(opened.map(async ({ key, cryptoKey }) => ({ key, card: await open(blob, cryptoKey, slug) })));
+        const hit = tried.find((x) => x.card);
+        if (hit) { found.push({ slug, card: hit.card, key: hit.key }); used.add(hit.key); }
       }
       if (found.length) show(list, found);
       if (typed && fromHash.some((k) => !used.has(k))) bh.toast("No private pages for that key", 3500);
@@ -202,7 +212,7 @@
     }
   }
 
-  bh.privateCards = { start, cardSpec };
+  bh.privateCards = { start, cardSpec, KIND_LABELS };
   window.bhModules = window.bhModules || {};
   window.bhModules["private-cards.js"] = true;
 })();

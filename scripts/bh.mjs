@@ -1157,6 +1157,9 @@ function logoProblems() {
   return problems;
 }
 
+/** Whether a secret name shows in ciphertext. Names shorter than 8 characters can't be told from chance in base64, so they are not searched for. */
+const nameLeaks = (name, haystack) => name.length >= 8 && haystack.includes(name);
+
 function cmdCheck() {
   let errors = 0, warnings = 0;
   const templates = fs.readdirSync(TEMPLATES).filter((f) => f.endsWith(".html")).sort().map((f) => path.join(TEMPLATES, f));
@@ -1242,7 +1245,10 @@ function cmdCheck() {
         const generic = sealedShell("", "", "");
         for (const [what, value] of [["title", getTitle(plain)], ["description", getMeta(plain, "description")], ["group name", getMeta(plain, "bh:group")]]) {
           // A value the generic shell already contains (a title like "Private") can't be told apart; the exact comparison above covers it.
-          for (const v of new Set([value, decodeHtml(value)])) if (v && !generic.includes(v) && text.includes(v)) problems.push(`docs/${slug}.html leaks the page's ${what}`);
+          for (const v of new Set([value, decodeHtml(value)])) {
+            // A group name must also be long enough to tell from chance in base64.
+            if (v && !generic.includes(v) && (what === "group name" ? nameLeaks(v, text) : text.includes(v))) problems.push(`docs/${slug}.html leaks the page's ${what}`);
+          }
         }
       }
     }
@@ -1254,22 +1260,22 @@ function cmdCheck() {
       cardsText = fs.readFileSync(cardsFile, "utf8");
       for (const p of validateCardsFile(cardsText, new Set(sealedFiles().map((f) => path.basename(f, ".html"))))) problems.push(`${CARD_FILE} ${p}`);
     }
-    const cards = cardsText ? parseCardsFile(cardsText).entries : [];
+    const cardEntries = cardsText ? parseCardsFile(cardsText).entries : [];
     for (const src of privateSources()) {
       const slug = path.basename(src, PRIVATE_EXT), out = path.join(DOCS, `${slug}.html`);
       if (fs.existsSync(out) && !isSealed(out)) { problems.push(`docs/${slug}.html is public but docs/${slug}${PRIVATE_EXT} also exists`); continue; }
       const group = getMeta(stripComments(fs.readFileSync(src, "utf8")), "bh:group");
       if (group && !GROUP_RE.test(group)) problems.push(`docs/${slug}${PRIVATE_EXT}: bh:group "${group}" must be kebab-case`);
-      if (group && cardsText && cardsText.includes(group) && !sealedShell("", "", "").includes(group)) problems.push(`${CARD_FILE} leaks the group name of ${slug}`);
+      if (group && nameLeaks(group, cardEntries.map((e) => e.blob).join("\n"))) problems.push(`${CARD_FILE} leaks the group name of ${slug}`);
       let keyText = null;
       try { keyText = readKey(slug); } catch (e) { problems.push(`can't read the key for ${slug} from 1Password: ${e.message}`); continue; }
       if (!keyText || !fs.existsSync(out)) { problems.push(`docs/${slug}${PRIVATE_EXT} has never been sealed: run \`npm run seal\``); continue; }
       const digest = sealDigest(Buffer.from(keyText, "base64url"), fs.readFileSync(src));
       if (getMeta(fs.readFileSync(out, "utf8"), "bh:sealed-digest") !== digest) problems.push(`docs/${slug}.html is stale: run \`npm run seal\``);
-      const blob = cards.find((e) => e.slug === slug)?.blob;
+      const blob = cardEntries.find((e) => e.slug === slug)?.blob;
       if (blob && !isDeepStrictEqual(tryDecryptCard(blob, keyText, slug), sourceCard(src))) problems.push(`private card for ${slug} is stale: run \`npm run seal\``);
     }
-    console.log((problems.length ? c.red("✗ ") : c.green("✓ ")) + `private pages (${privateSlugs.size} sealed)`);
+    if (privateSlugs.size || problems.length) console.log((problems.length ? c.red("✗ ") : c.green("✓ ")) + `private pages (${privateSlugs.size} sealed)`);
     problems.forEach((p) => console.log(c.red("  error  ") + p));
     errors += problems.length;
   }
@@ -1691,7 +1697,10 @@ function archiveItem(title) {
 function ensureKey(slug, group) {
   const before = readKey(slug), title = opTitle(slug), item = readItem(title);
   if (group) {
-    if (!validKey(readItem(opGroupTitle(group))?.password)) { storeGroupKey(group); console.log(c.green(`Created a group key in 1Password: "${opGroupTitle(group)}" (vault ${OP_VAULT})`)); }
+    const groupItem = readItem(opGroupTitle(group));
+    // An item that exists but holds no valid key is never replaced here: a second one with the same title would break every lookup.
+    if (groupItem && !validKey(groupItem.password)) throw new Error(`"${opGroupTitle(group)}" in 1Password holds no valid key: fix or archive that item, then run seal again`);
+    if (!groupItem) { storeGroupKey(group); console.log(c.green(`Created a group key in 1Password: "${opGroupTitle(group)}" (vault ${OP_VAULT})`)); }
     if (item?.group !== group) { if (item) archiveItem(title); storePageGroup(slug, group); }
   } else if (!(item && !item.group && validKey(item.password))) {
     if (item) archiveItem(title);
@@ -1815,43 +1824,49 @@ function cmdSeal(argv = []) {
   const sources = privateSources();
   const cardsFile = path.join(ROOT, CARD_FILE);
   const existing = fs.existsSync(cardsFile) ? parseCardsFile(fs.readFileSync(cardsFile, "utf8")).entries : [];
-  const fresh = {}, groups = new Map();
-  for (const src of sources) {
-    const slug = path.basename(src, PRIVATE_EXT);
+  // Refuse before writing anything: a failure half way would leave the pages and their cards out of step.
+  const plans = sources.map((src) => {
+    const slug = path.basename(src, PRIVATE_EXT), out = path.join(DOCS, `${slug}.html`);
     const group = sourceGroup(src);
-    const out = path.join(DOCS, `${slug}.html`);
-    const rel = path.relative(ROOT, out);
-    if (fs.existsSync(out) && !isSealed(out)) { console.error(c.red(`Refusing to overwrite public page ${rel}`)); process.exit(1); }
-    const { before, key: keyText } = ensureKey(slug, group);
-    if (fs.existsSync(out) && before !== keyText) {
-      console.warn(c.yellow(`⚠ ${slug}: its key changed${group ? ` (now in the group "${group}")` : " (it left its group)"}. The page is re-encrypted, so every old #k= link to ${rel} stops working: share the new link.`));
+    if (fs.existsSync(out) && !isSealed(out)) { console.error(c.red(`Refusing to overwrite public page ${path.relative(ROOT, out)}`)); process.exit(1); }
+    return { src, slug, out, rel: path.relative(ROOT, out), group };
+  });
+  const fresh = {}, groups = new Map();
+  try {
+    for (const { src, slug, out, rel, group } of plans) {
+      const { before, key: keyText } = ensureKey(slug, group);
+      if (fs.existsSync(out) && before !== keyText) {
+        console.warn(c.yellow(`⚠ ${slug}: its key changed${group ? ` (now in the group "${group}")` : " (it left its group)"}. The page is re-encrypted, so every old #k= link to ${rel} stops working: share the new link.`));
+      }
+      const key = Buffer.from(keyText, "base64url");
+      const plain = fs.readFileSync(src);
+      const digest = sealDigest(key, plain);
+      // Re-sealing unchanged plaintext would only change the IV, so leave the file alone.
+      const current = fs.existsSync(out) ? fs.readFileSync(out, "utf8") : "";
+      if (getMeta(current, "bh:sealed-digest") === digest && getMeta(current, "bh:sealed-shell") !== SHELL_VERSION()) {
+        // Same plaintext, older shell: keep the ciphertext (a new IV would only add churn).
+        fs.writeFileSync(out, sealedShell(sealedPayload(current), digest));
+        console.log(c.green(`Rewrapped ${rel} in the current shell`));
+      } else if (!(getMeta(current, "bh:sealed-digest") === digest && getMeta(current, "bh:sealed-shell") === SHELL_VERSION())) {
+        const iv = crypto.randomBytes(12);
+        const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+        const sealed = Buffer.concat([iv, cipher.update(zlib.gzipSync(plain, { level: 9 })), cipher.final(), cipher.getAuthTag()]);
+        fs.writeFileSync(out, sealedShell(sealed.toString("base64"), digest));
+        console.log(c.green(`Sealed ${path.relative(ROOT, src)} → ${rel}`));
+      } else console.log(c.dim(`${rel} is up to date`));
+      console.log(`  link: ${rel}#k=${showLinks ? keyText : `<password of "${group ? opGroupTitle(group) : opTitle(slug)}">`}`);
+      fresh[slug] = buildBlob(existing.find((e) => e.slug === slug)?.blob, sourceCard(src), keyText, slug);
+      if (group) groups.set(group, keyText);
     }
-    const key = Buffer.from(keyText, "base64url");
-    const plain = fs.readFileSync(src);
-    const digest = sealDigest(key, plain);
-    // Re-sealing unchanged plaintext would only change the IV, so leave the file alone.
-    const current = fs.existsSync(out) ? fs.readFileSync(out, "utf8") : "";
-    if (getMeta(current, "bh:sealed-digest") === digest && getMeta(current, "bh:sealed-shell") !== SHELL_VERSION()) {
-      // Same plaintext, older shell: keep the ciphertext (a new IV would only add churn).
-      fs.writeFileSync(out, sealedShell(sealedPayload(current), digest));
-      console.log(c.green(`Rewrapped ${rel} in the current shell`));
-    } else if (!(getMeta(current, "bh:sealed-digest") === digest && getMeta(current, "bh:sealed-shell") === SHELL_VERSION())) {
-      const iv = crypto.randomBytes(12);
-      const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-      const sealed = Buffer.concat([iv, cipher.update(zlib.gzipSync(plain, { level: 9 })), cipher.final(), cipher.getAuthTag()]);
-      fs.writeFileSync(out, sealedShell(sealed.toString("base64"), digest));
-      console.log(c.green(`Sealed ${path.relative(ROOT, src)} → ${rel}`));
-    } else console.log(c.dim(`${rel} is up to date`));
-    console.log(`  link: ${rel}#k=${showLinks ? keyText : `<password of "${group ? opGroupTitle(group) : opTitle(slug)}">`}`);
-    fresh[slug] = buildBlob(existing.find((e) => e.slug === slug)?.blob, sourceCard(src), keyText, slug);
-    if (group) groups.set(group, keyText);
+  } finally {
+    // The card file follows the sealed pages: a blob each, those without local plaintext kept, orphans dropped.
+    // Written even if a page failed, so the pages that were sealed keep matching cards.
+    const text = renderCardsFile(mergeEntries(existing, fresh, new Set(sealedFiles().map((f) => path.basename(f, ".html")))));
+    if (!fs.existsSync(cardsFile) || fs.readFileSync(cardsFile, "utf8") !== text) {
+      fs.writeFileSync(cardsFile, text);
+      console.log(c.green(`Updated ${CARD_FILE}`));
+    } else if (sources.length) console.log(c.dim(`${CARD_FILE} is up to date`));
   }
-  // The card file follows the sealed pages: a blob each, those without local plaintext kept, orphans dropped.
-  const text = renderCardsFile(mergeEntries(existing, fresh, new Set(sealedFiles().map((f) => path.basename(f, ".html")))));
-  if (!fs.existsSync(cardsFile) || fs.readFileSync(cardsFile, "utf8") !== text) {
-    fs.writeFileSync(cardsFile, text);
-    console.log(c.green(`Updated ${CARD_FILE}`));
-  } else if (sources.length) console.log(c.dim(`${CARD_FILE} is up to date`));
   if (!sources.length) { console.log(c.dim("No docs/*.private.html to seal.")); return; }
   for (const [name, keyText] of [...groups].sort()) console.log(`  home page, group "${name}": index.html#k=${showLinks ? keyText : `<password of "${opGroupTitle(name)}">`}`);
   if (!showLinks) console.log(c.dim("Run `npm run seal -- --show-links` to print the full links."));
