@@ -33,7 +33,6 @@ test("published artifact omits examples, keeps posts and local source, and serve
   const f = fixture(t);
   // Exercise reviews and backlinks even when the real repository has no review threads.
   const exampleFile = path.join(f.source, example);
-  fs.appendFileSync(exampleFile, '<!-- marker in body is not metadata -->');
   let html = fs.readFileSync(exampleFile, "utf8");
   fs.writeFileSync(exampleFile, html.replace("</article>", `<p><a href="announcing-patchcov.html">Post</a></p></article>`));
   const postFile = path.join(f.source, post);
@@ -111,4 +110,24 @@ test("publication fails loudly for no active markers, mismatched pages and missi
     assert.ok(fs.existsSync(path.join(f.stage, "docs/adr-002-rate-limit-at-the-edge.html")), "failure before pruning");
   }
   assert.throws(() => preparePublishedSite(ROOT), /source checkout/);
+});
+
+
+test("project subpaths normalize a missing trailing slash and preserve unrelated anchor attributes", (t) => {
+  const f = fixture(t);
+  const pkgPath = path.join(f.source, "package.json"), pkg = JSON.parse(fs.readFileSync(pkgPath));
+  pkg.homepage = "https://fork.example/blog";
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg));
+  const file = path.join(f.source, post), original = fs.readFileSync(file, "utf8");
+  const links = ["token-bucket-rate-limiting.html", "/blog/docs/token-bucket-rate-limiting.html",
+    "https://fork.example/blog/docs/token-bucket-rate-limiting.html#implementation"];
+  const injected = original.replace("</article>", links.map((href) => `<a href='${href}'>Removed link</a>`).join("") +
+    '<a data-href="token-bucket-rate-limiting.html" href="glossary.html">Kept link</a></article>');
+  assert.notEqual(injected, original);
+  fs.writeFileSync(file, injected);
+  f.assemble();
+  preparePublishedSite(f.stage, f.source);
+  const result = fs.readFileSync(path.join(f.stage, post), "utf8");
+  for (const href of links) assert.ok(!result.includes(`href='${href}'`), href);
+  assert.ok(result.includes('<a data-href="token-bucket-rate-limiting.html" href="glossary.html">Kept link</a>'));
 });

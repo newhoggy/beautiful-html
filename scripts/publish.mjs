@@ -38,7 +38,7 @@ export function preparePublishedSite(stage, source = ROOT) {
     if (!fs.existsSync(path.join(stage, card))) throw new Error(`Expected example card is missing: ${card}`);
   }
   const removed = new Set(marked);
-  const homepage = new URL(process.env.BH_SITE_URL || JSON.parse(fs.readFileSync(path.join(source, "package.json"))).homepage);
+  const homepage = new URL(String(process.env.BH_SITE_URL || JSON.parse(fs.readFileSync(path.join(source, "package.json"))).homepage).replace(/\/*$/, "/"));
   const isRemoved = (href, page) => {
     try {
       const url = new URL(href.replace(/&amp;/g, "&"), new URL(page, homepage));
@@ -47,7 +47,7 @@ export function preparePublishedSite(stage, source = ROOT) {
     } catch { return false; }
   };
   const sanitize = (html, page) => html.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (whole, attrs, inner) => {
-    const href = attrs.match(/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
+    const href = attrs.match(/(?:^|\s)href\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
     return href && isRemoved(href[1] ?? href[2], page) ? inner : whole;
   }).replace(/<meta\s+name="bh:(?:supersedes|superseded-by)"\s+content="([^"]*)"[^>]*>/gi,
     (whole, href) => isRemoved(href, page) ? "" : whole);
