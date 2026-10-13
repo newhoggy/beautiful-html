@@ -37,20 +37,77 @@ export async function launchChrome() {
     ...(process.env.CI ? ["--no-sandbox"] : []),
     "about:blank",
   ], { stdio: ["ignore", "ignore", "pipe"] });
-  const wsUrl = await new Promise((resolve, reject) => {
-    let buf = "";
-    const timer = setTimeout(() => reject(new Error("Chrome did not start")), 15000);
-    proc.stderr.on("data", (d) => {
-      buf += d;
-      const m = buf.match(/DevTools listening on (ws:\/\/\S+)/);
-      if (m) { clearTimeout(timer); resolve(m[1]); }
-    });
-    proc.on("exit", (code) => reject(new Error(`Chrome exited (${code})`)));
-  });
-  const ws = new WebSocket(wsUrl);
-  await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
-  let nextId = 0;
+  let ws, closing;
   const pending = new Map();
+  // "close" includes drained stdio, unlike "exit". Register before startup can fail.
+  const closed = new Promise((resolve) => proc.once("close", resolve));
+  const close = () => closing ??= (async () => {
+    for (const { reject } of pending.values()) reject(new Error("Chrome closed"));
+    pending.clear();
+    try { ws?.close(); } catch { /* already closed */ }
+    // Cancel the deadline when Chrome closes normally: a losing sleep in Promise.race
+    // otherwise keeps Node alive for five seconds after the renderer's final report.
+    const timer = setTimeout(() => {
+      proc.kill("SIGKILL");
+      // A helper may inherit stderr and hold it open after the browser exits.
+      // Closing our read end lets the child "close" event settle in that case too.
+      proc.stderr.destroy();
+    }, 5000);
+    try {
+      if (proc.exitCode === null && proc.signalCode === null) proc.kill();
+      await closed;
+    } finally {
+      clearTimeout(timer);
+    }
+    // Chrome's helpers can briefly keep writing even after the browser closes.
+    try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); }
+    catch (e) { console.warn(dim(`(could not remove Chrome profile ${profile}: ${e.code})`)); }
+  })();
+  try {
+    const wsUrl = await new Promise((resolve, reject) => {
+      let buf = "";
+      const finish = (error, url) => {
+        clearTimeout(timer);
+        proc.stderr.off("data", onData);
+        proc.off("exit", onExit);
+        proc.off("error", onError);
+        error ? reject(error) : resolve(url);
+      };
+      const onData = (d) => {
+        buf += d;
+        const m = buf.match(/DevTools listening on (ws:\/\/\S+)/);
+        if (m) finish(null, m[1]);
+      };
+      const onExit = (code) => finish(new Error(`Chrome exited (${code})`));
+      const onError = (error) => finish(error);
+      const timer = setTimeout(() => finish(new Error("Chrome did not start")), 15000);
+      proc.stderr.on("data", onData);
+      proc.once("exit", onExit);
+      proc.once("error", onError);
+    });
+    // Drain Chrome diagnostics after startup without retaining the startup buffer.
+    proc.stderr.resume();
+    ws = new WebSocket(wsUrl);
+    await new Promise((resolve, reject) => {
+      const finish = (error) => {
+        clearTimeout(timer);
+        ws.onopen = ws.onerror = ws.onclose = null;
+        error ? reject(error) : resolve();
+      };
+      const timer = setTimeout(() => finish(new Error("Chrome WebSocket did not open")), 15000);
+      ws.onopen = () => finish();
+      ws.onerror = () => finish(new Error("Chrome WebSocket failed"));
+      ws.onclose = () => finish(new Error("Chrome WebSocket closed during startup"));
+    });
+  } catch (error) {
+    await close();
+    throw error;
+  }
+  let nextId = 0;
+  ws.onclose = () => {
+    for (const { reject } of pending.values()) reject(new Error("Chrome WebSocket closed"));
+    pending.clear();
+  };
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
     if (!msg.id || !pending.has(msg.id)) return;
@@ -59,21 +116,12 @@ export async function launchChrome() {
     msg.error ? reject(new Error(`${msg.error.message}`)) : resolve(msg.result);
   };
   const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
+    if (closing || ws.readyState !== WebSocket.OPEN) { reject(new Error("Chrome closed")); return; }
     const id = ++nextId;
     pending.set(id, { resolve, reject });
-    ws.send(JSON.stringify({ id, method, params, sessionId }));
+    try { ws.send(JSON.stringify({ id, method, params, sessionId })); }
+    catch (error) { pending.delete(id); reject(error); }
   });
-  const close = async () => {
-    try { ws.close(); } catch { /* already closed */ }
-    // Wait for Chrome to exit before removing its profile (it writes until it's gone).
-    const exited = new Promise((resolve) => { if (proc.exitCode !== null) resolve(); else proc.once("exit", resolve); });
-    proc.kill();
-    await Promise.race([exited, sleep(5000)]);
-    // Best effort: Chrome's helper processes (notably on Linux) can still be writing to the
-    // profile after the browser exits. A leftover temp dir must never fail the run.
-    try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); }
-    catch (e) { console.warn(dim(`(could not remove Chrome profile ${profile}: ${e.code})`)); }
-  };
   return { send, close };
 }
 
