@@ -27,7 +27,8 @@ Run `npm run index` after **any** change to a document. It regenerates the catal
 social meta block in every page's `<head>`, `theme/glossary.js`, `theme/site.js` (backlinks),
 `theme/search-index.js`, `theme/unlisted-pages.js`, `theme/unlisted-slugs.js` and
 `theme/unlisted-reviews.js`. `check` fails while any of these are stale. Never edit the
-generated files by hand.
+generated files by hand. `theme/private-cards.js` is generated too, but by `npm run seal`, not
+`index` (it needs the keys; see [Private pages](#private-pages)).
 
 Run `npm run cards` after changing a page's title, kind, date, or its first diagram or image
 (or the card layout, or the theme tokens): it re-renders every card that `check` calls stale.
@@ -130,6 +131,44 @@ carries its key.
 - **The sealed file is the copy of record.** In a fresh clone, `npm run unseal` (or
   `unseal -- <slug>`) recreates `docs/<slug>.private.html` from the sealed page and its key.
   It refuses to overwrite unsealed edits unless you pass `--force`.
+- **Groups.** Several private pages can share one key. Put `<meta name="bh:group" content="<name>">`
+  (kebab-case) in each page's `<head>`; a page with no group keeps its own key, as before. The
+  meta is valid only in `docs/*.private.html` (`check` fails on a public page or template) and is
+  encrypted along with the page, so the group name never reaches the repo (`check` fails if it
+  shows up in a sealed file or in `theme/private-cards.js`).
+  - The group's key is one Password item, `beautiful-html private group: <name>`, in the same
+    vault. A grouped page's own item, `beautiful-html private page: <slug>`, then holds no key,
+    only a `group` field naming the group; `readKey`, `unseal` and `check` follow it. `seal`
+    creates the group item on first use.
+  - **Anyone with a group key opens every page in the group** and sees every card in it. Use a
+    separate group (or none) for pages with a different audience.
+  - **Adding, removing or renaming `bh:group` re-keys the page**: it is re-encrypted under the new
+    key and every old `#k=` link to it stops working. `seal` prints a warning naming the page.
+    It archives the page's old item (it never edits a secret through argv) and creates the new one.
+  - Archive a group's item only once no page uses the group.
+- **Cards on the home page.** `npm run seal` also writes `theme/private-cards.js` (generated;
+  never edit it, and `index` never touches it): one blob per sealed page, holding its card
+  (title, description, kind, status, date, tags and any `supersededBy`) as gzip(JSON) under
+  AES-256-GCM, with the page's key (the group's, for a grouped page) and the additional data
+  `bh-card/1:<slug>`, so a blob can't pass for a page payload or for another page's card. Opening
+  `index.html#k=<key>` (repeat `k=` for several keys) decrypts the blobs that key opens and merges
+  their cards into the catalogue, with a lock and "Private" label; filters and the filter box work
+  on them. The home page is unchanged without a key: nothing is requested.
+  - The browser also uses keys remembered in the tab (`sessionStorage["bh-index-keys"]`, set when
+    a key opened cards, and the `bh-sealed-key:*` keys of sealed pages opened in this tab), so
+    opening a private page and going back to the home page shows its card. The key is removed
+    from the address bar; a key that opens nothing shows a toast and is not remembered.
+  - The card file is public: it reveals each page's slug and the rough length of its card (the
+    sealed filename and payload already do). A card link, `docs/<slug>.html#k=<key>`, is assembled
+    in the browser, so a key is never in committed HTML.
+  - `seal -- --show-links` also prints the home page link for each group. Never put one in a
+    commit, PR, issue or any public place.
+  - `check` verifies the file's structure everywhere (CI included): it parses, is sorted and
+    unique, every blob is plausible, every sealed page has one and every blob has a sealed page.
+    Where the key and plaintext are at hand, it also decrypts each blob and compares it with the
+    card the plaintext gives ("private card for `<slug>` is stale: run `npm run seal`").
+  - A bundled page (`npm run bundle`) never carries the card file, so a bundled `index.html`
+    shows no private cards. Header search does not include private pages.
 - Re-run `npm run seal` after every edit. `check` fails when a sealed copy is stale, when
   its shell is outdated, or when a private page was never sealed.
 - Private pages stay out of the catalogue, search, backlinks, card generation and
@@ -153,7 +192,8 @@ carries its key.
   browser session. Copied section links therefore have no key: share the full `#k=` link.
 - Never put a `#k=` link in a commit message, PR, issue or any other public place.
 - Making a page public: rename it to `docs/<slug>.html` (replacing the sealed copy), archive
-  its 1Password item, and run `npm run index`.
+  its 1Password item (and its group's item, once no page uses the group), and run
+  `npm run seal` (it drops the page's blob from `theme/private-cards.js`) then `npm run index`.
 
 ## Example pages
 
