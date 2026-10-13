@@ -978,3 +978,10 @@ bh-chart { display: block; }
 .doc-card.is-superseded { opacity: 0.72; }
 .doc-card.is-superseded h3 { text-decoration: line-through; text-decoration-color: color-mix(in oklab, var(--text) 40%, transparent); }
 .card-replaced { position: relative; z-index: 1; margin-top: var(--space-2) !important; font-size: var(--step--2); color: var(--text-muted); }
+
+/* Private cards (theme/modules/private-cards.js): a lock and the word, so the state is not carried by colour alone. */
+.card-private { display: inline-flex; align-items: center; gap: 0.35em; color: var(--accent); font-weight: 600; }
+.card-private svg { flex: none; }
+/* The extra label can crowd a narrow card: wrap the row rather than break the date across lines. */
+.doc-card .card-meta { flex-wrap: wrap; row-gap: var(--space-1); }
+.doc-card .card-meta time { white-space: nowrap; }
