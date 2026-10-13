@@ -157,8 +157,8 @@ carries its key.
 
 Some pages only demonstrate the theme and the templates (the rate-limiting design doc, its two
 ADRs and the token-bucket explainer). They are not posts. They are shown where you work and
-hidden on the published site, and the browser decides, so one set of files and one set of
-generated data serves both.
+hidden in a non-local preview. Pages deployment builds a separate published copy without
+them; local source files and committed generated data keep every example.
 
 - **Mark one** with `<meta name="bh:example" content="true">` in the `<head>`, or create it with
   `npm run new -- --example <template> <slug> "<Title>"`. The marker is the only thing that
@@ -170,9 +170,11 @@ generated data serves both.
 - **What hidden means** on a non-local host: no home-page card, kind or topic chip; no search
   result; no "Referenced by" entry; links to the page become plain text (also inside glossary
   popups); and opening the page's address shows a short "This is an example page" notice with a
-  link to the posts. Review threads on the page go with the page. The files still ship and the
-  address still answers 200: client-side hiding cannot do more. If real removal is wanted, drop
-  them in the Pages workflow too.
+  link to the posts. Review threads on the page go with the page. This describes the source
+  copy served on a non-local host. **On deployed Pages**, `scripts/publish.mjs` removes the
+  example HTML and social cards, strips links to examples while keeping their text/markup,
+  and rebuilds the index, glossary, search, backlinks and review data in the artifact only.
+  Example URLs return 404. Publication fails on zero examples or missing expected files.
 - **One place decides.** `theme/examples.js` holds the only list of local hosts. It is a
   synchronous script in every page's `<head>`, after the theme script, so `<html data-examples>`
   is set before first paint and nothing flashes. `check` fails if a page or template lacks it, or
@@ -180,7 +182,8 @@ generated data serves both.
   `bh.js` and the search module read `window.bhExamples`; never copy the list.
 - **Override.** `?examples` (or `=on`) shows them anywhere, `?examples=off` hides them locally,
   and `?examples=auto` forgets the choice. It is remembered for the tab session
-  (`sessionStorage`), so it survives following links.
+  (`sessionStorage`), so it survives following links. Overrides apply to the source copy;
+  they cannot restore examples removed from the deployed Pages artifact.
 - **Without JavaScript** the home page hides its example cards (fails closed, so locally too),
   and an example page opened directly stays readable, since only script can swap in the notice.
 - **Linking to an example** from an ordinary page is allowed; `check` warns, because the link
@@ -189,7 +192,7 @@ generated data serves both.
 - **Bundles** (`npm run bundle`) always show their own content, wherever the file is opened or
   hosted: `<html data-bundled>` overrides the host. A bundle has no index, search or backlinks.
 - **Cards and private pages.** Example pages keep their social cards (`check` still requires
-  them; a pasted link unfurls as before). Private and sealed pages are never examples and are
+  them locally; deployment removes their cards). Private and sealed pages are never examples and are
   unaffected.
 
 ## Page contract

@@ -36,8 +36,9 @@ every page and key, so the rebrand changes the site's name and not these.
   are worked examples of the document kinds, not posts. They carry `<meta name="bh:example"
   content="true">`. On a local host (`npm run serve`, `file://`) they appear as always, labelled
   "Example · …"; on the published site they are hidden from the home page, search and
-  backlinks, and their addresses show a short notice. `?examples` and `?examples=off` switch
-  the view (see CLAUDE.md, "Example pages").
+  backlinks. Pages deployment removes their HTML and social cards, so their addresses return
+  404. `?examples` and `?examples=off` switch the view in the local source copy; they cannot
+  restore files omitted from the deployed site (see CLAUDE.md, "Example pages").
 - **Address.** The repository, and so the Pages URL, keep the name `beautiful-html`. Renaming
   the repo would break every Pages link, including private-page `#k=` links already shared
   (GitHub redirects the repo URL but not Pages). If the blog gets its own address, use a
@@ -89,9 +90,12 @@ need Node ≥ 22 and a local Chrome.)
   syntax-checks every script, runs `npm run check` (which also verifies each page's social
   meta and card), uploads all documents bundled as single files, and renders every page in
   Chrome (light, dark and phone layouts).
-- **GitHub Pages** (`.github/workflows/pages.yml`) publishes the repo as it stands to
+- **GitHub Pages** (`.github/workflows/pages.yml`) publishes a copy of the repo to
   [bitwise.john-ky.io](https://bitwise.john-ky.io/), with
-  no build step. It stays off until you opt in:
+  a publication step that removes marked examples and their cards, strips links to them, and
+  rebuilds the catalogue, glossary, search, backlinks and review data. Source files remain
+  unchanged. The step fails if it finds no examples or an expected page/card is missing.
+  It stays off until you opt in:
   1. Go to Settings → Pages and set the source to **GitHub Actions**.
   2. Add the repository variable `PAGES_ENABLED=true`.
   The custom domain is a Pages setting (Settings → Pages → Custom domain, plus DNS), not a file in
