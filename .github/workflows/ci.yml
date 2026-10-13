@@ -32,6 +32,12 @@ jobs:
       - name: npm run check
         run: npm run check
 
+      - name: Prepare the published variant
+        run: |
+          mkdir -p _site
+          cp -r index.html docs theme _site/
+          node scripts/publish.mjs
+
       - name: Bundle every document into a single file
         run: npm run bundle:all
 
