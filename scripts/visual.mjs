@@ -236,10 +236,11 @@ for (const d of ["baseline", "current", "diff"]) fs.mkdirSync(path.join(OUT, d),
 
 const server = await serveStatic(ROOT);
 const base = `http://127.0.0.1:${server.address().port}/`;
-const chrome = await launchChrome();
+let chrome;
 const results = [];
 const started = Date.now();
 try {
+  chrome = await launchChrome();
   for (const k of cases) {
     let png;
     try { png = await capture(chrome.send, base + k.file, k.v); }
@@ -265,8 +266,8 @@ try {
     console.log((fail ? c.red("✗ ") : c.green("✓ ")) + k.name + c.dim(` ${what}`));
   }
 } finally {
-  await chrome.close();
-  server.close();
+  try { await chrome?.close(); }
+  finally { await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
 }
 
 // Report: side-by-side images for every case that changed.
@@ -282,5 +283,5 @@ const changed = results.filter((r) => r.status === "changed").length;
 console.log(`\n${results.length} cases in ${((Date.now() - started) / 1000).toFixed(1)}s · ${changed ? c.red(changed + " changed") : "0 changed"} · report: ${path.relative(process.cwd(), path.join(OUT, "report.html"))}`);
 if (changed) {
   console.log(c.dim("If the changes are intended, accept them with: npm run visual -- --update"));
-  process.exit(1);
+  process.exitCode = 1;
 }

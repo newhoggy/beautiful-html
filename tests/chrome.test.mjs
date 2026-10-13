@@ -1,0 +1,133 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { test } from "node:test";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const chromeModule = new URL("../scripts/chrome.mjs", import.meta.url).href;
+
+// The child must exit naturally. Killing a timed-out child is test cleanup, never success.
+function run(args, env, timeout = 10000) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, { cwd: root, env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"] });
+    let output = "", timedOut = false, reportAt;
+    const started = Date.now();
+    let timer = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, timeout);
+    let completed = false;
+    for (const stream of [child.stdout, child.stderr]) stream.on("data", (data) => {
+      output += data;
+      // Allow slow process startup under CI load, but bound exit after work completes.
+      if (!completed && /CLOSED| · report:|Chrome exited \(7\)|Chrome WebSocket failed/.test(output)) {
+        completed = true;
+        clearTimeout(timer);
+        timer = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, 2000);
+      }
+      if (reportAt === undefined && output.includes(" · report:")) reportAt = Date.now();
+    });
+    child.on("error", (error) => { clearTimeout(timer); reject(error); });
+    child.on("close", (code, signal) => {
+      clearTimeout(timer);
+      if (timedOut) reject(new Error(`Child did not exit within ${timeout}ms:\n${output}`));
+      else resolve({ code, signal, output, elapsed: Date.now() - started, reportDelay: reportAt === undefined ? undefined : Date.now() - reportAt });
+    });
+  });
+}
+
+function fixture(t, body) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bh-chrome-test-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const exe = path.join(dir, "chrome");
+  // Use the exact Node binary, including when running the suite on Node 22.
+  fs.writeFileSync(exe, `#!${process.execPath}\n${body}\n`, { mode: 0o755 });
+  return { CHROME_PATH: exe, PROFILE_RECORD: path.join(dir, "profile.txt") };
+}
+
+function rendererFixture(env) {
+  const scripts = path.join(path.dirname(env.CHROME_PATH), "repo", "scripts");
+  fs.mkdirSync(scripts, { recursive: true });
+  for (const file of ["visual.mjs", "chrome.mjs"]) fs.copyFileSync(path.join(root, "scripts", file), path.join(scripts, file));
+  return path.join(scripts, "visual.mjs");
+}
+
+const profileRecorder = `const fs = require('node:fs');
+const profile = process.argv.find(a => a.startsWith('--user-data-dir=')).split('=')[1];
+fs.writeFileSync(process.env.PROFILE_RECORD, profile);`;
+
+function assertProfileRemoved(env) {
+  const profile = fs.readFileSync(env.PROFILE_RECORD, "utf8");
+  assert.equal(fs.existsSync(profile), false, `profile left behind: ${profile}`);
+}
+
+test("Chrome cleanup cancels its deadline and repeated close is safe", async (t) => {
+  const env = fixture(t, `${profileRecorder}
+console.error('DevTools listening on ws://fake');
+setInterval(() => {}, 1000);`);
+  const result = await run(["--input-type=module", "-e", `
+    globalThis.WebSocket = class {
+      static OPEN = 1;
+      readyState = 1;
+      constructor() { setTimeout(() => this.onopen(), 0); }
+      close() {}
+    };
+    const { launchChrome } = await import(${JSON.stringify(chromeModule)});
+    const chrome = await launchChrome();
+    await Promise.all([chrome.close(), chrome.close()]);
+    await chrome.close();
+    await chrome.send('Page.enable').then(() => { throw new Error('send should reject'); }, () => {});
+    console.log('CLOSED');
+  `], env);
+  assert.equal(result.code, 0, result.output);
+  assert.match(result.output, /CLOSED/);
+  assertProfileRemoved(env);
+});
+
+for (const mode of ["exit", "websocket"]) {
+  test(`Chrome ${mode} startup failure releases its process, timer and profile`, async (t) => {
+    const env = fixture(t, `${profileRecorder}\n${mode === "exit" ? "process.exit(7);" : "console.error('DevTools listening on ws://fake'); setInterval(() => {}, 1000);"}`);
+    const result = await run(["--input-type=module", "-e", `
+      globalThis.WebSocket = class {
+        constructor() { setTimeout(() => this.onerror(), 0); }
+        close() {}
+      };
+      const { launchChrome } = await import(${JSON.stringify(chromeModule)});
+      await launchChrome().then(() => { throw new Error('expected failure'); }, e => console.log(e.message));
+    `], env);
+    assert.equal(result.code, 0, result.output);
+    assert.match(result.output, mode === "exit" ? /Chrome exited \(7\)/ : /Chrome WebSocket failed/);
+    assertProfileRemoved(env);
+  });
+}
+
+test("renderer startup failure closes the static server and exits nonzero", async (t) => {
+  const env = fixture(t, `${profileRecorder}\nprocess.exit(7);`);
+  const result = await run([rendererFixture(env), "--system-fonts", "--only", "no-cases"], env);
+  assert.equal(result.code, 1, result.output);
+  assert.match(result.output, /Chrome exited \(7\)/);
+  assertProfileRemoved(env);
+});
+
+test("rendering errors report failures and exit nonzero without lingering resources", async (t) => {
+  const env = fixture(t, `${profileRecorder}
+console.error('DevTools listening on ws://fake');
+setInterval(() => {}, 1000);`);
+  const preload = path.join(path.dirname(env.CHROME_PATH), "websocket.mjs");
+  fs.writeFileSync(preload, `globalThis.WebSocket = class {
+    static OPEN = 1;
+    readyState = 1;
+    constructor() { setTimeout(() => this.onopen(), 0); }
+    close() {}
+    send(data) {
+      const { id } = JSON.parse(data);
+      queueMicrotask(() => this.onmessage({ data: JSON.stringify({ id, error: { message: 'injected rendering failure' } }) }));
+    }
+  };`);
+  const result = await run(["--import", preload, rendererFixture(env), "--system-fonts", "--only", "index--light"], env);
+  assert.equal(result.code, 1, result.output);
+  assert.match(result.output, /injected rendering failure/);
+  assert.match(result.output, /1 cases .*1 changed/);
+  assert.ok(result.reportDelay < 2000, `report-to-exit took ${result.reportDelay}ms`);
+  assertProfileRemoved(env);
+});
