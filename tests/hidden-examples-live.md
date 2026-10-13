@@ -20,7 +20,9 @@ and build time `2026-10-11T14:12:02Z`. Direct GETs of `/` and
 - Safari **26.5.2 (21624.2.5.11.8)** is installed, but WebDriver session creation
   failed because **Allow remote automation** was disabled. The user approved
   temporary enablement; Safari then required the user to authenticate. No Safari
-  result is claimed while that authentication remains outstanding.
+  result is claimed. Authentication was not completed; the prompt was dismissed,
+  remote automation remained disabled, and the developer-menu setting was
+  restored to its original disabled state.
 
 ## Observations
 
@@ -114,6 +116,12 @@ not committed baselines or a claim of manual inspection of every browser case.
 - `npm run bundle:all`: **7 public bundles**.
 - `npm run visual -- --system-fonts`: **18 cases rendered**. No baselines existed,
   so this established baselines rather than comparing against a prior rendering.
+
+After rebase onto `329dc33`, the same tests/check/syntax/bundle commands passed
+again. The private check then covered nine sealed pages. The visual rerun
+compared all 18 cases with the baselines established during this task, with zero
+changed pixels. This proves stability across the rebase, not a comparison against
+a historical baseline.
 
 No private plaintext was restored for this task. Existing sealed-shell checks
 ran; no claim is made about repeating a real private-source verification.
