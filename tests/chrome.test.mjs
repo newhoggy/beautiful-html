@@ -38,7 +38,17 @@ function run(args, env, timeout = 10000) {
 
 function fixture(t, body) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bh-chrome-test-"));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  t.after(() => {
+    // Also stop fixture children if the code under test regresses and times out.
+    for (const name of ["browser.pid", "helper.pid"]) {
+      const file = path.join(dir, name);
+      if (fs.existsSync(file)) {
+        try { process.kill(Number(fs.readFileSync(file, "utf8")), "SIGKILL"); }
+        catch (error) { if (error.code !== "ESRCH") throw error; }
+      }
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
   const exe = path.join(dir, "chrome");
   // Use the exact Node binary, including when running the suite on Node 22.
   fs.writeFileSync(exe, `#!${process.execPath}\n${body}\n`, { mode: 0o755 });
@@ -54,7 +64,8 @@ function rendererFixture(env) {
 
 const profileRecorder = `const fs = require('node:fs');
 const profile = process.argv.find(a => a.startsWith('--user-data-dir=')).split('=')[1];
-fs.writeFileSync(process.env.PROFILE_RECORD, profile);`;
+fs.writeFileSync(process.env.PROFILE_RECORD, profile);
+fs.writeFileSync(require('node:path').join(require('node:path').dirname(process.env.PROFILE_RECORD), 'browser.pid'), String(process.pid));`;
 
 function assertProfileRemoved(env) {
   const profile = fs.readFileSync(env.PROFILE_RECORD, "utf8");
@@ -129,5 +140,31 @@ setInterval(() => {}, 1000);`);
   assert.match(result.output, /injected rendering failure/);
   assert.match(result.output, /1 cases .*1 changed/);
   assert.ok(result.reportDelay < 2000, `report-to-exit took ${result.reportDelay}ms`);
+  assertProfileRemoved(env);
+});
+
+
+test("shutdown deadline handles a helper retaining stderr after the browser exits", async (t) => {
+  const env = fixture(t, `${profileRecorder}
+const { spawn } = require('node:child_process');
+const helper = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: ['ignore', 'ignore', 2] });
+fs.writeFileSync(require('node:path').join(require('node:path').dirname(process.env.PROFILE_RECORD), 'helper.pid'), String(helper.pid));
+helper.unref();
+console.error('DevTools listening on ws://fake');
+setInterval(() => {}, 1000);`);
+  const result = await run(["--input-type=module", "-e", `
+    globalThis.WebSocket = class {
+      static OPEN = 1;
+      readyState = 1;
+      constructor() { setTimeout(() => this.onopen(), 0); }
+      close() {}
+    };
+    const { launchChrome } = await import(${JSON.stringify(chromeModule)});
+    const chrome = await launchChrome();
+    await chrome.close();
+    console.log('CLOSED');
+  `], env, 15000);
+  assert.equal(result.code, 0, result.output);
+  assert.match(result.output, /CLOSED/);
   assertProfileRemoved(env);
 });

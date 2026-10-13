@@ -47,7 +47,12 @@ export async function launchChrome() {
     try { ws?.close(); } catch { /* already closed */ }
     // Cancel the deadline when Chrome closes normally: a losing sleep in Promise.race
     // otherwise keeps Node alive for five seconds after the renderer's final report.
-    const timer = setTimeout(() => proc.kill("SIGKILL"), 5000);
+    const timer = setTimeout(() => {
+      proc.kill("SIGKILL");
+      // A helper may inherit stderr and hold it open after the browser exits.
+      // Closing our read end lets the child "close" event settle in that case too.
+      proc.stderr.destroy();
+    }, 5000);
     try {
       if (proc.exitCode === null && proc.signalCode === null) proc.kill();
       await closed;
