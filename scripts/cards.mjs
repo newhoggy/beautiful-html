@@ -201,10 +201,11 @@ export async function renderCards(jobs, { sharedCard, systemFonts = false }) {
   const routes = new Map();
   const server = await serveStatic(ROOT, routes);
   const base = `http://127.0.0.1:${server.address().port}/`;
-  const chrome = await launchChrome();
+  let chrome;
   let rendered = 0;
   const failed = [];
   try {
+    chrome = await launchChrome();
     for (const j of jobs) {
       const sel = j.selection;
       try {
@@ -223,8 +224,8 @@ export async function renderCards(jobs, { sharedCard, systemFonts = false }) {
       }
     }
   } finally {
-    await chrome.close();
-    server.close();
+    try { await chrome?.close(); }
+    finally { await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
   }
   return { rendered, fallback: 0, failed };
 }
