@@ -5,8 +5,10 @@ performed on 2026-10-12 in Australia/Sydney (2026-10-11 UTC), after
 [PR #18](https://github.com/newhoggy/beautiful-html/pull/18) deployed the site-base fix.
 The live HTML matched the committed HTML at `81c1bda` for all three pages.
 
-The initial live observations below describe the deployed version. The repairs
-and current validation are recorded under [Follow-up repairs](#follow-up-repairs).
+The initial live observations below describe the version deployed before the repairs.
+The repairs and their local validation are recorded under [Follow-up repairs](#follow-up-repairs).
+The subsequent live LinkedIn check is recorded under
+[Post-deployment LinkedIn check](#post-deployment-linkedin-check).
 This is an observation record, not an automated regression test or a guarantee for
 other platforms. No social post was published.
 
@@ -162,7 +164,70 @@ Current validation, with the real private source **present throughout**:
   No baselines existed, so this established baselines rather than proving a
   comparison with the old diagram. Browser inspection supplied visual QA.
 
-The revised card can only be fetched by LinkedIn at the final live URL after
-this PR merges and deploys. That re-scrape remains a post-deployment check; the
-initial two real-validator fetches above remain the live evidence. The generic
+At the time of these repairs, fetching the revised card in LinkedIn remained a
+post-merge/deployment check. The subsequent attempt is recorded below. The generic
 private-description length warning is intentionally unchanged.
+
+
+## Post-deployment LinkedIn check
+
+On **2026-10-13 (Australia/Sydney)**, performed the follow-up for
+[issue #23](https://github.com/newhoggy/bitwise-blog/issues/23) using
+[LinkedIn Post Inspector](https://www.linkedin.com/post-inspector/) in Chrome.
+No social post was published and no private source or key was accessed.
+
+### Deployment evidence
+
+Direct GETs of the final page and image both returned **200 without redirects**:
+
+- Page: `https://bitwise.john-ky.io/docs/token-bucket-rate-limiting.html`,
+  `text/html; charset=utf-8`, 23,110 bytes. Its canonical and `og:url` matched
+  that URL; `og:image` pointed to the image below.
+- Image: `https://bitwise.john-ky.io/docs/assets/og/token-bucket-rate-limiting.png`,
+  `image/png`, 1200 × 630, 81,340 bytes. The enlarged, strong labels are present.
+  SHA-256: `c7d0c1c11d11cc150337d7aaa5c88ec902a85a083a7f2d4108fa3188f513f6ec`.
+
+The live PNG was byte-identical to `origin/main` at `731f5b7`. It differed from
+this worktree's starting PR #21 card at `71fe1de`: PR #25 regenerated cards in
+commit `3ae0f3c` after its theme change. Thus the original issue's byte-identity
+observation is historical; the repaired labels are still deployed in the current
+card. Direct image identity does not prove LinkedIn uses that image.
+
+### Actual LinkedIn result
+
+Submitted the final page URL with **Inspect**, then used **Inspect** again after
+observing the old image. The inspector reported **Last scraped: a few seconds
+ago**, the correct fetched and canonical URLs, and one **206 Success** entry
+for that URL in its redirect trail. Metadata showed the complete expected title
+and description, type Article, author John Ky, and publication date 2026-10-05.
+
+Both attempts displayed the **old small-label diagram**, rather than the repaired
+card: the refill/capacity annotations were tiny and faint, in contrast with the
+large dark labels in the direct deployed image. The thumbnail source remained
+LinkedIn's `articleshare-shrink_480` image with identifier
+`B56aErCl3AGgAU-/0/1791723462560`. The DOM reported a natural size of **480 × 252**
+and a displayed size of **520 × 270 CSS pixels** in this browser window. No zoom,
+viewport override, separate image opening, or local recreation was used to judge
+the platform preview.
+
+The title inside the image and LinkedIn's title below it were complete. The
+refill rate, capacity, take-one-token, token/empty, and Retry-After annotations
+could not be confidently read at that displayed size. This is **not a pass for
+the repaired card's platform legibility**. A fresh page scrape was observed,
+but a refresh to the repaired image was not. The stale thumbnail is consistent
+with image caching; the responsible cache layer and refresh interval were not
+established.
+
+### Remaining action and limits
+
+Keep #23 open and the evidence PR draft until the revised thumbnail is observed.
+Revisit the same final URL with Post Inspector's Inspect workflow after the image
+cache has had time to refresh; compare its labels and thumbnail identifier with
+this record. If it still serves the old image, implement a content-versioned
+`og:image` URL in the managed metadata generator (with checker coverage), deploy
+that change, and re-inspect the same final page URL. That is a concrete follow-up,
+not a claim that changing a URL has already fixed LinkedIn.
+
+No speculative renderer or metadata changes were made in this verification run.
+The previous private-source results and local 480-pixel QA remain historical;
+other platforms were not rechecked.
