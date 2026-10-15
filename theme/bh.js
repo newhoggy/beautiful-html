@@ -1254,8 +1254,9 @@
   // Example pages that are hidden here (site-relative paths). Empty where examples are shown.
   let hiddenExamples = new Set();
 
-  function noteHiddenExamples(site) {
-    hiddenExamples = EXAMPLES.visible ? new Set() : new Set(((site && site.pages) || []).filter((p) => p.example).map((p) => p.href));
+  function noteHiddenExamples(site, unlisted) {
+    // An example that is also unlisted is in the unlisted data, not in the site data.
+    hiddenExamples = EXAMPLES.visible ? new Set() : new Set([...((site && site.pages) || []), ...((unlisted && unlisted.pages) || [])].filter((p) => p.example).map((p) => p.href));
   }
 
   /** A URL's path relative to the site root ("docs/glossary.html"), or null outside the site. */
@@ -1383,7 +1384,9 @@
   }
 
   function loadModules() {
-    return Promise.all(MODULES.filter(([, selector]) => doc.querySelector(selector)).map(([file]) => loadModule(file)));
+    // The unlisted cards are only ever built when the flag is on: don't fetch the module otherwise.
+    const wanted = ([file, selector]) => doc.querySelector(selector) && (file !== "unlisted-cards.js" || UNLISTED.visible);
+    return Promise.all(MODULES.filter(wanted).map(([file]) => loadModule(file)));
   }
 
   // ---- Boot ------------------------------------------------------------------------------------
@@ -1453,16 +1456,17 @@
     // Only where examples are hidden does anything wait for the site data (where they show, nothing changes).
     // Unlisted data arrives only with the flag on; the path list only with it off. Either way it is small.
     const unlistedData = loadUnlisted();
-    const linksHidden = Promise.all([EXAMPLES.visible ? null : siteData.then(noteHiddenExamples), loadUnlistedSlugs()])
+    const linksHidden = Promise.all([EXAMPLES.visible ? null : Promise.all([siteData, unlistedData]).then(([site, unlisted]) => noteHiddenExamples(site, unlisted)), loadUnlistedSlugs()])
       .then(() => hideLinks(doc.querySelector(".bh-article")));
     settle(buildGlossary(linksHidden));
     settle(Promise.all([siteData, linksHidden, unlistedData]).then(([site, , unlisted]) => {
       buildBacklinks(site, unlisted);
       buildLifecycle(site, unlisted);
       // Published review threads on this page: show them to every reader. An unlisted page is not in the
-      // site data, so its threads come from the reviews file, which only that page loads.
+      // site data, and theme/reviews.js (which listed pages load) leaves it out, so its threads come from
+      // theme/unlisted-reviews.js, which only an unlisted page loads.
       const here = sitePath() || meta("bh:source");
-      const own = UNLISTED.page && SITE_ROOT && !window.BH_REVIEWS ? loadScript(new URL("theme/reviews.js", SITE_ROOT).href).catch(() => {}) : Promise.resolve();
+      const own = UNLISTED.page && SITE_ROOT && !window.BH_REVIEWS ? loadScript(new URL("theme/unlisted-reviews.js", SITE_ROOT).href).catch(() => {}) : Promise.resolve();
       return own.then(() => {
         // A bundle has no site data, but it inlines this page's threads as BH_REVIEWS.
         const r = site && site.reviews && site.reviews[here];

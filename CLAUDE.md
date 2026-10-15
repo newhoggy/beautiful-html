@@ -25,7 +25,8 @@ from it rather than inventing new markup.
 
 Run `npm run index` after **any** change to a document. It regenerates the catalogue, the
 social meta block in every page's `<head>`, `theme/glossary.js`, `theme/site.js` (backlinks),
-`theme/search-index.js`, `theme/unlisted-pages.js` and `theme/unlisted-slugs.js`. `check` fails while any of these are stale. Never edit the
+`theme/search-index.js`, `theme/unlisted-pages.js`, `theme/unlisted-slugs.js` and
+`theme/unlisted-reviews.js`. `check` fails while any of these are stale. Never edit the
 generated files by hand.
 
 Run `npm run cards` after changing a page's title, kind, date, or its first diagram or image
@@ -238,8 +239,9 @@ private.
   card data, search text and backlinks of every unlisted page) is fetched **only when the flag is
   on**, so with it off no unlisted title is in any file the page loads. `theme/unlisted-slugs.js`
   holds their paths alone, so `bh.js` can make links to them inert when the flag is off.
-  `check` fails when either is stale. An unlisted page's own review threads are not in `site.js`;
-  the page loads `theme/reviews.js` itself.
+  `check` fails when either is stale. An unlisted page's published review threads are in neither
+  `site.js` nor `theme/reviews.js` (which every listed page may load): they are in the generated
+  `theme/unlisted-reviews.js`, which only the unlisted page itself loads.
 - **Cards.** On the home page `theme/modules/unlisted-cards.js` adds one card per unlisted page
   (text only, never `innerHTML`), labelled "Unlisted · <Kind>" in words, before `<bh-filter>`
   re-reads the list (`BhFilter.refresh()`), so chips and the search box cover them.

@@ -33,7 +33,7 @@
   /** "on", "off", "auto" or null for the value of an unlisted= token. */
   function parseValue(value) {
     value = String(value).toLowerCase();
-    if (value === "" || value === "true" || value === "on" || value === "1" || value === "yes") return "on";
+    if (value === "true" || value === "on" || value === "1" || value === "yes") return "on";
     if (value === "false" || value === "off" || value === "0" || value === "no") return "off";
     return value === "auto" ? "auto" : null;
   }
@@ -96,6 +96,9 @@
     // A new #unlisted=… in an open tab changes what the page should show: start over with it.
     if (g.addEventListener && !root.hasAttribute("data-bundled")) {
       g.addEventListener("hashchange", function () {
+        // Only an explicit unlisted= in the new fragment changes the choice: a section link must not
+        // reload the page (and, with sessionStorage blocked, lose the flag).
+        if (!parseFragment(g.location.hash).unlisted) return;
         var next = resolve({ hash: g.location.hash, bundled: false, storage: storage });
         if (next.visible !== api.visible && g.location.reload) g.location.reload();
       });

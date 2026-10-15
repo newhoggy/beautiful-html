@@ -147,6 +147,11 @@ test("published artifact keeps unlisted pages and their cards, and leaves them o
   // A listed post links to the unlisted one, and the unlisted one links back.
   fs.writeFileSync(path.join(f.source, post), original.replace("</article>", '<p><a href="quiet-demo.html">Quiet link</a></p></article>'));
   fs.writeFileSync(path.join(f.source, quiet), fs.readFileSync(path.join(f.source, quiet), "utf8").replace("</article>", '<p><a href="glossary.html">Glossary</a></p></article>'));
+  for (const document of [quiet, quietExample]) {
+    fs.writeFileSync(path.join(f.source, "reviews", path.basename(document) + ".json"), JSON.stringify({
+      format: "bh-review/1", document, reviewer: "Reader", comments: [{ id: document, kind: "comment", body: "Quiet words", created: "2026-10-13T00:00:00Z", target: { quote: { exact: "words" } } }],
+    }));
+  }
   f.assemble();
   const removed = preparePublishedSite(f.stage, f.source);
   assert.ok(removed.includes(quietExample), "an unlisted example is still an example, and the stricter rule wins");
@@ -167,7 +172,10 @@ test("published artifact keeps unlisted pages and their cards, and leaves them o
   assert.ok(unlisted.search.some((p) => p.href === quiet));
   assert.deepEqual([...unlisted.backlinks[quiet].map((b) => b.href.split("#")[0])], [post]);
   assert.deepEqual([...data(f.stage, "unlisted-slugs.js", "BH_UNLISTED_SLUGS")], [quiet]);
-  for (const file of ["unlisted-pages.js", "unlisted-slugs.js"]) assert.ok(!fs.readFileSync(path.join(f.stage, "theme", file), "utf8").includes("quiet-example"));
+  // Review threads on the unlisted page ship in their own file; the removed example's do not.
+  assert.deepEqual(Object.keys(data(f.stage, "unlisted-reviews.js", "BH_REVIEWS")), [quiet]);
+  assert.ok(!fs.readFileSync(path.join(f.stage, "theme/reviews.js"), "utf8").includes("quiet-"));
+  for (const file of ["unlisted-pages.js", "unlisted-slugs.js", "unlisted-reviews.js"]) assert.ok(!fs.readFileSync(path.join(f.stage, "theme", file), "utf8").includes("quiet-example"));
   // The published post keeps its link to the unlisted page in the HTML; the browser makes it inert.
   assert.ok(fs.readFileSync(path.join(f.stage, post), "utf8").includes('href="quiet-demo.html"'));
   const site = data(f.stage, "site.js", "BH_SITE");

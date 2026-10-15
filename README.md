@@ -135,6 +135,7 @@ theme/
   unlisted.js           Early <head> script: the #unlisted flag and the page-fragment parser
   unlisted-pages.js     GENERATED: unlisted pages' cards, search text and backlinks (loaded only with the flag)
   unlisted-slugs.js     GENERATED: unlisted pages' paths, so links to them can be made inert
+  unlisted-reviews.js   GENERATED: published review threads of unlisted pages (loaded only by those pages)
 theme/modules/          On-demand components (loaded only by pages that use them)
 reviews/schema.json     Format of exported review files (bh-review/1)
 reviews/inbox/          Where review files arrive, via pull request

@@ -59,7 +59,7 @@ test("the fragment is a list of tokens: reserved ones, and the first bare one is
 });
 
 test("value spellings", () => {
-  for (const [v, want] of [["true", "on"], ["on", "on"], ["1", "on"], ["YES", "on"], ["", "on"], ["false", "off"], ["off", "off"], ["0", "off"], ["no", "off"], ["auto", "auto"]]) {
+  for (const [v, want] of [["true", "on"], ["on", "on"], ["1", "on"], ["YES", "on"], ["false", "off"], ["off", "off"], ["0", "off"], ["no", "off"], ["auto", "auto"], ["", null], ["maybe", null]]) {
     assert.equal(parse(`#unlisted=${v}`).unlisted, want, v);
   }
 });
@@ -130,6 +130,11 @@ test("pasting a new #unlisted into an open tab reloads only when the choice chan
   found.context.location.hash = "#unlisted=true";
   onChange();
   assert.equal(found.reloads.length, 1);
+  // With sessionStorage blocked nothing is remembered; a section link must still not reload.
+  const blocked = load("https://bitwise.john-ky.io/#unlisted=true", { storageThrows: true });
+  blocked.context.location.hash = "#some-section";
+  blocked.listeners[0][1]();
+  assert.equal(blocked.reloads.length, 0);
 });
 
 // ---- the sealed-page shell reads the same fragment ----------------------------------------------
@@ -172,7 +177,7 @@ function fixture(t) {
   };
   return { root, bh, file, read, edit };
 }
-const generated = ["index.html", "theme/site.js", "theme/search-index.js", "theme/unlisted-pages.js", "theme/unlisted-slugs.js", "theme/reviews.js", "theme/glossary.js"];
+const generated = ["index.html", "theme/site.js", "theme/search-index.js", "theme/unlisted-pages.js", "theme/unlisted-slugs.js", "theme/unlisted-reviews.js", "theme/reviews.js", "theme/glossary.js"];
 const TITLE = "Quiet demo page";
 
 test("new --unlisted writes the marker; index keeps the page out of every default file and is idempotent", (t) => {
@@ -228,8 +233,9 @@ test("backlinks and review summaries that touch an unlisted page stay out of sit
   const data = {}; vm.runInNewContext(f.read("theme/unlisted-pages.js"), { window: data });
   assert.deepEqual(plain(data.BH_UNLISTED.backlinks["docs/quiet-demo.html"].map((b) => b.href.split("#")[0])), ["docs/announcing-patchcov.html"]);
   assert.deepEqual(plain(data.BH_UNLISTED.backlinks["docs/glossary.html"].map((b) => b.href.split("#")[0])), ["docs/quiet-demo.html"]);
-  // The reviews file is the one place its threads live; the page loads it itself.
-  assert.ok(f.read("theme/reviews.js").includes("docs/quiet-demo.html"));
+  // Its threads are in their own file, which only the unlisted page loads: listed pages load reviews.js.
+  assert.ok(!f.read("theme/reviews.js").includes("quiet-demo"));
+  assert.ok(f.read("theme/unlisted-reviews.js").includes("docs/quiet-demo.html"));
 });
 
 test("the client's card is the markup index writes for a listed page", (t) => {
