@@ -39,6 +39,10 @@ every page and key, so the rebrand changes the site's name and not these.
   backlinks. Pages deployment removes their HTML and social cards, so their addresses return
   404. `?examples` and `?examples=off` switch the view in the local source copy; they cannot
   restore files omitted from the deployed site (see CLAUDE.md, "Example pages").
+- **Unlisted pages.** A page with `<meta name="bh:unlisted" content="true">` (`npm run new --
+  --unlisted …`) is published and opens from its direct link, but stays off the home page,
+  search, backlinks and links unless a page is opened with `#unlisted=true` (remembered for the
+  tab). It is not private: anyone with the link can read it (see CLAUDE.md, "Unlisted pages").
 - **Address.** The repository, and so the Pages URL, keep the name `beautiful-html`. Renaming
   the repo would break every Pages link, including private-page `#k=` links already shared
   (GitHub redirects the repo URL but not Pages). If the blog gets its own address, use a
@@ -128,6 +132,9 @@ theme/
   print.css             Print: chrome removed, all steps and tabs expanded
   bh.js                 Runtime: chrome, TOC/scroll-spy, web components, lazy Prism/Mermaid
   examples.js           Early <head> script: which hosts show example pages (and the ?examples override)
+  unlisted.js           Early <head> script: the #unlisted flag and the page-fragment parser
+  unlisted-pages.js     GENERATED: unlisted pages' cards, search text and backlinks (loaded only with the flag)
+  unlisted-slugs.js     GENERATED: unlisted pages' paths, so links to them can be made inert
 theme/modules/          On-demand components (loaded only by pages that use them)
 reviews/schema.json     Format of exported review files (bh-review/1)
 reviews/inbox/          Where review files arrive, via pull request
