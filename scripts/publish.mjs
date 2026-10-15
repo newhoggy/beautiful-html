@@ -65,7 +65,7 @@ export function preparePublishedSite(stage, source = ROOT) {
     for (const entry of ["index.html", "docs", "theme"]) fs.cpSync(path.join(stage, entry), path.join(temp, entry), { recursive: true });
     for (const entry of ["scripts", "package.json", "reviews"]) fs.cpSync(path.join(source, entry), path.join(temp, entry), { recursive: true });
     execFileSync(process.execPath, [path.join(temp, "scripts/bh.mjs"), "index"], { cwd: temp, stdio: "pipe" });
-    for (const entry of ["index.html", "theme/glossary.js", "theme/site.js", "theme/search-index.js", "theme/reviews.js"]) {
+    for (const entry of ["index.html", "theme/glossary.js", "theme/site.js", "theme/search-index.js", "theme/reviews.js", "theme/unlisted-pages.js", "theme/unlisted-slugs.js"]) {
       fs.copyFileSync(path.join(temp, entry), path.join(stage, entry));
     }
   } finally { fs.rmSync(temp, { recursive: true, force: true }); }
@@ -74,7 +74,7 @@ export function preparePublishedSite(stage, source = ROOT) {
   for (const href of marked) { delete reviews[href]; delete site.reviews[href]; }
   writeData(stage, "theme/reviews.js", "BH_REVIEWS", reviews);
   writeData(stage, "theme/site.js", "BH_SITE", site);
-  console.log(`Removed ${marked.length} example pages and ${marked.length} social cards; rebuilt published index, glossary, search, backlinks and reviews`);
+  console.log(`Removed ${marked.length} example pages and ${marked.length} social cards; rebuilt published index, glossary, search, backlinks, reviews and unlisted data`);
   return marked;
 }
 
