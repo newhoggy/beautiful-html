@@ -63,7 +63,9 @@
     bar.querySelector("[data-prev]").disabled = index === 0;
     bar.querySelector("[data-next]").disabled = index === slides.length - 1;
     const h2 = slides[index][0].tagName === "H2" ? slides[index][0] : null;
-    const hash = h2 && h2.id ? "#" + h2.id : "";
+    // Keep an unlisted= choice in the address bar: it is not secret, and bookmarks should keep working.
+    const flag = location.hash.slice(1).split("&").filter((t) => /^unlisted=/.test(t)).slice(-1);
+    const hash = h2 && h2.id || flag.length ? "#" + [...flag, h2 && h2.id].filter(Boolean).join("&") : "";
     try { history.replaceState(history.state, "", location.pathname + location.search + hash); } catch (_) { /* sandboxed */ }
     scrollTo({ top: 0, behavior: "instant" });
     // Restart the entry animation on the new slide.
@@ -125,7 +127,7 @@
     doc.addEventListener("keydown", onKey);
     doc.addEventListener("pointerdown", onPointerDown);
     doc.addEventListener("pointerup", onPointerUp);
-    const fromHash = startId || decodeURIComponent(location.hash.slice(1));
+    const fromHash = startId || bh.fragment().id;
     index = Math.max(0, slideOf(fromHash));
     render();
     bar.querySelector("[data-next]").focus({ preventScroll: true });

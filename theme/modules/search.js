@@ -19,8 +19,10 @@
 
   function load() {
     const shown = (all) => bh.examples.visible ? all : all.filter((page) => !page.example); // examples are hidden off the local machine
-    if (window.BH_SEARCH) return Promise.resolve(shown(window.BH_SEARCH));
-    return bh.loadScript(new URL("theme/search-index.js", root).href).then(() => shown(window.BH_SEARCH || []));
+    // Unlisted pages are searchable only once the reader has opted in (#unlisted=true).
+    const withUnlisted = (all) => bh.unlisted.data().then((u) => shown([...all, ...((u && u.search) || [])]));
+    if (window.BH_SEARCH) return withUnlisted(window.BH_SEARCH);
+    return bh.loadScript(new URL("theme/search-index.js", root).href).then(() => withUnlisted(window.BH_SEARCH || []));
   }
 
   function score(terms, page, sec) {
