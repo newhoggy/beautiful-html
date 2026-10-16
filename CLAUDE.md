@@ -135,7 +135,8 @@ carries its key.
   (kebab-case) in each page's `<head>`; a page with no group keeps its own key, as before. The
   meta is valid only in `docs/*.private.html` (`check` fails on a public page or template) and is
   encrypted along with the page, so the group name never reaches the repo (`check` fails if it
-  shows up in a sealed file or in `theme/private-cards.js`).
+  shows up in a sealed file or in `theme/private-cards.js`; a name shorter than 8 characters can't be
+  told from chance in base64, so it isn't searched for: pick a longer one).
   - The group's key is one Password item, `beautiful-html private group: <name>`, in the same
     vault. A grouped page's own item, `beautiful-html private page: <slug>`, then holds no key,
     only a `group` field naming the group; `readKey`, `unseal` and `check` follow it. `seal`
@@ -144,7 +145,10 @@ carries its key.
     separate group (or none) for pages with a different audience.
   - **Adding, removing or renaming `bh:group` re-keys the page**: it is re-encrypted under the new
     key and every old `#k=` link to it stops working. `seal` prints a warning naming the page.
-    It archives the page's old item (it never edits a secret through argv) and creates the new one.
+    It archives the page's old item (it never edits a secret through argv) and creates the new one;
+    if that fails it puts the old item back. If a page's group item is missing while the page still
+    points at it, `seal` refuses (it would re-key the whole group) and `check` and `unseal` say the
+    group item is missing: restore it from the 1Password archive.
   - Archive a group's item only once no page uses the group.
 - **Cards on the home page.** `npm run seal` also writes `theme/private-cards.js` (generated;
   never edit it, and `index` never touches it): one blob per sealed page, holding its card

@@ -241,6 +241,55 @@ test("unseal finds a grouped page's key through its group", (t) => {
   assert.equal(s.read("docs/alpha-plan.private.html"), plain);
 });
 
+test("a missing group item is reported as such, and seal will not mint a new group key over it", (t) => {
+  const s = site(t);
+  s.newPrivate("alpha-plan", "Alpha plan", "kin-circle");
+  s.newPrivate("beta-plan", "Beta plan", "kin-circle");
+  assert.equal(s.run(["seal"]).code, 0);
+  const sealed = s.read("docs/alpha-plan.html"), cards = s.read("theme/private-cards.js");
+  s.drop("beautiful-html private group: kin-circle");
+
+  const seal = s.run(["seal"]);
+  assert.notEqual(seal.code, 0, seal.out);
+  assert.match(seal.out, /"beautiful-html private group: kin-circle" is missing from 1Password but alpha-plan still points at it/);
+  assert.equal(s.read("docs/alpha-plan.html"), sealed, "a sealed page changed");
+  assert.equal(s.read("theme/private-cards.js"), cards, "the card file changed");
+  assert.equal(s.field("beautiful-html private group: kin-circle", "password"), undefined, "a new group key was made");
+
+  const check = s.run(["check"]);
+  assert.match(check.out, /can't read the key for alpha-plan: its group item "beautiful-html private group: kin-circle" is missing/);
+  assert.ok(!/never been sealed/.test(check.out), check.out);
+  fs.rmSync(path.join(s.root, "docs/alpha-plan.private.html"));
+  const unseal = s.run(["unseal", "alpha-plan"]);
+  assert.match(unseal.out, /No key for alpha-plan in 1Password .*: its group item "beautiful-html private group: kin-circle" is missing/);
+});
+
+test("a page whose own key item went missing is re-keyed with a warning that says why", (t) => {
+  const s = site(t);
+  s.newPrivate("solo-note", "Solo note");
+  assert.equal(s.run(["seal"]).code, 0);
+  s.drop("beautiful-html private page: solo-note");
+  const r = s.run(["seal"]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /solo-note: its key changed \(its key was missing from 1Password, so a new one was made\)/);
+  assert.ok(!/left its group/.test(r.out), r.out);
+});
+
+test("if the replacement item can't be created, the old key item is put back", (t) => {
+  const s = site(t);
+  s.newPrivate("solo-note", "Solo note");
+  assert.equal(s.run(["seal"]).code, 0);
+  const key = s.field("beautiful-html private page: solo-note", "password");
+  const sealed = s.read("docs/solo-note.html");
+
+  s.setGroup("solo-note", "kin-circle");
+  s.failCreateOnce("beautiful-html private page: solo-note");
+  const r = s.run(["seal"]);
+  assert.notEqual(r.code, 0, r.out);
+  assert.equal(s.field("beautiful-html private page: solo-note", "password"), key, "the old key was lost");
+  assert.equal(s.read("docs/solo-note.html"), sealed);
+});
+
 test("an invalid bh:group is refused", (t) => {
   const s = site(t);
   s.newPrivate("alpha-plan", "Alpha plan", "Not Kebab");

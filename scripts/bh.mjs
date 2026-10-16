@@ -506,8 +506,8 @@ function extractSections(html) {
   });
 }
 
-/** The card markup for one page of the home list. `titles` maps hrefs to titles for "Replaced by".
-    theme/modules/unlisted-cards.js builds the same card in the browser (tests/unlisted.test.mjs compares them). */
+/** The card markup for one page of the home list (the markup lives in scripts/private-cards.mjs). `titles` maps hrefs to titles for "Replaced by".
+    theme/modules/unlisted-cards.js and private-cards.js build the same card in the browser (tests compare them). */
 const cardHtml = (d, titles, tags = docTopics(d)) => docCardHtml(d, tags, titles);
 
 const byDateThenTitle = (a, b) => (b.date || "").localeCompare(a.date || "") || a.title.localeCompare(b.title);
@@ -1269,6 +1269,7 @@ function cmdCheck() {
       if (group && nameLeaks(group, cardEntries.map((e) => e.blob).join("\n"))) problems.push(`${CARD_FILE} leaks the group name of ${slug}`);
       let keyText = null;
       try { keyText = readKey(slug); } catch (e) { problems.push(`can't read the key for ${slug} from 1Password: ${e.message}`); continue; }
+      if (!keyText && readItem(opTitle(slug))) { problems.push(`can't read the key for ${slug}: ${missingKeyReason(slug)}`); continue; }
       if (!keyText || !fs.existsSync(out)) { problems.push(`docs/${slug}${PRIVATE_EXT} has never been sealed: run \`npm run seal\``); continue; }
       const digest = sealDigest(Buffer.from(keyText, "base64url"), fs.readFileSync(src));
       if (getMeta(fs.readFileSync(out, "utf8"), "bh:sealed-digest") !== digest) problems.push(`docs/${slug}.html is stale: run \`npm run seal\``);
@@ -1327,7 +1328,7 @@ function cmdCheck() {
     // A group name is secret while the page is: it may only sit in a private source, and so is encrypted once sealed.
     if (!isPrivateSource(file) && /<meta\s+name="bh:group"/i.test(html)) err('<meta name="bh:group"> is only valid in docs/*.private.html: a public page has no key to share');
     // The catalogue's marker: without it the home page never looks for private cards.
-    if (file === INDEX && !/<ul\b[^>]*\bid="doc-list"[^>]*\bdata-private-cards\b/.test(html)) err('the #doc-list needs the data-private-cards attribute');
+    if (file === INDEX && !/<ul\b(?=[^>]*\sid="doc-list")[^>]*\sdata-private-cards[\s>=]/.test(html)) err('the #doc-list needs the data-private-cards attribute');
 
     // Social meta: generated, so it must be present and current (templates carry the empty markers).
     if (!isPrivateSource(file)) {
@@ -1651,6 +1652,14 @@ function readKey(slug) {
   return validKey(item.password);
 }
 
+/** Why `readKey` found no key for a page, in words. */
+function missingKeyReason(slug) {
+  const item = readItem(opTitle(slug));
+  if (!item) return `there is no item "${opTitle(slug)}"`;
+  if (item.group) return `its group item "${opGroupTitle(item.group)}" is missing or holds no valid key (restore it from the 1Password archive)`;
+  return `item "${opTitle(slug)}" holds no valid key`;
+}
+
 /** Create a 1Password item from the given fields; read it back, because a key hasn't reached 1Password until it can be fetched again. */
 function createItem(title, category, fields, verify) {
   const created = JSON.parse(op(["item", "create", "--vault", OP_VAULT, "--format", "json", "-"], JSON.stringify({ title, category, fields })));
@@ -1690,21 +1699,49 @@ function archiveItem(title) {
 }
 
 /**
+ * Refuse, before anything is written, a 1Password state that `ensureKey` must not paper over:
+ * an item that exists but holds no valid key (a second item with its title would break every
+ * lookup), and a group item that is gone while a page still points at it (minting a new key
+ * would silently re-key the whole group).
+ */
+function checkItems(slug, group) {
+  if (!group) return;
+  const groupItem = readItem(opGroupTitle(group));
+  if (groupItem && !validKey(groupItem.password)) throw new Error(`"${opGroupTitle(group)}" in 1Password holds no valid key: fix or archive that item, then run seal again`);
+  if (!groupItem && readItem(opTitle(slug))?.group === group) throw new Error(`"${opGroupTitle(group)}" is missing from 1Password but ${slug} still points at it: restore it from the archive, or archive "${opTitle(slug)}" to start the group again`);
+}
+
+/**
+ * Replace a page's item. The old one is archived first, because two items with one title break
+ * every lookup; if the new one can't be created, the old one is put back, so a failure never
+ * leaves a sealed page without its key.
+ */
+function replacePageItem(slug, old, create) {
+  const title = opTitle(slug);
+  if (old) archiveItem(title);
+  try { create(); }
+  catch (e) {
+    if (old && !readItem(title)) {
+      if (old.group) storePageGroup(slug, old.group);
+      else if (validKey(old.password)) storeKey(slug, old.password);
+    }
+    throw e;
+  }
+}
+
+/**
  * Make the page's 1Password items match its `bh:group` (or lack of one), creating whatever is
  * missing. Returns the key before and after: they differ when the page's group changed, which
  * re-keys it. An item whose mode changed is archived, not edited, so no secret passes through argv.
  */
 function ensureKey(slug, group) {
   const before = readKey(slug), title = opTitle(slug), item = readItem(title);
+  checkItems(slug, group);
   if (group) {
-    const groupItem = readItem(opGroupTitle(group));
-    // An item that exists but holds no valid key is never replaced here: a second one with the same title would break every lookup.
-    if (groupItem && !validKey(groupItem.password)) throw new Error(`"${opGroupTitle(group)}" in 1Password holds no valid key: fix or archive that item, then run seal again`);
-    if (!groupItem) { storeGroupKey(group); console.log(c.green(`Created a group key in 1Password: "${opGroupTitle(group)}" (vault ${OP_VAULT})`)); }
-    if (item?.group !== group) { if (item) archiveItem(title); storePageGroup(slug, group); }
+    if (!readItem(opGroupTitle(group))) { storeGroupKey(group); console.log(c.green(`Created a group key in 1Password: "${opGroupTitle(group)}" (vault ${OP_VAULT})`)); }
+    if (item?.group !== group) replacePageItem(slug, item, () => storePageGroup(slug, group));
   } else if (!(item && !item.group && validKey(item.password))) {
-    if (item) archiveItem(title);
-    storeKey(slug);
+    replacePageItem(slug, item, () => storeKey(slug));
     console.log(c.green(`Created a key in 1Password: "${title}" (vault ${OP_VAULT})`));
   }
   return { before, key: readKey(slug) };
@@ -1824,11 +1861,13 @@ function cmdSeal(argv = []) {
   const sources = privateSources();
   const cardsFile = path.join(ROOT, CARD_FILE);
   const existing = fs.existsSync(cardsFile) ? parseCardsFile(fs.readFileSync(cardsFile, "utf8")).entries : [];
-  // Refuse before writing anything: a failure half way would leave the pages and their cards out of step.
+  // Refuse what can be known up front before writing anything: a failure half way would leave the pages and their cards out of step.
+  // (A 1Password write that fails mid-run still can; the cards written below then follow the pages that were sealed.)
   const plans = sources.map((src) => {
     const slug = path.basename(src, PRIVATE_EXT), out = path.join(DOCS, `${slug}.html`);
     const group = sourceGroup(src);
     if (fs.existsSync(out) && !isSealed(out)) { console.error(c.red(`Refusing to overwrite public page ${path.relative(ROOT, out)}`)); process.exit(1); }
+    try { checkItems(slug, group); } catch (e) { console.error(c.red(`${slug}: ${e.message}`)); process.exit(1); }
     return { src, slug, out, rel: path.relative(ROOT, out), group };
   });
   const fresh = {}, groups = new Map();
@@ -1836,7 +1875,8 @@ function cmdSeal(argv = []) {
     for (const { src, slug, out, rel, group } of plans) {
       const { before, key: keyText } = ensureKey(slug, group);
       if (fs.existsSync(out) && before !== keyText) {
-        console.warn(c.yellow(`⚠ ${slug}: its key changed${group ? ` (now in the group "${group}")` : " (it left its group)"}. The page is re-encrypted, so every old #k= link to ${rel} stops working: share the new link.`));
+        const why = !before ? "its key was missing from 1Password, so a new one was made" : group ? `now in the group "${group}"` : "it left its group";
+        console.warn(c.yellow(`⚠ ${slug}: its key changed (${why}). The page is re-encrypted, so every old #k= link to ${rel} stops working: share the new link.`));
       }
       const key = Buffer.from(keyText, "base64url");
       const plain = fs.readFileSync(src);
@@ -1892,7 +1932,7 @@ function cmdUnseal(argv) {
     const slug = path.basename(shell, ".html");
     const out = path.join(DOCS, slug + PRIVATE_EXT), rel = path.relative(ROOT, out);
     const keyText = readKey(slug);
-    if (!keyText) { console.error(c.red(`No key for ${slug} in 1Password (vault ${OP_VAULT}, item "${opTitle(slug)}")`)); process.exitCode = 1; continue; }
+    if (!keyText) { console.error(c.red(`No key for ${slug} in 1Password (vault ${OP_VAULT}): ${missingKeyReason(slug)}`)); process.exitCode = 1; continue; }
     let plain;
     try { plain = unsealFile(shell, keyText); } catch (e) { console.error(c.red(`Can't decrypt docs/${slug}.html: ${e.message}`)); process.exitCode = 1; continue; }
     if (fs.existsSync(out)) {

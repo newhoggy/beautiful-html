@@ -24,6 +24,7 @@ if (b === "get") {
   console.log(JSON.stringify(item));
 } else if (b === "create") {
   const item = JSON.parse(fs.readFileSync(0, "utf8"));
+  if (state.failCreateOnce === item.title) { delete state.failCreateOnce; save(); console.error("[ERROR] fake op: create failed"); process.exit(1); }
   item.id = "id" + (state.items.length + state.archived.length);
   state.items.push(item); save(); console.log(JSON.stringify({ id: item.id }));
 } else if (b === "delete" && rest.includes("--archive")) {
@@ -79,6 +80,15 @@ export function site(t) {
     data.items.push({ id: "seed" + data.items.length, ...item });
     fs.writeFileSync(state, JSON.stringify(data));
   };
-  return { root, run, read, write, items, field, entries, newPrivate, setGroup, setMeta, seed };
+  const edit = (change) => {
+    const data = fs.existsSync(state) ? JSON.parse(fs.readFileSync(state, "utf8")) : { items: [], archived: [] };
+    change(data);
+    fs.writeFileSync(state, JSON.stringify(data));
+  };
+  /** Remove an item from the fake vault, as if it were archived or deleted out of band. */
+  const drop = (title) => edit((data) => { data.items = data.items.filter((i) => i.title !== title); });
+  /** Make the next `op item create` for this title fail. */
+  const failCreateOnce = (title) => edit((data) => { data.failCreateOnce = title; });
+  return { root, run, read, write, items, field, entries, newPrivate, setGroup, setMeta, seed, drop, failCreateOnce };
 }
 

@@ -163,20 +163,38 @@
       titles.set("docs/" + slug + ".html", (link.querySelector("h3") || {}).textContent || slug);
       return "docs/" + slug + ".html";
     };
+    let added = 0;
     for (const f of found.slice().sort((a, b) => before(a.card, b.card))) {
       if (list.querySelector('[data-private-slug="' + f.slug + '"]')) continue;
       const replacedBy = replacement(f.card.supersededBy);
       const li = build(cardSpec({ ...f.card, href: hrefs.get(f.slug), supersededBy: replacedBy, superseded: !!f.card.supersededBy, example: false }, f.card.tags, titles, true));
       li.dataset.privateSlug = f.slug;
       insert(list, li, f.card);
+      added++;
     }
+    // The filter read the list before these arrived. Re-reading it resets the reader's chips, so only when something changed.
     const filter = doc.querySelector('bh-filter[for="' + list.id + '"]');
-    if (filter && filter.refresh) filter.refresh();
+    if (added && filter && filter.refresh) filter.refresh();
   }
 
   // ---- start --------------------------------------------------------------------------------
 
-  async function start() {
+  let fileLoad = null;
+  /** theme/private-cards.js, requested once however many times start() runs. */
+  function loadCardFile() {
+    if (window.BH_PRIVATE) return Promise.resolve();
+    if (!fileLoad) fileLoad = bh.loadScript(new URL("theme/private-cards.js", bh.siteRoot).href).catch((e) => { fileLoad = null; throw e; });
+    return fileLoad;
+  }
+
+  let running = Promise.resolve();
+  /** Runs one after another: a key pasted while the first run is still decrypting waits for it, and sees its cards and remembered keys. */
+  function start() {
+    running = running.then(run, run);
+    return running;
+  }
+
+  async function run() {
     const list = doc.querySelector("ul[data-private-cards]");
     if (!list) return;
     const fromHash = fragmentParts().filter((p) => p.startsWith("k=")).map((p) => p.slice(2)).filter((k) => KEY_RE.test(k));
@@ -186,7 +204,7 @@
     const typed = fromHash.length > 0; // the reader asked for these, so tell them when it did not work
     try {
       if (!(window.crypto && crypto.subtle) || typeof DecompressionStream === "undefined") throw new Error("unsupported");
-      if (!window.BH_PRIVATE) await bh.loadScript(new URL("theme/private-cards.js", bh.siteRoot).href);
+      await loadCardFile();
       const file = window.BH_PRIVATE;
       if (!file || file.v !== 1 || !Array.isArray(file.cards)) throw new Error("no cards");
       const opened = [];
@@ -203,7 +221,9 @@
       }
       if (found.length) show(list, found);
       if (typed && fromHash.some((k) => !used.has(k))) bh.toast("No private pages for that key", 3500);
-      const keep = [...new Set([...remembered.filter((k) => used.has(k)), ...fromHash.filter((k) => used.has(k))])];
+      // Remember the keys that opened cards. One remembered earlier stays even if this run found nothing for it
+      // (a stale cached card file must not make the tab forget a good key); a typed key that opens nothing is not stored.
+      const keep = [...new Set([...remembered, ...fromHash.filter((k) => used.has(k))])];
       try { sessionStorage.setItem(INDEX_KEYS, JSON.stringify(keep)); } catch (_) { /* storage blocked */ }
     } catch (_) {
       if (typed || storedKeys(INDEX_KEYS).length) bh.toast("Private pages can't be shown here. This page is the public list.", 4500);
