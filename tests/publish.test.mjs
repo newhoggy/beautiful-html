@@ -131,3 +131,65 @@ test("project subpaths normalize a missing trailing slash and preserve unrelated
   for (const href of links) assert.ok(!result.includes(`href='${href}'`), href);
   assert.ok(result.includes('<a data-href="token-bucket-rate-limiting.html" href="glossary.html">Kept link</a>'));
 });
+
+test("published artifact keeps unlisted pages and their cards, and leaves them out of the rebuilt index, search and backlinks", async (t) => {
+  const f = fixture(t);
+  const marker = '<meta name="bh:unlisted" content="true">';
+  // An unlisted page of its own (a copy of a post) and an unlisted page that is also an example.
+  const quiet = "docs/quiet-demo.html", quietExample = "docs/quiet-example.html";
+  const original = fs.readFileSync(path.join(f.source, post), "utf8");
+  const withMarker = (html, extra = "") => html.replace(/^(  <meta name="bh:tags" content="[^"]*">\n)/m, `$1  ${marker}\n${extra}`).replace(/<title>[^<]*<\/title>/, "<title>Quiet words</title>");
+  fs.writeFileSync(path.join(f.source, quiet), withMarker(original));
+  fs.writeFileSync(path.join(f.source, quietExample), withMarker(original, '  <meta name="bh:example" content="true">\n').replace("<title>Quiet words</title>", "<title>Quiet example</title>"));
+  for (const page of [quiet, quietExample]) {
+    fs.copyFileSync(path.join(f.source, "docs/assets/og/announcing-patchcov.png"), path.join(f.source, page.replace("docs/", "docs/assets/og/").replace(".html", ".png")));
+  }
+  // A listed post links to the unlisted one, and the unlisted one links back.
+  fs.writeFileSync(path.join(f.source, post), original.replace("</article>", '<p><a href="quiet-demo.html">Quiet link</a></p></article>'));
+  fs.writeFileSync(path.join(f.source, quiet), fs.readFileSync(path.join(f.source, quiet), "utf8").replace("</article>", '<p><a href="glossary.html">Glossary</a></p></article>'));
+  for (const document of [quiet, quietExample]) {
+    fs.writeFileSync(path.join(f.source, "reviews", path.basename(document) + ".json"), JSON.stringify({
+      format: "bh-review/1", document, reviewer: "Reader", comments: [{ id: document, kind: "comment", body: "Quiet words", created: "2026-10-13T00:00:00Z", target: { quote: { exact: "words" } } }],
+    }));
+  }
+  f.assemble();
+  const removed = preparePublishedSite(f.stage, f.source);
+  assert.ok(removed.includes(quietExample), "an unlisted example is still an example, and the stricter rule wins");
+  assert.equal(fs.existsSync(path.join(f.stage, quietExample)), false);
+  assert.equal(fs.existsSync(path.join(f.stage, "docs/assets/og/quiet-example.png")), false);
+  // The unlisted page and its card are published at their normal address.
+  assert.equal(fs.existsSync(path.join(f.stage, quiet)), true);
+  assert.equal(fs.existsSync(path.join(f.stage, "docs/assets/og/quiet-demo.png")), true);
+  const published = fs.readFileSync(path.join(f.stage, quiet), "utf8");
+  assert.ok(published.includes(marker));
+  // The rebuilt default data does not mention it; the unlisted data does, and lacks the removed example.
+  for (const file of ["index.html", "theme/site.js", "theme/search-index.js"]) {
+    assert.ok(!fs.readFileSync(path.join(f.stage, file), "utf8").includes("quiet-demo"), `${file} must not mention the unlisted page`);
+    assert.ok(!fs.readFileSync(path.join(f.stage, file), "utf8").includes("Quiet words"), `${file} must not carry its title`);
+  }
+  const unlisted = data(f.stage, "unlisted-pages.js", "BH_UNLISTED");
+  assert.deepEqual([...unlisted.pages.map((p) => p.href)], [quiet]);
+  assert.ok(unlisted.search.some((p) => p.href === quiet));
+  assert.deepEqual([...unlisted.backlinks[quiet].map((b) => b.href.split("#")[0])], [post]);
+  assert.deepEqual([...data(f.stage, "unlisted-slugs.js", "BH_UNLISTED_SLUGS")], [quiet]);
+  // Review threads on the unlisted page ship in their own file; the removed example's do not.
+  assert.deepEqual(Object.keys(data(f.stage, "unlisted-reviews.js", "BH_REVIEWS")), [quiet]);
+  assert.ok(!fs.readFileSync(path.join(f.stage, "theme/reviews.js"), "utf8").includes("quiet-"));
+  for (const file of ["unlisted-pages.js", "unlisted-slugs.js", "unlisted-reviews.js"]) assert.ok(!fs.readFileSync(path.join(f.stage, "theme", file), "utf8").includes("quiet-example"));
+  // The published post keeps its link to the unlisted page in the HTML; the browser makes it inert.
+  assert.ok(fs.readFileSync(path.join(f.stage, post), "utf8").includes('href="quiet-demo.html"'));
+  const site = data(f.stage, "site.js", "BH_SITE");
+  assert.equal(site.pages.some((p) => p.href === quiet), false);
+  assert.equal(site.backlinks[quiet], undefined);
+  const server = http.createServer((req, res) => {
+    const file = path.join(f.stage, new URL(req.url, "http://local").pathname);
+    if (!fs.existsSync(file)) { res.writeHead(404).end(); return; }
+    res.end(fs.readFileSync(file));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const base = `http://127.0.0.1:${server.address().port}/`;
+    assert.equal((await fetch(base + quiet)).status, 200);
+    assert.equal((await fetch(base + quietExample)).status, 404);
+  } finally { await new Promise((resolve) => server.close(resolve)); }
+});

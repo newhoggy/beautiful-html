@@ -656,6 +656,17 @@ bh-playground output { font-variant-numeric: tabular-nums; }
 html:not([data-examples="on"]) [data-example] { display: none; }
 html[data-examples="off"][data-example-page] main:not(.bh-example-blocked) { display: none; }
 
+/* Unlisted pages (bh:unlisted) are surfaced only when the page was opened with #unlisted=true.
+   theme/unlisted.js sets data-unlisted before first paint; the cards are added in the browser, so this
+   is a backstop that keeps one hidden if it ever arrives in the markup. A link to an unlisted page is
+   inert text until then: bh.js removes its href, and it must not look clickable. */
+html:not([data-unlisted="on"]) [data-unlisted] { display: none; }
+a[aria-disabled="true"]:not([href]) {
+  color: inherit;
+  text-decoration: none;
+  cursor: text;
+}
+
 .bh-filter { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .bh-filter input[type="search"] { flex: 1 1 14rem; min-width: 0; }
 .bh-filter-empty { color: var(--text-muted); }
