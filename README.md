@@ -25,7 +25,8 @@ every page and key, so the rebrand changes the site's name and not these.
   rest, with no work from the author (see [Social cards](#social-cards)).
 - **Private pages.** A page written as `docs/<slug>.private.html` is never committed. `seal`
   publishes an encrypted copy that opens only from its `#k=<key>` link, with the key kept
-  in 1Password. `unseal` recovers the source from that copy (see CLAUDE.md).
+  in 1Password. `unseal` recovers the source from that copy. Pages can share a key (`bh:group`),
+  and `index.html#k=<key>` then shows their cards on the home page (see CLAUDE.md).
 
 ## Topics, examples and the site address
 
@@ -140,6 +141,7 @@ theme/modules/          On-demand components (loaded only by pages that use them
 reviews/schema.json     Format of exported review files (bh-review/1)
 reviews/inbox/          Where review files arrive, via pull request
 scripts/bh.mjs          CLI: new · index · check · cards · bundle · seal · unseal · serve
+scripts/private-cards.mjs  Encrypted card blobs for private pages, and the home-page card markup
 scripts/cards.mjs       Social card renderer (used by `bh cards`): visual screenshot + branded frame
 scripts/chrome.mjs      Finds and drives a local Chrome over the DevTools protocol (visual, cards)
 scripts/visual.mjs      Visual regression: Chrome via DevTools protocol, PNG diff, HTML report

@@ -903,8 +903,8 @@
       search.addEventListener("input", apply);
       const bar = el("div", { class: "bh-filter" }, [search, ...groups()]);
       this.append(bar);
-      /** Re-read the list after cards were added to it (the unlisted cards arrive after this ran). */
-      this.refresh = () => {
+      /** Re-read the list after cards were added to it (the unlisted and private cards arrive after this ran). */
+      this._rebuild = () => {
         kind = topic = "";
         bar.querySelectorAll(".bh-filter-group").forEach((g) => g.remove());
         bar.append(...groups());
@@ -914,6 +914,11 @@
       doc.addEventListener("keydown", (e) => {
         if (e.key === "/" && !e.target.closest("input, textarea, select, [contenteditable]")) { e.preventDefault(); search.focus(); }
       });
+    }
+    /** Re-read the list after cards were added to it: rebuilds the kind and topic chips and clears the filters. */
+    refresh() {
+      if (this._ready) { if (this._rebuild) this._rebuild(); }
+      else this.init();
     }
   }
 
@@ -1371,8 +1376,20 @@
     ["matrix.js", "bh-matrix"],
     ["chart.js", "bh-chart"],
     ["unlisted-cards.js", "ul[data-unlisted-cards]"],
+    // The home page looks for private cards only when it holds a key: nothing is fetched otherwise.
+    ["private-cards.js", "ul[data-private-cards]", hasPrivateKeys],
     // search.js and present.js load on first use (top bar buttons, ⌘K, ?present).
   ];
+
+  /** Whether a key for private cards is at hand: in the fragment, or remembered in this tab (by the home page or a sealed page). */
+  function hasPrivateKeys() {
+    if (/[#&]k=[A-Za-z0-9_-]{43}(?:&|$)/.test(location.hash)) return true;
+    return !!storage(() => {
+      if (sessionStorage.getItem("bh-index-keys")) return true;
+      for (let i = 0; i < sessionStorage.length; i++) if ((sessionStorage.key(i) || "").startsWith("bh-sealed-key:")) return true;
+      return false;
+    });
+  }
 
   function loadModule(file) {
     window.bhModules = window.bhModules || {};
@@ -1384,8 +1401,8 @@
   }
 
   function loadModules() {
-    // The unlisted cards are only ever built when the flag is on: don't fetch the module otherwise.
-    const wanted = ([file, selector]) => doc.querySelector(selector) && (file !== "unlisted-cards.js" || UNLISTED.visible);
+    // Some modules are wanted only on a condition: the unlisted cards when the flag is on, the private cards when a key is at hand.
+    const wanted = ([file, selector, when]) => doc.querySelector(selector) && (!when || when()) && (file !== "unlisted-cards.js" || UNLISTED.visible);
     return Promise.all(MODULES.filter(wanted).map(([file]) => loadModule(file)));
   }
 
@@ -1478,6 +1495,15 @@
     }));
     // Deep-link arrival waits for modules, so a link into a module-managed view works.
     const modules = settle(loadModules());
+    // Private cards join the catalogue before the page counts as ready (a no-op unless a key is at hand).
+    settle(modules.then(() => window.bh.privateCards && window.bh.privateCards.start()));
+    // A key pasted into the open home page only changes the fragment (no reload): look again then.
+    if (doc.querySelector("ul[data-private-cards]")) {
+      addEventListener("hashchange", () => {
+        if (!/[#&]k=[A-Za-z0-9_-]{43}(?:&|$)/.test(location.hash)) return;
+        settle(loadModule("private-cards.js").then(() => window.bh.privateCards && window.bh.privateCards.start()));
+      });
+    }
     modules.then(() => {
       // Review: ?review opens review mode; stored comments for this page load the module
       // so they're shown on every revisit.

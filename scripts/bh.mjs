@@ -18,6 +18,10 @@ import zlib from "node:zlib";
 import crypto from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath } from "node:url";
+import {
+  KIND_LABELS, escapeHtml, CARD_FILE, KEY_RE, GROUP_RE, cardFromDoc, tryDecryptCard, buildBlob,
+  renderCardsFile, parseCardsFile, validateCardsFile, mergeEntries, docCardHtml,
+} from "./private-cards.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DOCS = path.join(ROOT, "docs");
@@ -44,15 +48,6 @@ const UNLISTED_REVIEWS_OUT = path.join(ROOT, "theme", "unlisted-reviews.js");
 const PRIVATE_EXT = ".private.html";
 const OP_VAULT = process.env.BH_OP_VAULT || "Private";
 
-const KIND_LABELS = {
-  explainer: "Explainer",
-  design: "Design doc",
-  decision: "Decision",
-  incident: "Incident",
-  review: "Review",
-  reference: "Reference",
-};
-
 const c = {
   red: (s) => `\x1b[31m${s}\x1b[0m`,
   yellow: (s) => `\x1b[33m${s}\x1b[0m`,
@@ -61,10 +56,6 @@ const c = {
 };
 
 // ---- HTML helpers (regex-based; fine for the files we author) ------------------
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
-}
 
 function getMeta(html, name) {
   const re = new RegExp(`<meta\\s+name="${name.replace(":", "\\:")}"\\s+content="([^"]*)"`, "i");
@@ -515,22 +506,9 @@ function extractSections(html) {
   });
 }
 
-/** The card markup for one page of the home list. `titles` maps hrefs to titles for "Replaced by".
-    theme/modules/unlisted-cards.js builds the same card in the browser (tests/unlisted.test.mjs compares them). */
-function cardHtml(d, titles, tags = docTopics(d)) {
-  const search = [d.title, d.description, tags.join(", "), d.kind].join(" ").toLowerCase();
-  const replaced = d.supersededBy ? `\n        <p class="card-replaced">Replaced by <a href="${escapeHtml(d.supersededBy)}">${escapeHtml(titles.get(d.supersededBy) || d.supersededBy)}</a></p>` : "";
-  const kindLabel = KIND_LABELS[d.kind] || d.kind;
-  const eyebrow = (d.example ? "Example · " : "") + (d.unlisted ? "Unlisted · " : "") + kindLabel;
-  return `      <li class="card doc-card${d.supersededBy ? " is-superseded" : ""}"${d.example ? " data-example" : ""}${d.unlisted ? " data-unlisted" : ""} data-kind="${escapeHtml(d.kind)}" data-tags="${escapeHtml(tags.join(","))}" data-search="${escapeHtml(search)}">
-        <a class="card-link" href="${escapeHtml(d.href)}">
-          <span class="eyebrow">${escapeHtml(eyebrow)}</span>
-          <h3>${escapeHtml(d.title)}</h3>
-          <p>${escapeHtml(d.description)}</p>
-        </a>
-        <span class="card-meta">${d.status ? `<span class="badge ${escapeHtml(d.status.toLowerCase())}">${escapeHtml(d.status)}</span>` : ""}${d.date ? `<time datetime="${escapeHtml(d.date)}">${escapeHtml(d.date)}</time>` : ""}</span>${replaced}
-      </li>`;
-}
+/** The card markup for one page of the home list (the markup lives in scripts/private-cards.mjs). `titles` maps hrefs to titles for "Replaced by".
+    theme/modules/unlisted-cards.js and private-cards.js build the same card in the browser (tests compare them). */
+const cardHtml = (d, titles, tags = docTopics(d)) => docCardHtml(d, tags, titles);
 
 const byDateThenTitle = (a, b) => (b.date || "").localeCompare(a.date || "") || a.title.localeCompare(b.title);
 
@@ -1179,6 +1157,9 @@ function logoProblems() {
   return problems;
 }
 
+/** Whether a secret name shows in ciphertext. Names shorter than 8 characters can't be told from chance in base64, so they are not searched for. */
+const nameLeaks = (name, haystack) => name.length >= 8 && haystack.includes(name);
+
 function cmdCheck() {
   let errors = 0, warnings = 0;
   const templates = fs.readdirSync(TEMPLATES).filter((f) => f.endsWith(".html")).sort().map((f) => path.join(TEMPLATES, f));
@@ -1242,7 +1223,7 @@ function cmdCheck() {
   }
   // Private pages: every plaintext is sealed and current; sealed shells are well-formed.
   const privateSlugs = new Set([...privateSources().map((f) => path.basename(f, PRIVATE_EXT)), ...sealedFiles().map((f) => path.basename(f, ".html"))]);
-  if (privateSlugs.size) {
+  {
     const problems = [];
     for (const shell of sealedFiles()) {
       const slug = path.basename(shell, ".html"), text = fs.readFileSync(shell, "utf8");
@@ -1262,22 +1243,40 @@ function cmdCheck() {
       if (fs.existsSync(source)) {
         const plain = stripComments(fs.readFileSync(source, "utf8"));
         const generic = sealedShell("", "", "");
-        for (const [what, value] of [["title", getTitle(plain)], ["description", getMeta(plain, "description")]]) {
+        for (const [what, value] of [["title", getTitle(plain)], ["description", getMeta(plain, "description")], ["group name", getMeta(plain, "bh:group")]]) {
           // A value the generic shell already contains (a title like "Private") can't be told apart; the exact comparison above covers it.
-          for (const v of new Set([value, decodeHtml(value)])) if (v && !generic.includes(v) && text.includes(v)) problems.push(`docs/${slug}.html leaks the page's ${what}`);
+          for (const v of new Set([value, decodeHtml(value)])) {
+            // A group name must also be long enough to tell from chance in base64.
+            if (v && !generic.includes(v) && (what === "group name" ? nameLeaks(v, text) : text.includes(v))) problems.push(`docs/${slug}.html leaks the page's ${what}`);
+          }
         }
       }
     }
+    // The encrypted cards for the home page: structure everywhere, content where the keys are.
+    const cardsFile = path.join(ROOT, CARD_FILE);
+    let cardsText = null;
+    if (!fs.existsSync(cardsFile)) problems.push(`${CARD_FILE} is missing: run \`npm run seal\``);
+    else {
+      cardsText = fs.readFileSync(cardsFile, "utf8");
+      for (const p of validateCardsFile(cardsText, new Set(sealedFiles().map((f) => path.basename(f, ".html"))))) problems.push(`${CARD_FILE} ${p}`);
+    }
+    const cardEntries = cardsText ? parseCardsFile(cardsText).entries : [];
     for (const src of privateSources()) {
       const slug = path.basename(src, PRIVATE_EXT), out = path.join(DOCS, `${slug}.html`);
       if (fs.existsSync(out) && !isSealed(out)) { problems.push(`docs/${slug}.html is public but docs/${slug}${PRIVATE_EXT} also exists`); continue; }
+      const group = getMeta(stripComments(fs.readFileSync(src, "utf8")), "bh:group");
+      if (group && !GROUP_RE.test(group)) problems.push(`docs/${slug}${PRIVATE_EXT}: bh:group "${group}" must be kebab-case`);
+      if (group && nameLeaks(group, cardEntries.map((e) => e.blob).join("\n"))) problems.push(`${CARD_FILE} leaks the group name of ${slug}`);
       let keyText = null;
       try { keyText = readKey(slug); } catch (e) { problems.push(`can't read the key for ${slug} from 1Password: ${e.message}`); continue; }
+      if (!keyText && readItem(opTitle(slug))) { problems.push(`can't read the key for ${slug}: ${missingKeyReason(slug)}`); continue; }
       if (!keyText || !fs.existsSync(out)) { problems.push(`docs/${slug}${PRIVATE_EXT} has never been sealed: run \`npm run seal\``); continue; }
       const digest = sealDigest(Buffer.from(keyText, "base64url"), fs.readFileSync(src));
       if (getMeta(fs.readFileSync(out, "utf8"), "bh:sealed-digest") !== digest) problems.push(`docs/${slug}.html is stale: run \`npm run seal\``);
+      const blob = cardEntries.find((e) => e.slug === slug)?.blob;
+      if (blob && !isDeepStrictEqual(tryDecryptCard(blob, keyText, slug), sourceCard(src))) problems.push(`private card for ${slug} is stale: run \`npm run seal\``);
     }
-    console.log((problems.length ? c.red("✗ ") : c.green("✓ ")) + `private pages (${privateSlugs.size} sealed)`);
+    if (privateSlugs.size || problems.length) console.log((problems.length ? c.red("✗ ") : c.green("✓ ")) + `private pages (${privateSlugs.size} sealed)`);
     problems.forEach((p) => console.log(c.red("  error  ") + p));
     errors += problems.length;
   }
@@ -1325,6 +1324,11 @@ function cmdCheck() {
 
     // The home page lists unlisted pages (when the reader opts in) into this list, in the browser.
     if (file === INDEX && !/<ul\b(?=[^>]*\sid="doc-list")[^>]*\sdata-unlisted-cards[\s>=]/.test(html)) err('the <ul id="doc-list"> needs the data-unlisted-cards attribute, which loads the module that lists unlisted pages');
+
+    // A group name is secret while the page is: it may only sit in a private source, and so is encrypted once sealed.
+    if (!isPrivateSource(file) && /<meta\s+name="bh:group"/i.test(html)) err('<meta name="bh:group"> is only valid in docs/*.private.html: a public page has no key to share');
+    // The catalogue's marker: without it the home page never looks for private cards.
+    if (file === INDEX && !/<ul\b(?=[^>]*\sid="doc-list")[^>]*\sdata-private-cards[\s>=]/.test(html)) err('the #doc-list needs the data-private-cards attribute');
 
     // Social meta: generated, so it must be present and current (templates carry the empty markers).
     if (!isPrivateSource(file)) {
@@ -1607,7 +1611,8 @@ function cmdBundle([target]) {
 // The sealed file is the copy of record: `unseal` recreates the plaintext from it.
 
 const opTitle = (slug) => `beautiful-html private page: ${slug}`;
-const keyCache = new Map();
+const opGroupTitle = (name) => `beautiful-html private group: ${name}`;
+const itemCache = new Map();
 
 /** Run the 1Password CLI. Secrets only ever travel on stdin/stdout, never in argv. */
 function op(args, input) {
@@ -1622,37 +1627,124 @@ function op(args, input) {
   }
 }
 
-/** The page's key from 1Password, or null if it has none yet. */
-function readKey(slug) {
-  if (!keyCache.has(slug)) {
-    let key = null;
+/** A 1Password item as { id, group, password } (empty strings for absent fields), or null if there is none. */
+function readItem(title) {
+  if (!itemCache.has(title)) {
+    let item = null;
     try {
-      key = op(["item", "get", opTitle(slug), "--vault", OP_VAULT, "--fields", "label=password", "--reveal"]);
+      item = JSON.parse(op(["item", "get", title, "--vault", OP_VAULT, "--format", "json", "--reveal"]));
     } catch (e) {
       if (!/isn't an item|not found/i.test(e.message)) throw e;
     }
-    keyCache.set(slug, key && /^[A-Za-z0-9_-]{43}$/.test(key) ? key : null);
+    const field = (label) => String((item?.fields || []).find((f) => f.label === label)?.value ?? "");
+    itemCache.set(title, item && { id: item.id, group: field("group"), password: field("password") });
   }
-  return keyCache.get(slug);
+  return itemCache.get(title);
 }
+
+const validKey = (key) => (key && KEY_RE.test(key) ? key : null);
+
+/** The key that opens a page, or null if it has none yet. A grouped page's item names its group; the group's item holds the key. */
+function readKey(slug) {
+  const item = readItem(opTitle(slug));
+  if (!item) return null;
+  if (item.group) return validKey(readItem(opGroupTitle(item.group))?.password);
+  return validKey(item.password);
+}
+
+/** Why `readKey` found no key for a page, in words. */
+function missingKeyReason(slug) {
+  const item = readItem(opTitle(slug));
+  if (!item) return `there is no item "${opTitle(slug)}"`;
+  if (item.group) return `its group item "${opGroupTitle(item.group)}" is missing or holds no valid key (restore it from the 1Password archive)`;
+  return `item "${opTitle(slug)}" holds no valid key`;
+}
+
+/** Create a 1Password item from the given fields; read it back, because a key hasn't reached 1Password until it can be fetched again. */
+function createItem(title, category, fields, verify) {
+  const created = JSON.parse(op(["item", "create", "--vault", OP_VAULT, "--format", "json", "-"], JSON.stringify({ title, category, fields })));
+  itemCache.delete(title);
+  if (!verify(readItem(title))) throw new Error(`1Password item ${created.id} doesn't hold what was sent; archive it and retry`);
+}
+
+const notes = (value) => ({ id: "notesPlain", type: "STRING", purpose: "NOTES", label: "notesPlain", value });
+const secret = (key) => ({ id: "password", type: "CONCEALED", purpose: "PASSWORD", label: "password", value: key });
 
 /** Store a new key as a 1Password Password item. */
 function storeKey(slug, key = crypto.randomBytes(32).toString("base64url")) {
-  const item = {
-    title: opTitle(slug),
-    category: "PASSWORD",
-    fields: [
-      { id: "password", type: "CONCEALED", purpose: "PASSWORD", label: "password", value: key },
-      { id: "notesPlain", type: "STRING", purpose: "NOTES", label: "notesPlain",
-        value: `Decryption key for docs/${slug}.html in beautiful-html.\nShare as: docs/${slug}.html#k=<this password>\nRecreate the plaintext with: npm run unseal -- ${slug}` },
-    ],
-  };
-  const created = JSON.parse(op(["item", "create", "--vault", OP_VAULT, "--format", "json", "-"], JSON.stringify(item)));
-  // Read it back: never trust that a key reached 1Password until it can be fetched again.
-  keyCache.delete(slug);
-  if (readKey(slug) !== key) throw new Error(`1Password item ${created.id} doesn't hold the key that was sent; archive it and retry`);
-  keyCache.set(slug, key);
+  createItem(opTitle(slug), "PASSWORD", [secret(key),
+    notes(`Decryption key for docs/${slug}.html in beautiful-html.\nShare as: docs/${slug}.html#k=<this password>\nRecreate the plaintext with: npm run unseal -- ${slug}`)],
+  (item) => item?.password === key);
   return key;
+}
+
+/** Store a new group key. Every page in the group is opened by it, and so is the home-page card of each. */
+function storeGroupKey(name, key = crypto.randomBytes(32).toString("base64url")) {
+  createItem(opGroupTitle(name), "PASSWORD", [secret(key),
+    notes(`Decryption key shared by every private page in the group "${name}" (<meta name="bh:group">) in beautiful-html.\nShare as: docs/<slug>.html#k=<this password>, or index.html#k=<this password> for the home-page cards.\nAnyone with it opens every page in the group. Archive this item only once no page uses the group.`)],
+  (item) => item?.password === key);
+  return key;
+}
+
+/** Point a page at its group: the page's item keeps no key, only the group's name. */
+function storePageGroup(slug, group) {
+  createItem(opTitle(slug), "SECURE_NOTE", [{ id: "group", type: "STRING", label: "group", value: group },
+    notes(`The key for docs/${slug}.html is the password of "${opGroupTitle(group)}".\nRecreate the plaintext with: npm run unseal -- ${slug}`)],
+  (item) => item?.group === group);
+}
+
+function archiveItem(title) {
+  op(["item", "delete", title, "--vault", OP_VAULT, "--archive"]);
+  itemCache.delete(title);
+}
+
+/**
+ * Refuse, before anything is written, a 1Password state that `ensureKey` must not paper over:
+ * an item that exists but holds no valid key (a second item with its title would break every
+ * lookup), and a group item that is gone while a page still points at it (minting a new key
+ * would silently re-key the whole group).
+ */
+function checkItems(slug, group) {
+  if (!group) return;
+  const groupItem = readItem(opGroupTitle(group));
+  if (groupItem && !validKey(groupItem.password)) throw new Error(`"${opGroupTitle(group)}" in 1Password holds no valid key: fix or archive that item, then run seal again`);
+  if (!groupItem && readItem(opTitle(slug))?.group === group) throw new Error(`"${opGroupTitle(group)}" is missing from 1Password but ${slug} still points at it: restore it from the archive, or archive "${opTitle(slug)}" to start the group again`);
+}
+
+/**
+ * Replace a page's item. The old one is archived first, because two items with one title break
+ * every lookup; if the new one can't be created, the old one is put back, so a failure never
+ * leaves a sealed page without its key.
+ */
+function replacePageItem(slug, old, create) {
+  const title = opTitle(slug);
+  if (old) archiveItem(title);
+  try { create(); }
+  catch (e) {
+    if (old && !readItem(title)) {
+      if (old.group) storePageGroup(slug, old.group);
+      else if (validKey(old.password)) storeKey(slug, old.password);
+    }
+    throw e;
+  }
+}
+
+/**
+ * Make the page's 1Password items match its `bh:group` (or lack of one), creating whatever is
+ * missing. Returns the key before and after: they differ when the page's group changed, which
+ * re-keys it. An item whose mode changed is archived, not edited, so no secret passes through argv.
+ */
+function ensureKey(slug, group) {
+  const before = readKey(slug), title = opTitle(slug), item = readItem(title);
+  checkItems(slug, group);
+  if (group) {
+    if (!readItem(opGroupTitle(group))) { storeGroupKey(group); console.log(c.green(`Created a group key in 1Password: "${opGroupTitle(group)}" (vault ${OP_VAULT})`)); }
+    if (item?.group !== group) replacePageItem(slug, item, () => storePageGroup(slug, group));
+  } else if (!(item && !item.group && validKey(item.password))) {
+    replacePageItem(slug, item, () => storeKey(slug));
+    console.log(c.green(`Created a key in 1Password: "${title}" (vault ${OP_VAULT})`));
+  }
+  return { before, key: readKey(slug) };
 }
 
 /** Identifies the sealed plaintext without revealing anything about it (keyed MAC). */
@@ -1753,36 +1845,70 @@ function reshell() {
   }
 }
 
+/** The page's `bh:group` from its plaintext ("" for none); exits on a name that isn't kebab-case. */
+function sourceGroup(src) {
+  const group = getMeta(stripComments(fs.readFileSync(src, "utf8")), "bh:group");
+  if (group && !GROUP_RE.test(group)) { console.error(c.red(`${path.relative(ROOT, src)}: bh:group "${group}" must be kebab-case (a-z, 0-9, hyphens)`)); process.exit(1); }
+  return group;
+}
+
+/** The card a private source would show: what `readDoc` extracts, as plain data. */
+const sourceCard = (src) => { const d = readDoc(src); return cardFromDoc(d, docTopics(d)); };
+
 function cmdSeal(argv = []) {
   if (argv.includes("--reshell")) return reshell();
   const showLinks = argv.includes("--show-links");
   const sources = privateSources();
-  if (!sources.length) { console.log(c.dim("No docs/*.private.html to seal.")); return; }
-  for (const src of sources) {
-    const slug = path.basename(src, PRIVATE_EXT);
-    let keyText = readKey(slug);
-    if (!keyText) { keyText = storeKey(slug); console.log(c.green(`Created a key in 1Password: "${opTitle(slug)}" (vault ${OP_VAULT})`)); }
-    const key = Buffer.from(keyText, "base64url");
-    const plain = fs.readFileSync(src);
-    const digest = sealDigest(key, plain);
-    const out = path.join(DOCS, `${slug}.html`);
-    const rel = path.relative(ROOT, out);
-    if (fs.existsSync(out) && !isSealed(out)) { console.error(c.red(`Refusing to overwrite public page ${rel}`)); process.exit(1); }
-    // Re-sealing unchanged plaintext would only change the IV, so leave the file alone.
-    const current = fs.existsSync(out) ? fs.readFileSync(out, "utf8") : "";
-    if (getMeta(current, "bh:sealed-digest") === digest && getMeta(current, "bh:sealed-shell") !== SHELL_VERSION()) {
-      // Same plaintext, older shell: keep the ciphertext (a new IV would only add churn).
-      fs.writeFileSync(out, sealedShell(sealedPayload(current), digest));
-      console.log(c.green(`Rewrapped ${rel} in the current shell`));
-    } else if (!(getMeta(current, "bh:sealed-digest") === digest && getMeta(current, "bh:sealed-shell") === SHELL_VERSION())) {
-      const iv = crypto.randomBytes(12);
-      const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-      const sealed = Buffer.concat([iv, cipher.update(zlib.gzipSync(plain, { level: 9 })), cipher.final(), cipher.getAuthTag()]);
-      fs.writeFileSync(out, sealedShell(sealed.toString("base64"), digest));
-      console.log(c.green(`Sealed ${path.relative(ROOT, src)} → ${rel}`));
-    } else console.log(c.dim(`${rel} is up to date`));
-    console.log(`  link: ${rel}#k=${showLinks ? keyText : `<password of "${opTitle(slug)}">`}`);
+  const cardsFile = path.join(ROOT, CARD_FILE);
+  const existing = fs.existsSync(cardsFile) ? parseCardsFile(fs.readFileSync(cardsFile, "utf8")).entries : [];
+  // Refuse what can be known up front before writing anything: a failure half way would leave the pages and their cards out of step.
+  // (A 1Password write that fails mid-run still can; the cards written below then follow the pages that were sealed.)
+  const plans = sources.map((src) => {
+    const slug = path.basename(src, PRIVATE_EXT), out = path.join(DOCS, `${slug}.html`);
+    const group = sourceGroup(src);
+    if (fs.existsSync(out) && !isSealed(out)) { console.error(c.red(`Refusing to overwrite public page ${path.relative(ROOT, out)}`)); process.exit(1); }
+    try { checkItems(slug, group); } catch (e) { console.error(c.red(`${slug}: ${e.message}`)); process.exit(1); }
+    return { src, slug, out, rel: path.relative(ROOT, out), group };
+  });
+  const fresh = {}, groups = new Map();
+  try {
+    for (const { src, slug, out, rel, group } of plans) {
+      const { before, key: keyText } = ensureKey(slug, group);
+      if (fs.existsSync(out) && before !== keyText) {
+        const why = !before ? "its key was missing from 1Password, so a new one was made" : group ? `now in the group "${group}"` : "it left its group";
+        console.warn(c.yellow(`⚠ ${slug}: its key changed (${why}). The page is re-encrypted, so every old #k= link to ${rel} stops working: share the new link.`));
+      }
+      const key = Buffer.from(keyText, "base64url");
+      const plain = fs.readFileSync(src);
+      const digest = sealDigest(key, plain);
+      // Re-sealing unchanged plaintext would only change the IV, so leave the file alone.
+      const current = fs.existsSync(out) ? fs.readFileSync(out, "utf8") : "";
+      if (getMeta(current, "bh:sealed-digest") === digest && getMeta(current, "bh:sealed-shell") !== SHELL_VERSION()) {
+        // Same plaintext, older shell: keep the ciphertext (a new IV would only add churn).
+        fs.writeFileSync(out, sealedShell(sealedPayload(current), digest));
+        console.log(c.green(`Rewrapped ${rel} in the current shell`));
+      } else if (!(getMeta(current, "bh:sealed-digest") === digest && getMeta(current, "bh:sealed-shell") === SHELL_VERSION())) {
+        const iv = crypto.randomBytes(12);
+        const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+        const sealed = Buffer.concat([iv, cipher.update(zlib.gzipSync(plain, { level: 9 })), cipher.final(), cipher.getAuthTag()]);
+        fs.writeFileSync(out, sealedShell(sealed.toString("base64"), digest));
+        console.log(c.green(`Sealed ${path.relative(ROOT, src)} → ${rel}`));
+      } else console.log(c.dim(`${rel} is up to date`));
+      console.log(`  link: ${rel}#k=${showLinks ? keyText : `<password of "${group ? opGroupTitle(group) : opTitle(slug)}">`}`);
+      fresh[slug] = buildBlob(existing.find((e) => e.slug === slug)?.blob, sourceCard(src), keyText, slug);
+      if (group) groups.set(group, keyText);
+    }
+  } finally {
+    // The card file follows the sealed pages: a blob each, those without local plaintext kept, orphans dropped.
+    // Written even if a page failed, so the pages that were sealed keep matching cards.
+    const text = renderCardsFile(mergeEntries(existing, fresh, new Set(sealedFiles().map((f) => path.basename(f, ".html")))));
+    if (!fs.existsSync(cardsFile) || fs.readFileSync(cardsFile, "utf8") !== text) {
+      fs.writeFileSync(cardsFile, text);
+      console.log(c.green(`Updated ${CARD_FILE}`));
+    } else if (sources.length) console.log(c.dim(`${CARD_FILE} is up to date`));
   }
+  if (!sources.length) { console.log(c.dim("No docs/*.private.html to seal.")); return; }
+  for (const [name, keyText] of [...groups].sort()) console.log(`  home page, group "${name}": index.html#k=${showLinks ? keyText : `<password of "${opGroupTitle(name)}">`}`);
   if (!showLinks) console.log(c.dim("Run `npm run seal -- --show-links` to print the full links."));
 }
 
@@ -1806,7 +1932,7 @@ function cmdUnseal(argv) {
     const slug = path.basename(shell, ".html");
     const out = path.join(DOCS, slug + PRIVATE_EXT), rel = path.relative(ROOT, out);
     const keyText = readKey(slug);
-    if (!keyText) { console.error(c.red(`No key for ${slug} in 1Password (vault ${OP_VAULT}, item "${opTitle(slug)}")`)); process.exitCode = 1; continue; }
+    if (!keyText) { console.error(c.red(`No key for ${slug} in 1Password (vault ${OP_VAULT}): ${missingKeyReason(slug)}`)); process.exitCode = 1; continue; }
     let plain;
     try { plain = unsealFile(shell, keyText); } catch (e) { console.error(c.red(`Can't decrypt docs/${slug}.html: ${e.message}`)); process.exitCode = 1; continue; }
     if (fs.existsSync(out)) {

@@ -29,7 +29,7 @@ async function fixture(t, { shared = false, symlinkRoot = false } = {}) {
   });
   let root = path.join(dir, "repo");
   fs.mkdirSync(path.join(root, "scripts"), { recursive: true });
-  fs.copyFileSync(path.join(source, "scripts/bh.mjs"), path.join(root, "scripts/bh.mjs"));
+  for (const file of ["bh.mjs", "private-cards.mjs"]) fs.copyFileSync(path.join(source, "scripts", file), path.join(root, "scripts", file));
   fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ repository: "github:example/blog" }));
   fs.writeFileSync(path.join(root, "index.html"), "<h1>Home</h1>");
   fs.mkdirSync(path.join(root, "docs"));

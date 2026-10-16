@@ -7,6 +7,7 @@ import http from "node:http";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { preparePublishedSite } from "../scripts/publish.mjs";
+import { encryptCard, renderCardsFile } from "../scripts/private-cards.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 function fixture(t) {
@@ -192,4 +193,16 @@ test("published artifact keeps unlisted pages and their cards, and leaves them o
     assert.equal((await fetch(base + quiet)).status, 200);
     assert.equal((await fetch(base + quietExample)).status, 404);
   } finally { await new Promise((resolve) => server.close(resolve)); }
+});
+
+test("publication ships the encrypted card file and its module unchanged", (t) => {
+  const f = fixture(t);
+  const card = { title: "Hidden", description: "", kind: "explainer", status: "", date: "", tags: [] };
+  fs.writeFileSync(path.join(f.source, "theme/private-cards.js"), renderCardsFile([{ slug: "some-page", blob: encryptCard(card, "A".repeat(43), "some-page") }]));
+  f.assemble();
+  preparePublishedSite(f.stage, f.source);
+  for (const file of ["theme/private-cards.js", "theme/modules/private-cards.js"]) {
+    assert.deepEqual(fs.readFileSync(path.join(f.stage, file)), fs.readFileSync(path.join(f.source, file)), file);
+  }
+  assert.match(fs.readFileSync(path.join(f.stage, "index.html"), "utf8"), /<ul[^>]*id="doc-list"[^>]*data-private-cards/);
 });
