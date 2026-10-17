@@ -417,6 +417,25 @@ test("the page's own glossary: A–Z, no clash with the site glossary, every lin
   for (const [, href] of box.matchAll(/href="glossary\.html#([^"]+)"/g)) assert.ok(siteIds.has(href), `glossary.html#${href}`);
 });
 
+test("the code-length alphabet table holds for every run symbol in real dynamic blocks", () => {
+  const table = PAGE.match(/<div class="table-wrap" id="cl-alphabet"[\s\S]*?<\/table>/)[0];
+  const rows = Object.fromEntries([...table.matchAll(/<tr><td>(\d+)<\/td><td>[^<]*<\/td><td class="num">(\d+)<\/td><td>(.*?)<\/td><\/tr>/g)]
+    .map(([, sym, n, count]) => [sym, { n: +n, count: text(count) }]));
+  assert.deepEqual(rows, { 16: { n: 2, count: "3–6 times" }, 17: { n: 3, count: "3–10" }, 18: { n: 7, count: "11–138" } });
+  // Each range is its minimum plus every value the extra bits can hold.
+  for (const [sym, min] of [[16, 3], [17, 3], [18, 11]]) assert.match(rows[sym].count, new RegExp(`^${min}–${min + 2 ** rows[sym].n - 1}`));
+  let seen = 0;
+  for (const stream of [Deflate.encode(utf8(EXAMPLE)).streams.dynamic, Buffer.from(REFERENCE.paragraph, "hex")]) {
+    for (const f of trace(Buffer.from(stream)).fields.filter((x) => x.kind === "clsym" && x.symbol >= 16)) {
+      const { n } = rows[f.symbol], min = f.symbol === 18 ? 11 : 3;
+      assert.equal(f.extraBits.length, n, `symbol ${f.symbol} carries ${n} extra bits`);
+      assert.ok(f.count >= min && f.count <= min + 2 ** n - 1, `symbol ${f.symbol} count ${f.count}`);
+      seen++;
+    }
+  }
+  assert.ok(seen >= 10);
+});
+
 test("the BTYPE table matches what zlib accepts", () => {
   // First byte: BFINAL in bit 0, BTYPE in bits 1–2 (read low bit first).
   assert.equal(zlib.inflateRawSync(Buffer.from([0b001, 0x00, 0x00, 0xff, 0xff])).length, 0, "00: an empty stored block");
