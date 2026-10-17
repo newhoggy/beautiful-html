@@ -32,6 +32,7 @@ const PAGES = [
   ["design-doc", "docs/edge-rate-limiting-design.html"],
   ["glossary", "docs/glossary.html"],
   ["adr-001", "docs/adr-001-rate-limit-in-each-service.html"],
+  ["deflate", "docs/how-deflate-works.html"],
 ];
 const VARIANTS = [
   { name: "light", width: 1280, height: 900, scheme: "light", mobile: false },
