@@ -785,6 +785,89 @@
       <p>zlib wrote 119 bits; the parse in the <a href="#window">window figure</a> needs 103. DEFLATE fixes how to <em>decode</em>, not how to encode: any token stream that rebuilds the input is valid. zlib's hash chains use position 0 as their "no match" marker, so zlib never copies from the very first byte of a stream. Both of its copies here would have started there, so each starts one byte later, after an extra literal <code>a</code>: 16 bits lost. On real files, zlib's smarter match choices win by far more. Other builds choose differently again: Chromium's fork of zlib, in Chrome and in Node's official binaries, writes 17 bytes for this string.</p>
     </aside>
 
+    <h2 id="dynamic-block">The same tokens as a dynamic block</h2>
+    <p>zlib wrote a fixed block for the opening string. To see every part of a <em>dynamic</em> Huffman block, here are the same tokens written as one by this page's encoder: it is the "dynamic" choice under <a href="#try-it">Write it as</a>. <em>Dynamic</em> means the codes are built for this one block, from its own counts, and sent at its start. They don't change while the block is read. The 26 bytes are <code>75 c6 31 15 00 00 08 42 c1 2a 56 fb 6a 02 fa 0f 3c 02 30 dd b1 e2 f8 30 e5 06</code>. This encoder's parse uses the copies from the <a href="#window">window figure</a>, (4, 7) and (23, 12), rather than zlib's (3, 7) and (22, 12).</p>
+    <bh-codewalk class="wide" id="dyn-walk">
+<pre data-title="the same tokens as a dynamic block: bits as sent → what they decode to"><code>1            BFINAL = 1: last block
+01           BTYPE = 10: dynamic codes
+01110        HLIT: 14 + 257 = 271 lengths
+01100        HDIST: 6 + 1 = 7 lengths
+0111         HCLEN: 14 + 4 = 18 lengths
+000          CL symbol 16: unused
+110          CL symbol 17: 3-bit code
+010          CL symbol 18: 2-bit code
+101          CL symbol 0: 5-bit code
+000          CL symbol 8: unused
+000          CL symbol 7: unused
+000          CL symbol 9: unused
+000          CL symbol 6: unused
+000          CL symbol 10: unused
+000          CL symbol 5: unused
+000          CL symbol 11: unused
+010          CL symbol 4: 2-bit code
+000          CL symbol 12: unused
+010          CL symbol 3: 2-bit code
+000          CL symbol 13: unused
+101          CL symbol 2: 5-bit code
+000          CL symbol 14: unused
+001          CL symbol 1: 4-bit code
+10 +1010100  18: 32 zeros, 0–31
+01           4: ␣ (32) gets 4 bits
+10 +1010110  18: 64 zeros, 33–96
+11111        2: a (97) gets 2 bits
+01           4: b (98) gets 4 bits
+01           4: c (99) gets 4 bits
+01           4: d (100) gets 4 bits
+10 +0100000  18: 13 zeros, 101–113
+00           3: r (114) gets 3 bits
+10 +1111111  18: 138 zeros, 115–252
+110 +000     17: 3 zeros, 253–255
+00           3: 256 (end) gets 3 bits
+11110        0: 257 unused
+00           3: 258 gets 3 bits
+10 +0000000  18: 11 zeros, 259–269
+00           3: 270 gets 3 bits
+110 +010     17: 5 zeros, d0–d4
+1110         1: d5 gets 1 bit
+1110         1: d6 gets 1 bit
+00           literal a (97)
+1101         literal b (98)
+010          literal r (114)
+00           literal a (97)
+1110         literal c (99)
+00           literal a (97)
+1111         literal d (100)
+100          length symbol 258 → 4
+0 +0         distance d5 → 7
+1100         literal ␣ (32)
+101 +00      length symbol 270 → 23
+1 +11        distance d6 → 12
+011          end of block (256)
+00000        padding (not read)</code></pre>
+      <bh-cw-step lines="1-2"><p><strong>The block header.</strong> <code>BFINAL</code> is 1. <code>BTYPE</code> arrives as <code>0</code>, then <code>1</code>: binary 10, a dynamic block. Every code from here on is defined by the block itself.</p></bh-cw-step>
+      <bh-cw-step lines="3-5"><p><strong>How many lengths follow.</strong> <code>HLIT</code> says the literal/length alphabet runs to 271 symbols, 0–270, because 270 is the highest symbol this block uses. <code>HDIST</code> says 7 distance symbols, d0–d6. <code>HCLEN</code> says 18 of the 19 code-length-code lengths are sent. All three are plain numbers, lowest bit first.</p></bh-cw-step>
+      <bh-cw-step lines="6-23"><p><strong>The code-length code.</strong> 18 plain 3-bit lengths, in the fixed order 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1. They define a small Huffman code over the code-length symbols: 3, 4 and 18 get <code>00</code>, <code>01</code> and <code>10</code>; 17 gets <code>110</code>; 1 gets <code>1110</code>; 0 and 2 get <code>11110</code> and <code>11111</code>. Symbol 15 is unused and would come last, so <code>HCLEN</code> leaves it off.</p></bh-cw-step>
+      <bh-cw-step lines="24-39"><p><strong>271 literal/length code lengths, in 16 code-length symbols.</strong> Runs of zeros cover the byte values this text never uses: one 18 and its 7 extra bits cover 138 of them. Only 9 symbols get a length: <code>a</code> gets 2 bits; <code>r</code>, end-of-block, 258 and 270 get 3; ␣, <code>b</code>, <code>c</code> and <code>d</code> get 4. Symbol 257 sits between used symbols, so its zero is written on its own, for 5 bits.</p></bh-cw-step>
+      <bh-cw-step lines="40-42"><p><strong>7 distance code lengths.</strong> Five zeros for d0–d4 (symbol 17 and 3 extra bits), then d5 and d6 get 1 bit each. That ends the header: 159 bits after <code>BTYPE</code> to describe both codes.</p></bh-cw-step>
+      <bh-cw-step lines="43-49"><p><strong>The data, in this block's own codes.</strong> From the lengths alone the decoder builds canonical codes: <code>a</code> = <code>00</code>; <code>r</code> = <code>010</code>, end = <code>011</code>, 258 = <code>100</code>, 270 = <code>101</code>; ␣ = <code>1100</code>, <code>b</code> = <code>1101</code>, <code>c</code> = <code>1110</code>, <code>d</code> = <code>1111</code>. So <code>a</code> costs 2 bits here, against 8 with the fixed code.</p></bh-cw-step>
+      <bh-cw-step lines="50-54"><p><strong>The copies.</strong> Length symbol 258 is <code>100</code>, with no extra bits. Only two distance symbols are used, so d5 is just <code>0</code>, then its 1 extra bit picks 7. (23, 12) is 270 (<code>101</code>) and 2 extra bits, then d6 (<code>1</code>) and 2 extra bits. The extra bits are exactly what a fixed block would carry: they are never Huffman-coded.</p></bh-cw-step>
+      <bh-cw-step lines="55-56"><p><strong>End of block</strong> is <code>011</code>, and 5 bits of padding fill the 26th byte. The data took 41 bits, against 100 in the fixed block, but describing the codes took 159. So for this string the fixed block wins, as zlib decided; on longer text the table costs about the same while the savings keep growing.</p></bh-cw-step>
+    </bh-codewalk>
+    <div class="table-wrap" id="dynamic-bits" data-linkable>
+      <table>
+        <caption>Where the dynamic block's 203 bits go, against the fixed block's 103.</caption>
+        <thead><tr><th>Part</th><th class="num">Dynamic</th><th class="num">Fixed</th></tr></thead>
+        <tbody>
+          <tr><td><code>BFINAL</code> and <code>BTYPE</code></td><td class="num">3</td><td class="num">3</td></tr>
+          <tr><td><code>HLIT</code>, <code>HDIST</code> and <code>HCLEN</code></td><td class="num">14</td><td class="num">0</td></tr>
+          <tr><td>code-length-code lengths</td><td class="num">54</td><td class="num">0</td></tr>
+          <tr><td>the code lengths themselves</td><td class="num">91</td><td class="num">0</td></tr>
+          <tr><td>the data: codes and extra bits, to end of block</td><td class="num">41</td><td class="num">100</td></tr>
+          <tr><td><strong>total</strong></td><td class="num"><strong>203</strong></td><td class="num"><strong>103</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+
     <h2 id="serial">Why decoding is serial</h2>
     <p>The output is dense: there are no separators and no index. A code's length is known only once it has been decoded, so the decoder cannot find where symbol <em>n</em> + 1 starts without decoding symbol <em>n</em>. Back-references add a second chain: a copy reads bytes that earlier tokens wrote.</p>
     <p>That is why a gzip file is decompressed by one core, front to back, however many cores the machine has. Getting around it, for example to decode on a GPU, means finding where blocks start without decoding what comes before, and resolving copies whose sources aren't decoded yet. A later series here takes that on; nothing on this page depends on it.</p>

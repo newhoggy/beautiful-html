@@ -293,6 +293,48 @@ test("the fixed code's lengths, budget and the playground's default stream", () 
   assert.equal(byId("lab-stream-type"), r.best);
 });
 
+test("the dynamic bit walk is every bit of the encoder's dynamic block, in read order", () => {
+  const stream = Deflate.encode(utf8(EXAMPLE)).streams.dynamic;
+  assert.equal(new TextDecoder().decode(zlib.inflateRawSync(stream)), EXAMPLE, "zlib reads it back");
+  const all = Array.from({ length: stream.length * 8 }, (_, i) => (stream[i >> 3] >> (i & 7)) & 1).join("");
+  const walk = text(PAGE.match(/<bh-codewalk[^>]*id="dyn-walk"[\s\S]*?<code>([\s\S]*?)<\/code>/)[1]).split("\n");
+  assert.equal(walk.length, 56);
+  const shown = walk.map((l) => l.slice(0, 13).trim().replace(" +", ""));
+  shown.forEach((b) => assert.match(b, /^[01]+$/));
+  assert.equal(shown.join(""), all, "the walk shows all 208 bits, padding included");
+
+  // Each line names what the tracer decodes there.
+  const t = trace(Buffer.from(stream));
+  const fields = t.fields.filter((f) => f.kind !== "bfinal" && f.kind !== "btype");
+  const desc = walk.slice(2, 2 + fields.length).map((l) => l.slice(13));
+  fields.forEach((f, i) => {
+    const d = desc[i];
+    if (f.kind === "hlit" || f.kind === "hdist" || f.kind === "hclen") assert.match(d, new RegExp(`= ${f.value} lengths$`), d);
+    if (f.kind === "cllen") assert.equal(d, f.value ? `CL symbol ${f.symbol}: ${f.value}-bit code` : `CL symbol ${f.symbol}: unused`);
+    if (f.kind === "clsym") assert.match(d, new RegExp(`^${f.symbol}: `), d);
+    if (f.kind === "clsym" && f.symbol >= 16) assert.match(d, new RegExp(`: ${f.count} zeros, `), d);
+    if (f.kind === "clsym" && f.symbol < 16 && f.value) assert.match(d, new RegExp(`gets ${f.value} bits?$`), d);
+    if (f.kind === "literal") assert.match(d, new RegExp(`^literal .* \\(${f.value}\\)$`), d);
+    if (f.kind === "length") assert.equal(d, `length symbol ${f.value} → ${f.length}`);
+    if (f.kind === "distance") assert.equal(d, `distance d${f.value} → ${f.distance}`);
+    if (f.kind === "end") assert.equal(d, "end of block (256)");
+  });
+
+  // The hex, and where the bits go.
+  assert.ok(PAGE.includes(`<code>${Array.from(stream, (b) => b.toString(16).padStart(2, "0")).join(" ")}</code>`));
+  const n = (kinds) => fields.filter((f) => kinds.includes(f.kind)).reduce((sum, f) => sum + f.bits.length + (f.extraBits || "").length, 0);
+  const parts = [3, n(["hlit", "hdist", "hclen"]), n(["cllen"]), n(["clsym"]), n(["literal", "length", "distance", "end"])];
+  assert.deepEqual(parts, [3, 14, 54, 91, 41]);
+  assert.equal(parts.reduce((a, b) => a + b), t.bitsUsed);
+  const table = text(PAGE.match(/<div class="table-wrap" id="dynamic-bits"[\s\S]*?<\/table>/)[0]);
+  assert.match(table, /HLIT, HDIST and HCLEN\s*14\s*0/);
+  assert.match(table, /code-length-code lengths\s*54/);
+  assert.match(table, /the code lengths themselves\s*91/);
+  assert.match(table, /to end of block\s*41\s*100/);
+  assert.match(table, /total\s*203\s*103/);
+  assert.equal(Deflate.encode(utf8(EXAMPLE)).bits.fixed - 3, 100);
+});
+
 test("the BTYPE table matches what zlib accepts", () => {
   // First byte: BFINAL in bit 0, BTYPE in bits 1–2 (read low bit first).
   assert.equal(zlib.inflateRawSync(Buffer.from([0b001, 0x00, 0x00, 0xff, 0xff])).length, 0, "00: an empty stored block");

@@ -97,16 +97,26 @@ export function trace(buf) {
       lit = decoder(Array.from({ length: 288 }, (_, s) => (s < 144 ? 8 : s < 256 ? 9 : s < 280 ? 7 : 8)));
       dist = decoder(new Array(30).fill(5));
     } else {
-      const hlit = num(5).v + 257, hdist = num(5).v + 1, hclen = num(4).v + 4;
+      const fHlit = num(5), fHdist = num(5), fHclen = num(4);
+      const hlit = fHlit.v + 257, hdist = fHdist.v + 1, hclen = fHclen.v + 4;
+      fields.push({ kind: "hlit", bits: fHlit.s, value: hlit }, { kind: "hdist", bits: fHdist.s, value: hdist }, { kind: "hclen", bits: fHclen.s, value: hclen });
       const clLengths = new Array(19).fill(0);
-      for (let i = 0; i < hclen; i++) clLengths[CL_ORDER[i]] = num(3).v;
+      for (let i = 0; i < hclen; i++) {
+        const f = num(3);
+        clLengths[CL_ORDER[i]] = f.v;
+        fields.push({ kind: "cllen", bits: f.s, symbol: CL_ORDER[i], value: f.v });
+      }
       const cl = decoder(clLengths), lengths = [];
+      // Each code-length symbol, with the run of alphabet positions it fills (literal/length first, then distance).
       while (lengths.length < hlit + hdist) {
-        const c = sym(cl).v;
-        if (c < 16) lengths.push(c);
-        else if (c === 16) { const p = lengths[lengths.length - 1]; for (let n = 3 + num(2).v; n--;) lengths.push(p); }
-        else if (c === 17) for (let n = 3 + num(3).v; n--;) lengths.push(0);
-        else for (let n = 11 + num(7).v; n--;) lengths.push(0);
+        const at = lengths.length, c = sym(cl);
+        let extra = { s: "" }, value, count;
+        if (c.v < 16) { value = c.v; count = 1; }
+        else if (c.v === 16) { extra = num(2); value = lengths[lengths.length - 1]; count = 3 + extra.v; }
+        else if (c.v === 17) { extra = num(3); value = 0; count = 3 + extra.v; }
+        else { extra = num(7); value = 0; count = 11 + extra.v; }
+        for (let n = count; n--;) lengths.push(value);
+        fields.push({ kind: "clsym", bits: c.s, symbol: c.v, extraBits: extra.s, value, count, at, hlit });
       }
       Object.assign(block, { hlit, hdist, hclen, headerBits: pos - start - 3 });
       lit = decoder(lengths.slice(0, hlit));
