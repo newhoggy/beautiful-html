@@ -64,7 +64,10 @@ test("published artifact omits examples, keeps posts and local source, and serve
   const site = data(f.stage, "site.js", "BH_SITE");
   const search = data(f.stage, "search-index.js", "BH_SEARCH");
   const reviews = data(f.stage, "reviews.js", "BH_REVIEWS");
-  assert.equal(site.pages.length, 3);
+  // Every listed page of the repo except the removed examples: no more, no fewer.
+  const listed = [...data(ROOT, "site.js", "BH_SITE").pages].map((p) => p.href).filter((href) => !removed.includes(href));
+  assert.ok(listed.length >= 3);
+  assert.deepEqual([...site.pages.map((p) => p.href)].sort(), listed.sort());
   assert.ok(site.pages.some((p) => p.href === post));
   assert.ok(search.some((p) => p.href === post));
   assert.ok(search.some((p) => p.kind === "glossary"));

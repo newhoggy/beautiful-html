@@ -65,6 +65,16 @@ window.BH_SITE = {
    "supersededBy": ""
   },
   {
+   "href": "docs/how-deflate-works.html",
+   "title": "How DEFLATE works",
+   "kind": "explainer",
+   "status": "draft",
+   "date": "2026-10-17",
+   "description": "DEFLATE, the format inside gzip, zlib, PNG and ZIP, is two ideas stacked: LZ77 removes repetition, then Huffman coding removes skew. Here is each, step by step.",
+   "supersedes": "",
+   "supersededBy": ""
+  },
+  {
    "href": "docs/token-bucket-rate-limiting.html",
    "title": "Token bucket rate limiting",
    "kind": "explainer",
@@ -115,6 +125,13 @@ window.BH_SITE = {
     "href": "docs/edge-rate-limiting-design.html#decision",
     "title": "Moving rate limiting to the edge",
     "section": "Decision"
+   }
+  ],
+  "docs/how-deflate-works.html": [
+   {
+    "href": "docs/glossary.html",
+    "title": "Glossary",
+    "section": ""
    }
   ],
   "docs/announcing-patchcov.html": [
