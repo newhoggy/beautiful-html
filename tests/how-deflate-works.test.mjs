@@ -205,6 +205,18 @@ test("the alphabet explorer's strips and default state are the encoder's mapping
   assert.match(lab, /data-sym="270" title="[^"]*" aria-current="true"/);
 });
 
+test("the BTYPE table matches what zlib accepts", () => {
+  // First byte: BFINAL in bit 0, BTYPE in bits 1–2 (read low bit first).
+  assert.equal(zlib.inflateRawSync(Buffer.from([0b001, 0x00, 0x00, 0xff, 0xff])).length, 0, "00: an empty stored block");
+  assert.equal(zlib.inflateRawSync(Buffer.from([0b011, 0x00])).length, 0, "01: a fixed block holding only end-of-block");
+  assert.throws(() => zlib.inflateRawSync(Buffer.from([0b111, 0x00, 0x00, 0x00])), /invalid block type/, "11 is reserved");
+  const btype = example().fields.find((f) => f.kind === "btype");
+  assert.deepEqual([btype.bits, btype.value], ["10", 1], "fixed (01) arrives as 1, then 0");
+  const table = text(PAGE.match(/<div class="table-wrap" id="btype"[\s\S]*?<\/table>/)[0]);
+  assert.match(table, /01\s*1, then 0\s*fixed Huffman codes/);
+  assert.match(table, /11\s*1, then 1\s*reserved: invalid/);
+});
+
 test("the Huffman and canonical-code figures agree with the algorithm", () => {
   const counts = new Array(256).fill(0);
   for (const ch of "abracadabra") counts[ch.charCodeAt(0)]++;

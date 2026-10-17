@@ -52,6 +52,7 @@
     #join .node.sym text:not(.sub), #join .node.tok text { font-family: var(--font-mono); }
     @media (max-width: 640px) { #join > svg { min-width: 900px; } }
     #alphabets .range { white-space: nowrap; }
+    #btype td:nth-child(2) { white-space: nowrap; }
     /* The alphabet explorer: a value in, its symbol out, lit in a picture of both alphabets. */
     #alphabet-lab .al-pick { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-5); align-items: end; }
     #alphabet-lab .al-kinds { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
@@ -515,7 +516,19 @@
             out.append(out[-distance])</code></pre>
 
     <h2 id="block-types">Three kinds of block</h2>
-    <p>A stream is a series of blocks. Each block starts with 3 header bits: <code>BFINAL</code> (is this the last block?) and the 2-bit <code>BTYPE</code>. The type says where the codes come from.</p>
+    <p>A stream is a series of blocks. Each block starts with 3 header bits: <code>BFINAL</code> (1 if this is the last block) and the 2-bit <code>BTYPE</code>, which says where the codes come from. Two bits allow four values, and only three are used:</p>
+    <div class="table-wrap" id="btype" data-linkable>
+      <table>
+        <caption>The values of <code>BTYPE</code>. Header fields are read lowest bit first, so the bits arrive in the opposite order to how the value is written.</caption>
+        <thead><tr><th>BTYPE</th><th>Arrives as</th><th>Block</th></tr></thead>
+        <tbody>
+          <tr><td><code>00</code></td><td><code>0</code>, then <code>0</code></td><td>stored: raw bytes, no compression</td></tr>
+          <tr><td><code>01</code></td><td><code>1</code>, then <code>0</code></td><td>fixed Huffman codes, set by the RFC</td></tr>
+          <tr><td><code>10</code></td><td><code>0</code>, then <code>1</code></td><td>dynamic Huffman codes, sent at the start of the block</td></tr>
+          <tr><td><code>11</code></td><td><code>1</code>, then <code>1</code></td><td class="no">reserved: invalid, and a decoder must reject the stream (zlib reports "invalid block type")</td></tr>
+        </tbody>
+      </table>
+    </div>
     <div class="compare wide">
       <div class="option">
         <h3>Stored (00)</h3>
@@ -620,7 +633,7 @@
 00110     distance code 6: distances 9–12
 11        + 2 extra bits = 3: distance 12
 0000000   end of block (symbol 256)</code></pre>
-      <bh-cw-step lines="1-2"><p><strong>The block header.</strong> <code>BFINAL</code> is 1, so this is the last block. The next two bits arrive as <code>1 0</code>, lowest first, so <code>BTYPE</code> is binary 01: the fixed Huffman codes. For 35 bytes, a dynamic table would cost more than it saves.</p></bh-cw-step>
+      <bh-cw-step lines="1-2"><p><strong>The block header.</strong> <code>BFINAL</code> is 1, so this is the last block. The next two bits arrive as <code>1 0</code>, lowest first, so <code>BTYPE</code> is binary 01: the fixed Huffman codes (see <a href="#btype">the BTYPE values</a>). For 35 bytes, a dynamic table would cost more than it saves.</p></bh-cw-step>
       <bh-cw-step lines="3-10"><p><strong>Eight literals, 8 bits each.</strong> In the fixed code, bytes 0–143 are <code>00110000</code> plus the byte, so <code>a</code> (97) is <code>10010001</code>. Notice that zlib wrote the second <code>a</code> of <code>abra</code> as a literal, too.</p></bh-cw-step>
       <bh-cw-step lines="11-13"><p><strong>A back-reference, (3, 7).</strong> Length symbol 257 means 3, with no extra bits. Distance code 5 covers 7–8, and its one extra bit, 0, picks 7. zlib copied <code>bra</code> where the window figure copied <code>abra</code>: 13 bits for 3 bytes.</p></bh-cw-step>
       <bh-cw-step lines="14-15"><p><strong>Two more literals:</strong> the space (32) and another <code>a</code>.</p></bh-cw-step>
