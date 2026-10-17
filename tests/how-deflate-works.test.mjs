@@ -80,6 +80,12 @@ test("the recorded zlib streams are what this zlib writes, where it is the refer
   }
   assert.equal(zlib.deflateRawSync(Buffer.from(EXAMPLE), { level: 9 }).toString("hex"), REFERENCE.example);
   assert.equal(zlib.gzipSync(Buffer.from(EXAMPLE), { level: 9 }).length, 33);
+  // "zlib 1.2.12 switches from fixed to dynamic once the text is 74 bytes long."
+  const types = [];
+  for (let n = 1; n <= PARAGRAPH.length; n++) types.push(trace(zlib.deflateRawSync(Buffer.from(PARAGRAPH.slice(0, n)), { level: 9 })).blocks.map((b) => b.type).join("+"));
+  assert.equal(types.indexOf("dynamic") + 1, 74);
+  assert.ok(types.slice(0, 73).every((t) => t === "fixed"));
+  assert.match(PAGE, /zlib 1\.2\.12 switches from fixed to dynamic once the text is 74 bytes long/);
 });
 
 test("the recorded streams are valid DEFLATE for the page's inputs", () => {
@@ -266,6 +272,25 @@ test("the plain-field table's widths are the ones that decode real streams", () 
 
   // Final padding: the worked example uses 119 of its 120 bits.
   assert.equal(example().bytes * 8 - example().bitsUsed, 1);
+});
+
+test("the fixed code's lengths, budget and the playground's default stream", () => {
+  const FIXED = Array.from({ length: 288 }, (_, s) => (s < 144 ? 8 : s < 256 ? 9 : s < 280 ? 7 : 8));
+  const codes = Deflate.canonicalCodes(FIXED);
+  assert.equal(codes[97].toString(2).padStart(8, "0"), "10010001", "a is 10010001 in the fixed code");
+  assert.equal(codes[0].toString(2).padStart(8, "0"), "00110000");
+  const budget = FIXED.reduce((sum, l) => sum + 2 ** -l, 0);
+  assert.equal(budget, 1, "the fixed code spends the whole budget");
+  const box = PAGE.match(/<details class="disclosure" id="fixed-lengths"[\s\S]*?<\/details>/)[0];
+  for (const [label, count, bits] of [["bytes 0–143", 144, 8], ["bytes 144–255", 112, 9], ["256–279", 24, 7], ["280–287", 8, 8]]) {
+    const row = text(box.match(new RegExp(`<tr><td>${label}[\\s\\S]*?</tr>`))[0]);
+    assert.match(row, new RegExp(`${count}\\s*${bits}`), label);
+  }
+  // Without JavaScript the playground shows the encoder's own stream for its default text.
+  const r = Deflate.encode(utf8(EXAMPLE));
+  assert.equal(byId("lab-hex"), Array.from(r.bytes, (b) => b.toString(16).padStart(2, "0")).join(" "));
+  assert.equal(byId("lab-stream-bits"), String(r.bits[r.best]));
+  assert.equal(byId("lab-stream-type"), r.best);
 });
 
 test("the BTYPE table matches what zlib accepts", () => {

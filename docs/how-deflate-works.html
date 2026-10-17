@@ -118,6 +118,11 @@
       resize: vertical;
     }
     #deflate-lab .lab-presets { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+    #deflate-lab .lab-kinds { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+    #deflate-lab .lab-label { font-size: var(--step--1); color: var(--text-muted); }
+    #deflate-lab .lab-stream { margin: var(--space-2) 0 0; font-size: var(--step--1); overflow-wrap: anywhere; }
+    #deflate-lab .lab-stream code { font-size: inherit; }
+    #deflate-lab #lab-check { margin: var(--space-1) 0 0; font-size: var(--step--1); }
     #deflate-lab .lab-tokens {
       display: flex;
       flex-wrap: wrap;
@@ -573,10 +578,28 @@
       <div class="option chosen">
         <h3>Dynamic Huffman (10)</h3>
         <p>Codes built for this block's own counts, sent as code lengths at the start of the block.</p>
-        <ul class="pros"><li>Removes the skew too</li><li>The usual choice for anything over a few hundred bytes</li></ul>
+        <ul class="pros"><li>Removes the skew too</li><li>Usually wins once a block holds more than a few dozen bytes of text</li></ul>
         <ul class="cons"><li>The table costs tens of bytes</li></ul>
       </div>
     </div>
+    <p>Any input can be written as any of the three, and every one is valid: a decoder accepts whichever it gets. Which one wins is a sum, not a rule. The encoder works out the exact size of each kind for every block (zlib ends a block after about 16,000 symbols) and writes the smallest. Tiny blocks come out fixed because a code table costs more than it saves: for the paragraph in the chart, zlib 1.2.12 switches from fixed to dynamic once the text is 74 bytes long.</p>
+    <details class="disclosure" id="fixed-lengths" data-linkable>
+      <summary>Go deeper: why are the fixed codes 7–9 bits long?</summary>
+      <p>A prefix code has a budget. A code of <em>L</em> bits uses up 2<sup>−<em>L</em></sup> of all possible bit patterns, since nothing else may start with it, and the shares can't add up to more than 1. The fixed code must cover 288 symbols without knowing which are common, and spread evenly that is about log<sub>2</sub> 288 ≈ 8.2 bits each. The RFC spends the budget exactly:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Symbols</th><th class="num">Count</th><th class="num">Bits</th><th class="num">Share of the budget</th></tr></thead>
+          <tbody>
+            <tr><td>bytes 0–143 (all of ASCII)</td><td class="num">144</td><td class="num">8</td><td class="num">144 / 256 = 0.5625</td></tr>
+            <tr><td>bytes 144–255</td><td class="num">112</td><td class="num">9</td><td class="num">112 / 512 = 0.21875</td></tr>
+            <tr><td>256–279: end of block and short lengths</td><td class="num">24</td><td class="num">7</td><td class="num">24 / 128 = 0.1875</td></tr>
+            <tr><td>280–287: long lengths (286 and 287 unused)</td><td class="num">8</td><td class="num">8</td><td class="num">8 / 256 = 0.03125</td></tr>
+            <tr><td>total</td><td class="num">288</td><td class="num"></td><td class="num">1</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The 7-bit codes for end-of-block and common lengths are paid for by making the upper half of the byte values, rare in text, cost 9 bits. Only a code fitted to the data can make a common symbol short, by making rare ones longer: that is what a dynamic block's code does.</p>
+    </details>
     <figure class="frame wide" id="block-sizes">
       <bh-chart type="bar" unit="%" y-label="Size as % of the input">
         <table>
@@ -649,6 +672,17 @@
         <div class="metric"><span class="value" id="lab-both">203</span><span class="label">bits with both, incl. a <span id="lab-header">159</span>-bit table</span></div>
         <div class="metric"><span class="value" id="lab-out">13</span><span class="label">bytes out, as a <span id="lab-type">fixed</span> block</span></div>
       </div>
+      <div class="lab-write">
+        <div class="lab-kinds" role="group" aria-label="Write the block as">
+          <span class="lab-label">Write it as</span>
+          <button class="chip" type="button" data-write="best" aria-pressed="true">the smallest</button>
+          <button class="chip" type="button" data-write="stored" aria-pressed="false">stored</button>
+          <button class="chip" type="button" data-write="fixed" aria-pressed="false">fixed</button>
+          <button class="chip" type="button" data-write="dynamic" aria-pressed="false">dynamic</button>
+        </div>
+        <p class="lab-stream"><strong id="lab-stream-size">13 bytes</strong> (<span id="lab-stream-bits">103</span> bits) as a <span id="lab-stream-type">fixed</span> block: <code id="lab-hex">4b 4c 2a 4a 4c 4e 4c 01 51 0a 38 d8 00</code></p>
+        <p class="muted" id="lab-check" aria-live="polite" data-vr-mask hidden></p>
+      </div>
       <p class="readout" id="lab-summary">LZ77 replaced 27 of 35 bytes with 2 back-references, leaving 8 literals. Codes built for this text would need a 159-bit table, more than they save, so the fixed codes win.</p>
       <p class="muted" id="lab-browser-line" data-vr-mask hidden>For comparison, your browser's own DEFLATE (<code>CompressionStream</code>) wrote <output id="lab-browser">…</output> bytes.</p>
       <ul class="legend"><li><span class="swatch c2"></span>literal byte</li><li><span class="swatch c1"></span>back-reference (length, distance)</li></ul>
@@ -665,14 +699,14 @@
         </div>
       </details>
     </bh-playground>
-    <p>Click any back-reference to see which earlier bytes it copies. The paragraph shows both savings clearly: LZ77 finds the repeated words, and the skew of English letters pays for a dynamic table. One letter ×300 is almost all repetition. "No repeats" has nothing for LZ77 and too little text to pay for a table, so it comes out slightly larger than it went in.</p>
+    <p>Click any back-reference to see which earlier bytes it copies, and use <strong>Write it as</strong> to see the same tokens as each kind of block: the smallest is what an encoder would send, but every one decodes. The paragraph shows both savings clearly: LZ77 finds the repeated words, and the skew of English letters pays for a dynamic table. One letter ×300 is almost all repetition. "No repeats" has nothing for LZ77 and too little text to pay for a table, so it comes out slightly larger than it went in.</p>
 
     <h2 id="one-block">One real block, bit by bit</h2>
-    <p>Here is what the reference zlib (version 1.2.12) actually wrote at level 9 for the opening string: the 15 bytes <code>4b 4c 2a 4a 4c 4e 4c 49 04 52 0a 89 d8 d9 00</code>, read the way a decoder reads them. Bits are taken from each byte lowest first. Huffman codes are read one bit at a time, most significant first; header fields and extra bits are plain numbers, lowest bit first.</p>
+    <p>These are the bits <em>after</em> Huffman coding: each literal, length and distance appears as its code from the fixed table, not as a raw byte or number. Here is what the reference zlib (version 1.2.12) actually wrote at level 9 for the opening string: the 15 bytes <code>4b 4c 2a 4a 4c 4e 4c 49 04 52 0a 89 d8 d9 00</code>, read the way a decoder reads them. Bits are taken from each byte lowest first. Huffman codes are read one bit at a time, most significant first; header fields and extra bits are plain numbers, lowest bit first.</p>
     <bh-codewalk class="wide" id="bit-walk">
-<pre data-title="abracadabra ×3, as zlib -9 wrote it"><code>1         BFINAL = 1: last block
+<pre data-title="abracadabra ×3 as zlib -9 wrote it: bits as sent → what they decode to"><code>1         BFINAL = 1: last block
 10        BTYPE = 01: fixed codes
-10010001  literal 97  'a'
+10010001  literal 97  'a' (byte 01100001)
 10010010  literal 98  'b'
 10100010  literal 114  'r'
 10010001  literal 97  'a'
@@ -691,7 +725,7 @@
 11        + 2 extra bits = 3: distance 12
 0000000   end of block (symbol 256)</code></pre>
       <bh-cw-step lines="1-2"><p><strong>The block header.</strong> <code>BFINAL</code> is 1, so this is the last block. The next two bits arrive as <code>1 0</code>, lowest first, so <code>BTYPE</code> is binary 01: the fixed Huffman codes (see <a href="#btype">the BTYPE values</a>). For 35 bytes, a dynamic table would cost more than it saves.</p></bh-cw-step>
-      <bh-cw-step lines="3-10"><p><strong>Eight literals, 8 bits each.</strong> In the fixed code, bytes 0–143 are <code>00110000</code> plus the byte, so <code>a</code> (97) is <code>10010001</code>. Notice that zlib wrote the second <code>a</code> of <code>abra</code> as a literal, too.</p></bh-cw-step>
+      <bh-cw-step lines="3-10"><p><strong>Eight literals, 8 bits each.</strong> In the fixed code, bytes 0–143 are <code>00110000</code> plus the byte, so <code>a</code> (97) is <code>10010001</code>. That is no shorter than the raw byte, <code>01100001</code>: the fixed code isn't fitted to this text, so it gives every byte from 0 to 143 the same 8 bits (<a href="#fixed-lengths">why</a>). This block's whole saving comes from LZ77's two copies. Notice also that zlib wrote the second <code>a</code> of <code>abra</code> as a literal.</p></bh-cw-step>
       <bh-cw-step lines="11-13"><p><strong>A back-reference, (3, 7).</strong> Length symbol 257 means 3, with no extra bits. Distance code 5 covers 7–8, and its one extra bit, 0, picks 7. zlib copied <code>bra</code> where the window figure copied <code>abra</code>: 13 bits for 3 bytes.</p></bh-cw-step>
       <bh-cw-step lines="14-15"><p><strong>Two more literals:</strong> the space (32) and another <code>a</code>.</p></bh-cw-step>
       <bh-cw-step lines="16-19"><p><strong>The long, overlapping copy, (22, 12).</strong> Symbol 269 covers lengths 19–22, and the extra bits <code>11</code> add 3: length 22. Distance code 6 covers 9–12, plus 3: distance 12. 16 bits stand for 22 bytes.</p><p>Only 12 bytes lie between the source and the destination, but the copy is 22 long. Watch <a href="#bit-output">the output</a>: the decoder copies one byte at a time, so when it reaches byte 25 it reads byte 13, which this same copy wrote 12 steps earlier. Every byte it reads already exists by the time it needs it.</p></bh-cw-step>
@@ -1484,6 +1518,8 @@ document.addEventListener("DOMContentLoaded", () => {
     picked = -1;
     $("lab-pick").hidden = refs.length === 0;
     $("lab-pick").textContent = "Click a back-reference to see the bytes it copies.";
+    current = { data, r };
+    showStream();
     browserDeflate(data);
     if (r.tokens.length > 200) { const tr = el("tr"); tr.append(el("td", null, ""), el("td", null, `… ${nf(r.tokens.length - 200)} more`), el("td"), el("td")); rows.append(tr); }
   }
@@ -1517,6 +1553,34 @@ document.addEventListener("DOMContentLoaded", () => {
     const b = e.target.closest("button.tok-ref");
     if (b) pick(+b.dataset.i);
   });
+
+  // Write the same tokens as any block type: every one is valid, and the browser's own decoder proves it.
+  let current = null, writeAs = "best", checking = 0;
+  function showStream() {
+    const { data, r } = current, type = writeAs === "best" ? r.best : writeAs;
+    const bytes = writeAs === "best" ? r.bytes : r.streams[type], MAX = 48;
+    $("lab-stream-size").textContent = `${nf(bytes.length)} byte${bytes.length === 1 ? "" : "s"}`;
+    $("lab-stream-bits").textContent = nf(r.bits[type]);
+    $("lab-stream-type").textContent = type;
+    const hex = Array.from(bytes.subarray(0, MAX), (b) => b.toString(16).padStart(2, "0")).join(" ");
+    $("lab-hex").textContent = bytes.length > MAX ? `${hex} … (${nf(bytes.length - MAX)} more)` : hex;
+    const check = $("lab-check"), mine = ++checking;
+    let stream;
+    try { stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw")); }
+    catch { check.hidden = true; return; } // no DecompressionStream, or no "deflate-raw"
+    new Response(stream).arrayBuffer().then((buf) => {
+      if (mine !== checking) return;
+      const back = new Uint8Array(buf), same = back.length === data.length && back.every((b, i) => b === data[i]);
+      check.textContent = same ? "✓ Your browser's own decoder (DecompressionStream) reads this stream back to exactly your text."
+        : "✗ Your browser's decoder read this stream back differently.";
+      check.hidden = false;
+    }, () => { if (mine === checking) { check.textContent = "✗ Your browser's decoder rejected this stream."; check.hidden = false; } });
+  }
+  lab.querySelectorAll("[data-write]").forEach((b) => b.addEventListener("click", () => {
+    writeAs = b.dataset.write;
+    lab.querySelectorAll("[data-write]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    if (current) showStream();
+  }));
 
   // The browser's built-in DEFLATE, as a second opinion. Older browsers lack it.
   let asked = 0;
