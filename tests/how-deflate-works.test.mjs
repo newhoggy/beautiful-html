@@ -309,8 +309,16 @@ test("the dynamic bit walk is every bit of the encoder's dynamic block, in read 
   const desc = walk.slice(2, 2 + fields.length).map((l) => l.slice(13));
   fields.forEach((f, i) => {
     const d = desc[i];
-    if (f.kind === "hlit" || f.kind === "hdist" || f.kind === "hclen") assert.match(d, new RegExp(`= ${f.value} lengths$`), d);
-    if (f.kind === "cllen") assert.equal(d, f.value ? `CL symbol ${f.symbol}: ${f.value}-bit code` : `CL symbol ${f.symbol}: unused`);
+    const rev = [...f.bits].reverse().join(""); // a plain number, shown the usual way round
+    const off = { hlit: 257, hdist: 1, hclen: 4 }[f.kind];
+    if (off) {
+      assert.equal(d, `${f.kind.toUpperCase()}: ${rev} = ${f.value - off}, + ${off} = ${f.value}`);
+      assert.equal(parseInt(rev, 2), f.value - off);
+    }
+    if (f.kind === "cllen") {
+      assert.equal(d, f.value ? `CL symbol ${f.symbol}: ${rev} = ${f.value} bits` : `CL symbol ${f.symbol}: 000 = 0, unused`);
+      assert.equal(parseInt(rev, 2), f.value);
+    }
     if (f.kind === "clsym") assert.match(d, new RegExp(`^${f.symbol}: `), d);
     if (f.kind === "clsym" && f.symbol >= 16) assert.match(d, new RegExp(`: ${f.count} zeros, `), d);
     if (f.kind === "clsym" && f.symbol < 16 && f.value) assert.match(d, new RegExp(`gets ${f.value} bits?$`), d);
@@ -319,6 +327,26 @@ test("the dynamic bit walk is every bit of the encoder's dynamic block, in read 
     if (f.kind === "distance") assert.equal(d, `distance d${f.value} → ${f.distance}`);
     if (f.kind === "end") assert.equal(d, "end of block (256)");
   });
+
+  assert.equal(walk[1].slice(13), "BTYPE: 10 = 2, dynamic");
+
+  // The first byte, most significant bit on the left: HLIT | BTYPE | BFINAL.
+  assert.equal(stream[0], 0x75);
+  assert.deepEqual([stream[0] >> 3, (stream[0] >> 1) & 3, stream[0] & 1], [14, 2, 1]);
+  assert.match(PAGE, /<code>0 1 1 1 0 \| 1 0   \| 1\nHLIT      \| BTYPE \| BFINAL\n= 14      \| = 2   \| = 1<\/code>/);
+
+  // "Isn't sending all those zeros wasteful?": the literal/length list's zeros and used lengths.
+  const lit = fields.filter((f) => f.kind === "clsym" && f.at < f.hlit);
+  const zeros = lit.filter((f) => f.value === 0), used = lit.filter((f) => f.value > 0);
+  const bitsOf = (list) => list.reduce((sum, f) => sum + f.bits.length + f.extraBits.length, 0);
+  assert.equal(zeros.reduce((sum, f) => sum + f.count, 0), 262);
+  assert.deepEqual([zeros.filter((f) => f.count > 1).length, zeros.filter((f) => f.count === 1).length], [6, 1]);
+  assert.deepEqual([bitsOf(zeros), bitsOf(used), used.length], [56, 21, 9]);
+  assert.equal(9 * (Math.ceil(Math.log2(286)) + 4), 117);
+  const note = text(PAGE.match(/<details class="disclosure" id="zero-lengths"[\s\S]*?<\/details>/)[0]);
+  assert.match(note, /271 symbols in 77 bits: its 262 zeros take 56 bits, as 6 runs and one lone zero, and the 9 used lengths take 21/);
+  assert.match(note, /117 bits/);
+  assert.match(note, /56 of its 159 bits/);
 
   // The hex, and where the bits go.
   assert.ok(PAGE.includes(`<code>${Array.from(stream, (b) => b.toString(16).padStart(2, "0")).join(" ")}</code>`));

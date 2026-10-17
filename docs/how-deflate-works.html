@@ -629,6 +629,11 @@
       <li><strong>A Huffman code</strong> is read one bit at a time, most significant bit first, because the decoder walks down the code tree as each bit arrives.</li>
       <li><strong>Everything else is a plain number</strong> of a fixed, known width, read lowest bit first. Each byte of the stream fills from its lowest bit up, so a plain number's bits arrive in the order they are packed.</li>
     </ul>
+    <p>In other words, DEFLATE is little-endian throughout, at the level of bits and of bytes (a stored block's 16-bit <code>LEN</code> comes low byte first), except that Huffman codes are stored bit-reversed. Write a byte the usual way, most significant bit on the left, and its plain fields read as ordinary binary, stacked from the right. Here is the first byte of the <a href="#dynamic-block">dynamic block</a> below:</p>
+    <pre data-title="the dynamic block's first byte, 0x75: most significant bit on the left, fields read right to left"><code>0 1 1 1 0 | 1 0   | 1
+HLIT      | BTYPE | BFINAL
+= 14      | = 2   | = 1</code></pre>
+    <p>A Huffman code reads correctly in arrival order instead, so in this byte view it would look reversed. Decoders such as zlib reverse each code once, when they build their lookup tables, so that one little-endian bit reader can handle everything.</p>
     <div class="table-wrap wide" id="plain-fields" data-linkable>
       <table>
         <caption>Every plain field in a DEFLATE stream. None of these is Huffman-coded: the decoder knows each one's width from what came before it.</caption>
@@ -638,10 +643,10 @@
           <tr><td><code>BTYPE</code></td><td class="num">2</td><td>after <code>BFINAL</code></td><td>the block type (<a href="#btype">values</a>)</td></tr>
           <tr><td>length extra bits</td><td class="num">0–5</td><td>after a length symbol</td><td>the offset within the symbol's range of lengths</td></tr>
           <tr><td>distance extra bits</td><td class="num">0–13</td><td>after a distance symbol</td><td>the offset within the symbol's range of distances</td></tr>
-          <tr><td><code>HLIT</code></td><td class="num">5</td><td>dynamic block, after <code>BTYPE</code></td><td>the number of literal/length code lengths, minus 257</td></tr>
-          <tr><td><code>HDIST</code></td><td class="num">5</td><td>after <code>HLIT</code></td><td>the number of distance code lengths, minus 1</td></tr>
-          <tr><td><code>HCLEN</code></td><td class="num">4</td><td>after <code>HDIST</code></td><td>the number of code-length-code lengths, minus 4</td></tr>
-          <tr><td>code-length-code lengths</td><td class="num">3 each</td><td>after <code>HCLEN</code>, 4–19 of them</td><td>the lengths of the code that compresses the code lengths, in the fixed order</td></tr>
+          <tr><td><code>HLIT</code></td><td class="num">5</td><td>dynamic block, after <code>BTYPE</code></td><td>the number of literal/length code lengths, minus 257: 257–288 is 32 values</td></tr>
+          <tr><td><code>HDIST</code></td><td class="num">5</td><td>after <code>HLIT</code></td><td>the number of distance code lengths, minus 1: 1–32 is 32 values</td></tr>
+          <tr><td><code>HCLEN</code></td><td class="num">4</td><td>after <code>HDIST</code></td><td>the number of code-length-code lengths, minus 4: 4–19 is 16 values</td></tr>
+          <tr><td>code-length-code lengths</td><td class="num">3 each</td><td>after <code>HCLEN</code>, 4–19 of them</td><td>the lengths of the code that compresses the code lengths, in the fixed order; that code's lengths are at most 7</td></tr>
           <tr><td>run extra bits</td><td class="num">2, 3 or 7</td><td>after code-length symbol 16, 17 or 18</td><td>the run's count, minus 3, 3 or 11</td></tr>
           <tr><td>alignment</td><td class="num">0–7</td><td>stored block, after <code>BTYPE</code></td><td>nothing: skipped to reach the next byte boundary</td></tr>
           <tr><td><code>LEN</code>, <code>NLEN</code></td><td class="num">16 each</td><td>stored block, after the alignment</td><td>the number of bytes, then its ones' complement as a check</td></tr>
@@ -651,6 +656,13 @@
       </table>
     </div>
     <p>Everything else in the stream is a Huffman code: the literal/length and distance symbols, and, inside a dynamic block's header, the code-length symbols. The worked example's 119 bits show both kinds side by side in <a href="#one-block">the bit walk</a>.</p>
+    <p>Nothing in the stream says how long a field is. The decoder always knows what comes next and how big it is, in one of three ways:</p>
+    <ul>
+      <li><strong>A width fixed by the RFC</strong>, chosen to fit the field's range: <code>BFINAL</code>, <code>BTYPE</code>, <code>HLIT</code>, <code>HDIST</code>, <code>HCLEN</code>, the 3-bit code-length-code lengths, and a stored block's <code>LEN</code> and <code>NLEN</code>. After <code>BTYPE</code> = 2, the next 5 bits are <code>HLIT</code> because the format says so.</li>
+      <li><strong>A width set by the symbol just decoded</strong>: the extra bits. Symbol 270 is always followed by 2 extra bits, d6 by 2, run symbol 18 by 7.</li>
+      <li><strong>No width at all</strong>: Huffman codes end themselves. The decoder reads one bit at a time until the bits so far match a code, and since no code is the start of another, it can never stop in the wrong place.</li>
+    </ul>
+    <p>That is why the stream needs no separators or length prefixes, and also why it must be read strictly in order: where <code>HDIST</code> starts depends on having read <code>HLIT</code>, and one corrupted bit misaligns everything after it.</p>
 
     <h2 id="try-it">Try it</h2>
     <p>Type anything, or pick an example. The tokens are what LZ77 found; the numbers show each saving on its own and both together. Every count is the size of a real DEFLATE stream that this page's encoder writes, not an estimate.</p>
@@ -789,28 +801,28 @@
     <p>zlib wrote a fixed block for the opening string. To see every part of a <em>dynamic</em> Huffman block, here are the same tokens written as one by this page's encoder: it is the "dynamic" choice under <a href="#try-it">Write it as</a>. <em>Dynamic</em> means the codes are built for this one block, from its own counts, and sent at its start. They don't change while the block is read. The 26 bytes are <code>75 c6 31 15 00 00 08 42 c1 2a 56 fb 6a 02 fa 0f 3c 02 30 dd b1 e2 f8 30 e5 06</code>. This encoder's parse uses the copies from the <a href="#window">window figure</a>, (4, 7) and (23, 12), rather than zlib's (3, 7) and (22, 12).</p>
     <bh-codewalk class="wide" id="dyn-walk">
 <pre data-title="the same tokens as a dynamic block: bits as sent → what they decode to"><code>1            BFINAL = 1: last block
-01           BTYPE = 10: dynamic codes
-01110        HLIT: 14 + 257 = 271 lengths
-01100        HDIST: 6 + 1 = 7 lengths
-0111         HCLEN: 14 + 4 = 18 lengths
-000          CL symbol 16: unused
-110          CL symbol 17: 3-bit code
-010          CL symbol 18: 2-bit code
-101          CL symbol 0: 5-bit code
-000          CL symbol 8: unused
-000          CL symbol 7: unused
-000          CL symbol 9: unused
-000          CL symbol 6: unused
-000          CL symbol 10: unused
-000          CL symbol 5: unused
-000          CL symbol 11: unused
-010          CL symbol 4: 2-bit code
-000          CL symbol 12: unused
-010          CL symbol 3: 2-bit code
-000          CL symbol 13: unused
-101          CL symbol 2: 5-bit code
-000          CL symbol 14: unused
-001          CL symbol 1: 4-bit code
+01           BTYPE: 10 = 2, dynamic
+01110        HLIT: 01110 = 14, + 257 = 271
+01100        HDIST: 00110 = 6, + 1 = 7
+0111         HCLEN: 1110 = 14, + 4 = 18
+000          CL symbol 16: 000 = 0, unused
+110          CL symbol 17: 011 = 3 bits
+010          CL symbol 18: 010 = 2 bits
+101          CL symbol 0: 101 = 5 bits
+000          CL symbol 8: 000 = 0, unused
+000          CL symbol 7: 000 = 0, unused
+000          CL symbol 9: 000 = 0, unused
+000          CL symbol 6: 000 = 0, unused
+000          CL symbol 10: 000 = 0, unused
+000          CL symbol 5: 000 = 0, unused
+000          CL symbol 11: 000 = 0, unused
+010          CL symbol 4: 010 = 2 bits
+000          CL symbol 12: 000 = 0, unused
+010          CL symbol 3: 010 = 2 bits
+000          CL symbol 13: 000 = 0, unused
+101          CL symbol 2: 101 = 5 bits
+000          CL symbol 14: 000 = 0, unused
+001          CL symbol 1: 100 = 4 bits
 10 +1010100  18: 32 zeros, 0–31
 01           4: ␣ (32) gets 4 bits
 10 +1010110  18: 64 zeros, 33–96
@@ -845,9 +857,9 @@
 011          end of block (256)
 00000        padding (not read)</code></pre>
       <bh-cw-step lines="1-2"><p><strong>The block header.</strong> <code>BFINAL</code> is 1. <code>BTYPE</code> arrives as <code>0</code>, then <code>1</code>: binary 10, a dynamic block. Every code from here on is defined by the block itself.</p></bh-cw-step>
-      <bh-cw-step lines="3-5"><p><strong>How many lengths follow.</strong> <code>HLIT</code> says the literal/length alphabet runs to 271 symbols, 0–270, because 270 is the highest symbol this block uses. <code>HDIST</code> says 7 distance symbols, d0–d6. <code>HCLEN</code> says 18 of the 19 code-length-code lengths are sent. All three are plain numbers, lowest bit first.</p></bh-cw-step>
+      <bh-cw-step lines="3-5"><p><strong>How many lengths follow.</strong> The code lengths come next as a bare list in symbol order: the first is symbol 0's, the second symbol 1's, with no symbol numbers and nothing to mark where the list ends and the data begins. So the block says first how long each list is. <code>HLIT</code>: 271 literal/length lengths, for symbols 0–270. 270 is the highest symbol this block uses, so the encoder stops there and leaves out 271–285. <code>HDIST</code>: 7 distance lengths, d0–d6. <code>HCLEN</code>: 18 of the 19 code-length-code lengths.</p><p>All three are plain numbers, which arrive lowest bit first, so each line shows the bits the usual way round as well: <code>0111</code> arrives, read backwards that is <code>1110</code> = 14, and <code>HCLEN</code> stores the count minus 4.</p></bh-cw-step>
       <bh-cw-step lines="6-23"><p><strong>The code-length code.</strong> 18 plain 3-bit lengths, in the fixed order 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1. They define a small Huffman code over the code-length symbols: 3, 4 and 18 get <code>00</code>, <code>01</code> and <code>10</code>; 17 gets <code>110</code>; 1 gets <code>1110</code>; 0 and 2 get <code>11110</code> and <code>11111</code>. Symbol 15 is unused and would come last, so <code>HCLEN</code> leaves it off.</p></bh-cw-step>
-      <bh-cw-step lines="24-39"><p><strong>271 literal/length code lengths, in 16 code-length symbols.</strong> Runs of zeros cover the byte values this text never uses: one 18 and its 7 extra bits cover 138 of them. Only 9 symbols get a length: <code>a</code> gets 2 bits; <code>r</code>, end-of-block, 258 and 270 get 3; ␣, <code>b</code>, <code>c</code> and <code>d</code> get 4. Symbol 257 sits between used symbols, so its zero is written on its own, for 5 bits.</p></bh-cw-step>
+      <bh-cw-step lines="24-39"><p><strong>271 literal/length code lengths, in 16 code-length symbols.</strong> Runs of zeros cover the byte values this text never uses: one 18 and its 7 extra bits cover 138 of them. Only 9 symbols get a length: <code>a</code> gets 2 bits; <code>r</code>, end-of-block, 258 and 270 get 3; ␣, <code>b</code>, <code>c</code> and <code>d</code> get 4. Symbol 257 sits between used symbols, so its zero is written on its own, for 5 bits.</p><p>A length of 0 means the symbol gets no code. It costs nothing in the data, and the decoder skips it when it builds the codes, which is what lets the 9 used symbols share all of the code space. But the list still needs a 0 in its place, because position is the symbol number.</p></bh-cw-step>
       <bh-cw-step lines="40-42"><p><strong>7 distance code lengths.</strong> Five zeros for d0–d4 (symbol 17 and 3 extra bits), then d5 and d6 get 1 bit each. That ends the header: 159 bits after <code>BTYPE</code> to describe both codes.</p></bh-cw-step>
       <bh-cw-step lines="43-49"><p><strong>The data, in this block's own codes.</strong> From the lengths alone the decoder builds canonical codes: <code>a</code> = <code>00</code>; <code>r</code> = <code>010</code>, end = <code>011</code>, 258 = <code>100</code>, 270 = <code>101</code>; ␣ = <code>1100</code>, <code>b</code> = <code>1101</code>, <code>c</code> = <code>1110</code>, <code>d</code> = <code>1111</code>. So <code>a</code> costs 2 bits here, against 8 with the fixed code.</p></bh-cw-step>
       <bh-cw-step lines="50-54"><p><strong>The copies.</strong> Length symbol 258 is <code>100</code>, with no extra bits. Only two distance symbols are used, so d5 is just <code>0</code>, then its 1 extra bit picks 7. (23, 12) is 270 (<code>101</code>) and 2 extra bits, then d6 (<code>1</code>) and 2 extra bits. The extra bits are exactly what a fixed block would carry: they are never Huffman-coded.</p></bh-cw-step>
@@ -867,6 +879,11 @@
         </tbody>
       </table>
     </div>
+    <details class="disclosure" id="zero-lengths" data-linkable>
+      <summary>Go deeper: isn't sending all those zeros wasteful?</summary>
+      <p>Less than it looks. The literal/length list above describes 271 symbols in 77 bits: its 262 zeros take 56 bits, as 6 runs and one lone zero, and the 9 used lengths take 21. Listing only the used symbols instead would need a 9-bit symbol number and a 4-bit length for each, 117 bits before even saying how many there are. A run of zeros is really a way of saying "skip ahead", and because those runs are Huffman-coded too, the common skips are the cheap ones. The more symbols a block uses, as ordinary text does, the further ahead the positional list gets.</p>
+      <p>The zeros are not where the header's cost goes, either: they are 56 of its 159 bits. Describing <em>any</em> code has fixed costs, which is why tiny blocks stay fixed. In a full-size block of text the whole table is typically under 1% of the output. DEFLATE's real inefficiency is that every dynamic block sends a complete new table, even when the last block's code would do; later formats can reuse it, as Zstandard does with its "treeless" literals blocks (<a href="https://www.rfc-editor.org/rfc/rfc8878#section-3.1.1.3.1.1">RFC 8878 §3.1.1.3.1.1</a>).</p>
+    </details>
 
     <h2 id="serial">Why decoding is serial</h2>
     <p>The output is dense: there are no separators and no index. A code's length is known only once it has been decoded, so the decoder cannot find where symbol <em>n</em> + 1 starts without decoding symbol <em>n</em>. Back-references add a second chain: a copy reads bytes that earlier tokens wrote.</p>
