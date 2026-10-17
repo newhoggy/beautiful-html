@@ -736,7 +736,8 @@
       this.playBtn = el("button", { class: "btn ghost", type: "button", text: "▶ Play", onclick: () => this.togglePlay() });
       this.dots = this.steps.map((_, i) => el("button", { type: "button", "aria-label": `Go to step ${i + 1}`, onclick: () => this.go(i) }));
       const linkBtn = base ? el("button", { class: "btn ghost icon bh-step-link", type: "button", title: "Copy link to this step", "aria-label": "Copy link to this step", html: LINK_ICON, onclick: () => copyLink(this.steps[this.index].id) }) : null;
-      this.append(el("div", { class: "bh-stepper-bar" }, [this.prevBtn, el("div", { class: "bh-stepper-dots" }, this.dots), linkBtn, this.playBtn, this.nextBtn]));
+      // The bar sits above the steps: they differ in height, so a bar below them would move on every click.
+      this.prepend(el("div", { class: "bh-stepper-bar" }, [this.prevBtn, el("div", { class: "bh-stepper-dots" }, this.dots), linkBtn, this.playBtn, this.nextBtn]));
 
       this.tabIndex = 0;
       this.setAttribute("role", "group");
@@ -747,13 +748,16 @@
         if (e.key === "ArrowLeft") { e.preventDefault(); this.go(this.index - 1); }
       });
       this.classList.add("is-ready");
+      // Step 1 is shown lit from the start, so the diagram always matches the narration on screen.
       this.go(0);
-      // Show the whole diagram until the reader engages with the stepper.
-      this._engaged = false;
-      this.highlight([]);
+      // A diagram drawn later (a <bh-sequence> renders once its module loads) replaces the parts
+      // that were lit, so light the current step again whenever the target gains new nodes.
+      if (this.target && "MutationObserver" in window) {
+        this._observer = new MutationObserver(() => this.highlight(this._lit));
+        this._observer.observe(this.target, { childList: true, subtree: true });
+      }
     }
     go(i) {
-      if (this.steps && this._engaged === false) this._engaged = true;
       const n = this.steps.length;
       this.index = Math.max(0, Math.min(n - 1, i));
       this.steps.forEach((s, j) => s.classList.toggle("is-active", j === this.index));
@@ -766,6 +770,7 @@
     }
     highlight(ids) {
       if (!this.target) return;
+      this._lit = ids;
       this.target.querySelectorAll("[data-id]").forEach((node) => {
         const lit = ids.includes(node.dataset.id);
         node.classList.toggle("is-lit", ids.length > 0 && lit);
@@ -784,7 +789,7 @@
       this._timer = null;
       if (this.playBtn) this.playBtn.textContent = "▶ Play";
     }
-    disconnectedCallback() { this.stop(); }
+    disconnectedCallback() { this.stop(); if (this._observer) this._observer.disconnect(); }
   }
 
   /**
