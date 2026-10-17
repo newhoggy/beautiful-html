@@ -29,6 +29,9 @@ function data(stage, file, global) {
 }
 const example = "docs/token-bucket-rate-limiting.html";
 const post = "docs/announcing-patchcov.html";
+// Unlisted pages the repo itself already has: the fixtures add their own on top of these.
+const REPO_UNLISTED = new Set(data(ROOT, "unlisted-slugs.js", "BH_UNLISTED_SLUGS"));
+const added = (list) => list.filter((p) => !REPO_UNLISTED.has(typeof p === "string" ? p : p.href));
 
 test("published artifact omits examples, keeps posts and local source, and serves 404", async (t) => {
   const f = fixture(t);
@@ -61,7 +64,10 @@ test("published artifact omits examples, keeps posts and local source, and serve
   const site = data(f.stage, "site.js", "BH_SITE");
   const search = data(f.stage, "search-index.js", "BH_SEARCH");
   const reviews = data(f.stage, "reviews.js", "BH_REVIEWS");
-  assert.equal(site.pages.length, 3);
+  // Every listed page of the repo except the removed examples: no more, no fewer.
+  const listed = [...data(ROOT, "site.js", "BH_SITE").pages].map((p) => p.href).filter((href) => !removed.includes(href));
+  assert.ok(listed.length >= 3);
+  assert.deepEqual([...site.pages.map((p) => p.href)].sort(), listed.sort());
   assert.ok(site.pages.some((p) => p.href === post));
   assert.ok(search.some((p) => p.href === post));
   assert.ok(search.some((p) => p.kind === "glossary"));
@@ -169,12 +175,17 @@ test("published artifact keeps unlisted pages and their cards, and leaves them o
     assert.ok(!fs.readFileSync(path.join(f.stage, file), "utf8").includes("Quiet words"), `${file} must not carry its title`);
   }
   const unlisted = data(f.stage, "unlisted-pages.js", "BH_UNLISTED");
-  assert.deepEqual([...unlisted.pages.map((p) => p.href)], [quiet]);
+  assert.deepEqual([...added(unlisted.pages).map((p) => p.href)], [quiet]);
   assert.ok(unlisted.search.some((p) => p.href === quiet));
   assert.deepEqual([...unlisted.backlinks[quiet].map((b) => b.href.split("#")[0])], [post]);
-  assert.deepEqual([...data(f.stage, "unlisted-slugs.js", "BH_UNLISTED_SLUGS")], [quiet]);
+  assert.deepEqual([...added(data(f.stage, "unlisted-slugs.js", "BH_UNLISTED_SLUGS"))], [quiet]);
+  // …and the repo's own unlisted pages are still published and still listed as unlisted.
+  for (const href of REPO_UNLISTED) {
+    assert.ok(fs.existsSync(path.join(f.stage, href)), `${href} is published`);
+    assert.ok(data(f.stage, "unlisted-slugs.js", "BH_UNLISTED_SLUGS").includes(href), `${href} stays unlisted`);
+  }
   // Review threads on the unlisted page ship in their own file; the removed example's do not.
-  assert.deepEqual(Object.keys(data(f.stage, "unlisted-reviews.js", "BH_REVIEWS")), [quiet]);
+  assert.deepEqual(added(Object.keys(data(f.stage, "unlisted-reviews.js", "BH_REVIEWS"))), [quiet]);
   assert.ok(!fs.readFileSync(path.join(f.stage, "theme/reviews.js"), "utf8").includes("quiet-"));
   for (const file of ["unlisted-pages.js", "unlisted-slugs.js", "unlisted-reviews.js"]) assert.ok(!fs.readFileSync(path.join(f.stage, "theme", file), "utf8").includes("quiet-example"));
   // The published post keeps its link to the unlisted page in the HTML; the browser makes it inert.
