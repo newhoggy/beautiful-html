@@ -8,7 +8,7 @@ import path from "node:path";
 import vm from "node:vm";
 import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
-import { EXAMPLE, noise, trace, sizes, example } from "../scripts/deflate-example.mjs";
+import { EXAMPLE, PARAGRAPH as RECORDED_PARAGRAPH, REFERENCE, GZIP_OVERHEAD, isReferenceZlib, noise, trace, example } from "../scripts/deflate-example.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PAGE = fs.readFileSync(path.join(ROOT, "docs/how-deflate-works.html"), "utf8");
@@ -73,12 +73,29 @@ test("the worked example's figures are what the encoder produces", () => {
   assert.match(PAGE, /seen an encoder that does it in 13\./);
 });
 
-test("the opening answer and the bit walk match a live zlib run", () => {
+test("the recorded zlib streams are what this zlib writes, where it is the reference zlib", (t) => {
+  if (!isReferenceZlib()) {
+    t.skip(`zlib ${process.versions.zlib} is not the reference zlib ${REFERENCE.zlib} (Chromium's fork writes other, equally valid streams)`);
+    return;
+  }
+  assert.equal(zlib.deflateRawSync(Buffer.from(EXAMPLE), { level: 9 }).toString("hex"), REFERENCE.example);
+  assert.equal(zlib.gzipSync(Buffer.from(EXAMPLE), { level: 9 }).length, 33);
+});
+
+test("the recorded streams are valid DEFLATE for the page's inputs", () => {
+  assert.equal(PARAGRAPH, RECORDED_PARAGRAPH, "the page's paragraph preset is the recorded paragraph");
+  assert.equal(zlib.inflateRawSync(Buffer.from(REFERENCE.example, "hex")).toString(), EXAMPLE);
+  assert.equal(zlib.inflateRawSync(Buffer.from(REFERENCE.paragraph, "hex")).toString(), PARAGRAPH);
+  // The gzip wrapper costs the same 18 bytes whichever zlib wrote the stream inside it.
+  assert.equal(zlib.gzipSync(Buffer.from(EXAMPLE), { level: 9 }).length - zlib.deflateRawSync(Buffer.from(EXAMPLE), { level: 9 }).length, GZIP_OVERHEAD);
+});
+
+test("the opening answer and the bit walk match the recorded zlib stream", () => {
   const ex = example();
-  assert.equal(ex.gzip.length, 33);
+  assert.equal(ex.gzipBytes, 33);
   assert.equal(ex.bytes, 15);
   assert.equal(ex.bitsUsed, 119);
-  assert.equal(new TextDecoder().decode(ex.output), EXAMPLE);
+  assert.equal(new TextDecoder().decode(ex.output), EXAMPLE, "the tracer decodes it to the input");
   assert.match(PAGE, /<strong>33 bytes\.<\/strong>/);
   assert.match(PAGE, /The DEFLATE stream inside is <strong>15 bytes<\/strong>, 43% of the input/);
   assert.ok(PAGE.includes(`<code>${ex.raw.toString("hex").match(/../g).join(" ")}</code>`), "hex of zlib's output");
@@ -101,21 +118,22 @@ test("the opening answer and the bit walk match a live zlib run", () => {
   assert.match(at(20), /end of block/);
 });
 
-test("the block-type chart and the dynamic-header numbers match live runs", () => {
+test("the block-type chart and the dynamic-header numbers match the recorded zlib streams", () => {
   const pct = (bytes, n) => (Math.round((bytes / n) * 1000) / 10).toFixed(1);
   const rowFor = (label) => {
     const m = PAGE.match(new RegExp(`<tr><td>${label.replace(/[()×]/g, "\\$&")}</td>((?:<td>[^<]*</td>){4})</tr>`));
     assert.ok(m, `chart row ${label}`);
     return [...m[1].matchAll(/<td>([^<]*)<\/td>/g)].map((c) => c[1]);
   };
-  for (const [label, data] of [["abracadabra ×3 (35 B)", utf8(EXAMPLE)], [`A paragraph (${utf8(PARAGRAPH).length} B)`, utf8(PARAGRAPH)], ["Random bytes (1 KiB)", noise()]]) {
+  const zlibBytes = [REFERENCE.example.length / 2, REFERENCE.paragraph.length / 2, REFERENCE.noise];
+  for (const [i, [label, data]] of [["abracadabra ×3 (35 B)", utf8(EXAMPLE)], [`A paragraph (${utf8(PARAGRAPH).length} B)`, utf8(PARAGRAPH)], ["Random bytes (1 KiB)", noise()]].entries()) {
     const r = Deflate.encode(data);
     const want = [r.bits.stored, r.bits.fixed, r.bits.dynamic].map((b) => pct(Math.ceil(b / 8), data.length));
-    want.push(pct(sizes(Buffer.from(data)).best, data.length));
+    want.push(pct(zlibBytes[i], data.length));
     assert.deepEqual(rowFor(label), want, label);
   }
 
-  const t = trace(zlib.deflateRawSync(Buffer.from(PARAGRAPH), { level: 9 }));
+  const t = trace(Buffer.from(REFERENCE.paragraph, "hex"));
   assert.equal(t.blocks.length, 1);
   const { type, hlit, hdist, hclen, headerBits } = t.blocks[0];
   assert.equal(type, "dynamic");

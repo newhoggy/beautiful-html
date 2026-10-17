@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Authoring-time helper for docs/how-deflate-works.html: every number that page quotes about
-// zlib comes from here, and tests/how-deflate-works.test.mjs re-runs it against the page.
+// zlib comes from here, and tests/how-deflate-works.test.mjs checks the page against it.
 //
-//   node scripts/deflate-example.mjs            print the worked example, bit by bit, and the chart sizes
+//   node scripts/deflate-example.mjs            print the worked example, bit by bit, the zlib sizes,
+//                                               and whether this Node's zlib reproduces REFERENCE
 //
 // It needs nothing beyond Node's own zlib. The page's interactive has its own small encoder
 // (in the page script), which the test round-trips through zlib's inflate.
@@ -10,6 +11,31 @@ import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 
 export const EXAMPLE = "abracadabra abracadabra abracadabra";
+export const PARAGRAPH = "DEFLATE is the compression format inside gzip, zlib, PNG and ZIP. It finds repeated strings and replaces each repeat with a short pointer back to an earlier copy of the same bytes. Then it gives the symbols that remain short codes if they are common and long codes if they are rare. The decoder undoes both steps, one symbol at a time, and gets back exactly the bytes that went in.";
+
+/**
+ * What the reference zlib (madler/zlib 1.2.12: macOS, Homebrew's Node and most Linux
+ * distributions) writes at level 9. The page quotes these streams. Different zlib builds
+ * make different, equally valid choices: Chromium's fork, which Chrome and Node's official
+ * binaries ship, writes 17 bytes for EXAMPLE. So the test always checks the page against
+ * this record and checks that the record inflates to its input, and checks the record
+ * against a live run wherever the reference zlib is installed (see `isReferenceZlib`).
+ */
+export const REFERENCE = {
+  zlib: "1.2.12",
+  example: "4b4c2a4a4c4e4c4904520a89d8d900",
+  paragraph: "6d90c16ec4200c447f653e20ca3f54eab65aa9aaf6b0a7de08388955c008bbdd66bfbe846c6fbd20640f336f783ebdbc3d5d4f6085ad042fa9545265c998a52667e0ac1c08cb9dcb807be469c0e5fd152e077c9c2f23ce86997350542ae48c02d42ae745bba40da3f3a420e7d7870437b6150eba4a3514e16c543139ff0993f6aa696be436f25236c8dcc9d425c2b419e988eb4a196c58f89b0e6eddd22471bf37fb4ac9717ed87b094dc3dd6483abbd636af576ba2879f94751dbd1531068df567ce5204d34490357a3a20324ffc5a2653a18271abaeb42a6471dfa71dee2d6113bfb0178a3bcffebf80b",
+  noise: 1029, // bytes at level 9: zlib stores it (1,024 bytes + 5 of stored-block overhead)
+};
+/** A gzip file wraps the DEFLATE stream in a 10-byte header and an 8-byte CRC-32 + length trailer (no file name). */
+export const GZIP_OVERHEAD = 18;
+const live = (data) => zlib.deflateRawSync(data, { level: 9 });
+/** Whether this Node's zlib writes exactly the recorded streams. */
+export function isReferenceZlib() {
+  return live(Buffer.from(EXAMPLE)).toString("hex") === REFERENCE.example
+    && live(Buffer.from(PARAGRAPH)).toString("hex") === REFERENCE.paragraph
+    && live(noise()).length === REFERENCE.noise;
+}
 
 /** 1 KiB of reproducible noise for the "incompressible" column (mulberry32, seed 40). */
 export function noise(length = 1024, seed = 40) {
@@ -113,14 +139,16 @@ export function sizes(data) {
   };
 }
 
+/** The recorded example stream, traced field by field. */
 export function example() {
-  const raw = zlib.deflateRawSync(Buffer.from(EXAMPLE), { level: 9 });
-  return { raw, gzip: zlib.gzipSync(Buffer.from(EXAMPLE), { level: 9 }), ...trace(raw) };
+  const raw = Buffer.from(REFERENCE.example, "hex");
+  return { raw, gzipBytes: raw.length + GZIP_OVERHEAD, ...trace(raw) };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  console.log(`zlib ${process.versions.zlib}: ${isReferenceZlib() ? "reproduces" : "does NOT reproduce"} REFERENCE (recorded with ${REFERENCE.zlib})`);
   const ex = example();
-  console.log(`${JSON.stringify(EXAMPLE)}: ${EXAMPLE.length} bytes → DEFLATE ${ex.bytes} bytes (${ex.bitsUsed} bits used), gzip ${ex.gzip.length} bytes`);
+  console.log(`${JSON.stringify(EXAMPLE)}: ${EXAMPLE.length} bytes → DEFLATE ${ex.bytes} bytes (${ex.bitsUsed} bits used), gzip ${ex.gzipBytes} bytes`);
   console.log(`hex: ${ex.raw.toString("hex")}`);
   for (const f of ex.fields) {
     const extra = f.extraBits !== undefined ? ` +${f.extraBits || "(none)"}` : "";
@@ -132,5 +160,5 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   console.log("\nzlib sizes (bytes): input, level 0, Z_FIXED, level 9 (the chart's zlib -9 column)");
   console.log("example", sizes(Buffer.from(EXAMPLE)));
   console.log("noise  ", sizes(noise()));
-  if (process.argv[2]) console.log("text   ", sizes(Buffer.from(process.argv[2])), trace(zlib.deflateRawSync(Buffer.from(process.argv[2]), { level: 9 })).blocks);
+  console.log("text   ", sizes(Buffer.from(PARAGRAPH)), trace(live(Buffer.from(PARAGRAPH))).blocks);
 }

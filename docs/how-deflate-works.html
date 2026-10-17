@@ -402,7 +402,7 @@
         <div class="metric"><span class="value" id="lab-out">13</span><span class="label">bytes out, as a <span id="lab-type">fixed</span> block</span></div>
       </div>
       <p class="readout" id="lab-summary">LZ77 replaced 27 of 35 bytes with 2 back-references, leaving 8 literals. Codes built for this text would need a 159-bit table, more than they save, so the fixed codes win.</p>
-      <p class="muted" id="lab-browser-line" data-vr-mask hidden>For comparison, your browser's own DEFLATE (<code>CompressionStream</code>, zlib inside) wrote <output id="lab-browser">…</output> bytes.</p>
+      <p class="muted" id="lab-browser-line" data-vr-mask hidden>For comparison, your browser's own DEFLATE (<code>CompressionStream</code>) wrote <output id="lab-browser">…</output> bytes.</p>
       <ul class="legend"><li><span class="swatch c2"></span>literal byte</li><li><span class="swatch c1"></span>back-reference (length, distance)</li></ul>
       <div class="lab-tokens" id="lab-tokens" aria-label="Token stream"><span class="tok-lit">a</span><span class="tok-lit">b</span><span class="tok-lit">r</span><span class="tok-lit">a</span><span class="tok-lit">c</span><span class="tok-lit">a</span><span class="tok-lit">d</span><span class="tok-ref" title="copy 4 bytes from 7 back: “abra”">(4,7)</span><span class="tok-lit">␣</span><span class="tok-ref" title="copy 23 bytes from 12 back: “abracadabra abracadabra”">(23,12)</span></div>
       <details class="disclosure">
@@ -418,7 +418,7 @@
     <p>The paragraph shows both savings clearly: LZ77 finds the repeated words, and the skew of English letters pays for a dynamic table. One letter ×300 is almost all repetition. "No repeats" has nothing for LZ77 and too little text to pay for a table, so it comes out slightly larger than it went in.</p>
 
     <h2 id="one-block">One real block, bit by bit</h2>
-    <p>Here is what zlib at level 9 actually wrote for the opening string: the 15 bytes <code>4b 4c 2a 4a 4c 4e 4c 49 04 52 0a 89 d8 d9 00</code>, read the way a decoder reads them. Bits are taken from each byte lowest first. Huffman codes are read one bit at a time, most significant first; header fields and extra bits are plain numbers, lowest bit first.</p>
+    <p>Here is what the reference zlib (version 1.2.12) actually wrote at level 9 for the opening string: the 15 bytes <code>4b 4c 2a 4a 4c 4e 4c 49 04 52 0a 89 d8 d9 00</code>, read the way a decoder reads them. Bits are taken from each byte lowest first. Huffman codes are read one bit at a time, most significant first; header fields and extra bits are plain numbers, lowest bit first.</p>
     <bh-codewalk class="wide" id="bit-walk">
 <pre data-title="abracadabra ×3, as zlib -9 wrote it"><code>1         BFINAL = 1: last block
 10        BTYPE = 01: fixed codes
@@ -449,7 +449,7 @@
     </bh-codewalk>
     <aside class="callout">
       <p class="callout-title">Why is zlib's version bigger than the figure's?</p>
-      <p>zlib wrote 119 bits; the parse in the <a href="#window">window figure</a> needs 103. DEFLATE fixes how to <em>decode</em>, not how to encode: any token stream that rebuilds the input is valid. zlib's hash chains use position 0 as their "no match" marker, so zlib never copies from the very first byte of a stream. Both of its copies here would have started there, so each starts one byte later, after an extra literal <code>a</code>: 16 bits lost. On real files, zlib's smarter match choices win by far more.</p>
+      <p>zlib wrote 119 bits; the parse in the <a href="#window">window figure</a> needs 103. DEFLATE fixes how to <em>decode</em>, not how to encode: any token stream that rebuilds the input is valid. zlib's hash chains use position 0 as their "no match" marker, so zlib never copies from the very first byte of a stream. Both of its copies here would have started there, so each starts one byte later, after an extra literal <code>a</code>: 16 bits lost. On real files, zlib's smarter match choices win by far more. Other builds choose differently again: Chromium's fork of zlib, in Chrome and in Node's official binaries, writes 17 bytes for this string.</p>
     </aside>
 
     <h2 id="serial">Why decoding is serial</h2>
