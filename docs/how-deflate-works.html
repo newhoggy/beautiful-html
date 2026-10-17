@@ -86,7 +86,29 @@
     }
     #deflate-lab .tok-lit { --tone: var(--c2); }
     #deflate-lab .tok-ref { --tone: var(--c1); font-weight: 600; }
+    #deflate-lab button.tok-ref { font: inherit; font-weight: 600; cursor: pointer; }
+    #deflate-lab button.tok-ref:hover { background: color-mix(in oklab, var(--tone) 22%, var(--surface)); }
+    #deflate-lab button.tok-ref[aria-pressed="true"] { background: var(--tone); color: var(--surface); }
     #deflate-lab .tok-more { align-self: center; color: var(--text-muted); }
+    /* The input, one cell per byte: a picked back-reference marks the bytes it copies from
+       (solid outline) and the bytes it writes (dashed), so an overlapping copy shows both at once. */
+    #deflate-lab .lab-bytes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px;
+      max-height: 12em;
+      overflow-y: auto;
+      position: relative;
+      padding: var(--space-3);
+      border-radius: var(--radius);
+      background: var(--surface-2);
+      font-family: var(--font-mono);
+      font-size: var(--step--1);
+    }
+    #deflate-lab .lab-bytes span { min-width: 1.4em; padding: 0 2px; border: 1.5px solid transparent; border-radius: 3px; text-align: center; white-space: pre; color: var(--text-muted); }
+    #deflate-lab .lab-bytes .is-copy { border-style: dashed; border-color: var(--c1); color: var(--text); }
+    #deflate-lab .lab-bytes .is-source { border-color: var(--c1); background: color-mix(in oklab, var(--c1) 22%, var(--surface)); color: var(--text); font-weight: 600; }
+    #deflate-lab .lab-bytes .is-source.is-copy { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--c1) 22%, var(--surface)) 0 4px, var(--surface) 4px 8px); }
     #deflate-lab .metric .value { font-variant-numeric: tabular-nums; }
     #deflate-lab .legend { margin-top: 0; }
   </style>
@@ -404,7 +426,9 @@
       <p class="readout" id="lab-summary">LZ77 replaced 27 of 35 bytes with 2 back-references, leaving 8 literals. Codes built for this text would need a 159-bit table, more than they save, so the fixed codes win.</p>
       <p class="muted" id="lab-browser-line" data-vr-mask hidden>For comparison, your browser's own DEFLATE (<code>CompressionStream</code>) wrote <output id="lab-browser">…</output> bytes.</p>
       <ul class="legend"><li><span class="swatch c2"></span>literal byte</li><li><span class="swatch c1"></span>back-reference (length, distance)</li></ul>
+      <p class="muted" id="lab-pick" aria-live="polite" hidden>Click a back-reference to see the bytes it copies.</p>
       <div class="lab-tokens" id="lab-tokens" aria-label="Token stream"><span class="tok-lit">a</span><span class="tok-lit">b</span><span class="tok-lit">r</span><span class="tok-lit">a</span><span class="tok-lit">c</span><span class="tok-lit">a</span><span class="tok-lit">d</span><span class="tok-ref" title="copy 4 bytes from 7 back: “abra”">(4,7)</span><span class="tok-lit">␣</span><span class="tok-ref" title="copy 23 bytes from 12 back: “abracadabra abracadabra”">(23,12)</span></div>
+      <div class="lab-bytes" id="lab-bytes" aria-label="The input, byte by byte" hidden></div>
       <details class="disclosure">
         <summary>The token stream as a table</summary>
         <div class="table-wrap">
@@ -415,7 +439,7 @@
         </div>
       </details>
     </bh-playground>
-    <p>The paragraph shows both savings clearly: LZ77 finds the repeated words, and the skew of English letters pays for a dynamic table. One letter ×300 is almost all repetition. "No repeats" has nothing for LZ77 and too little text to pay for a table, so it comes out slightly larger than it went in.</p>
+    <p>Click any back-reference to see which earlier bytes it copies. The paragraph shows both savings clearly: LZ77 finds the repeated words, and the skew of English letters pays for a dynamic table. One letter ×300 is almost all repetition. "No repeats" has nothing for LZ77 and too little text to pay for a table, so it comes out slightly larger than it went in.</p>
 
     <h2 id="one-block">One real block, bit by bit</h2>
     <p>Here is what the reference zlib (version 1.2.12) actually wrote at level 9 for the opening string: the 15 bytes <code>4b 4c 2a 4a 4c 4e 4c 49 04 52 0a 89 d8 d9 00</code>, read the way a decoder reads them. Bits are taken from each byte lowest first. Huffman codes are read one bit at a time, most significant first; header fields and extra bits are plain numbers, lowest bit first.</p>
@@ -958,7 +982,8 @@ document.addEventListener("DOMContentLoaded", () => {
     rows.replaceChildren();
     r.tokens.slice(0, MAX).forEach((t, i) => {
       const lit = t.lit !== undefined;
-      const span = el("span", lit ? "tok-lit" : "tok-ref", lit ? shown(t.lit) : `(${t.len},${t.dist})`);
+      const span = lit ? el("span", "tok-lit", shown(t.lit)) : el("button", "tok-ref", `(${t.len},${t.dist})`);
+      if (!lit) { span.type = "button"; span.dataset.i = i; span.setAttribute("aria-pressed", "false"); }
       // Byte by byte, as literals are shown: a copy can start or end inside a UTF-8 character.
       const stands = Array.from(data.subarray(t.at, t.at + (lit ? 1 : t.len)), shown).join("");
       if (!lit) span.title = `copy ${t.len} bytes from ${t.dist} back: “${stands}”`;
@@ -970,11 +995,47 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
     if (r.tokens.length > MAX) chips.append(el("span", "tok-more", `… and ${nf(r.tokens.length - MAX)} more`));
+    bytes.replaceChildren(...Array.from(data, (b) => el("span", null, shown(b))));
+    bytes.hidden = data.length === 0;
+    tokens = r.tokens;
+    picked = -1;
+    $("lab-pick").hidden = refs.length === 0;
+    $("lab-pick").textContent = "Click a back-reference to see the bytes it copies.";
     browserDeflate(data);
     if (r.tokens.length > 200) { const tr = el("tr"); tr.append(el("td", null, ""), el("td", null, `… ${nf(r.tokens.length - 200)} more`), el("td"), el("td")); rows.append(tr); }
   }
 
-  // The browser's built-in DEFLATE (zlib in every engine), as a second opinion. Older browsers lack it.
+  // Picking a back-reference marks its source and its copy in the byte view. Picking it again clears them.
+  const bytes = $("lab-bytes");
+  let tokens = [], picked = -1;
+  function pick(i) {
+    const cells = bytes.children;
+    const mark = (cls, from, n, on) => { for (let k = from; k < from + n && k < cells.length; k++) cells[k].classList.toggle(cls, on); };
+    if (picked >= 0) {
+      const t = tokens[picked];
+      mark("is-source", t.at - t.dist, t.len, false);
+      mark("is-copy", t.at, t.len, false);
+      $("lab-tokens").querySelector(`[data-i="${picked}"]`).setAttribute("aria-pressed", "false");
+    }
+    const note = $("lab-pick");
+    if (i === picked) { picked = -1; note.textContent = "Click a back-reference to see the bytes it copies."; return; }
+    picked = i;
+    const t = tokens[i], from = t.at - t.dist, last = (a, n) => (n === 1 ? `byte ${a}` : `bytes ${a}–${a + n - 1}`);
+    mark("is-source", from, t.len, true);
+    mark("is-copy", t.at, t.len, true);
+    $("lab-tokens").querySelector(`[data-i="${i}"]`).setAttribute("aria-pressed", "true");
+    note.textContent = `(${t.len},${t.dist}) copies ${last(from, t.len)} (solid outline) to ${last(t.at, t.len)} (dashed)` +
+      (t.dist < t.len ? `. They overlap (striped): the copy reads bytes it has just written.` : ".");
+    // Bring the source into view inside the byte box, without moving the page.
+    const cell = cells[from];
+    if (cell) bytes.scrollTop = Math.max(0, cell.offsetTop - bytes.clientHeight / 3);
+  }
+  $("lab-tokens").addEventListener("click", (e) => {
+    const b = e.target.closest("button.tok-ref");
+    if (b) pick(+b.dataset.i);
+  });
+
+  // The browser's built-in DEFLATE, as a second opinion. Older browsers lack it.
   let asked = 0;
   function browserDeflate(data) {
     const line = $("lab-browser-line"), mine = ++asked;
