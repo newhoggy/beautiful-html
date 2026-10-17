@@ -48,6 +48,9 @@
     #huffman-tree .leaf text:not(.sub) { font-size: 18px; }
     #huffman-tree .tree-bit { fill: var(--c6); }
     #canonical-codes .node text { font-size: 16px; }
+    #join .node.bits text { font-weight: 500; }
+    #join .node.sym text:not(.sub), #join .node.tok text { font-family: var(--font-mono); }
+    @media (max-width: 640px) { #join > svg { min-width: 900px; } }
 
     /* The playground: text in, tokens and bit counts out. */
     #deflate-lab textarea {
@@ -342,11 +345,76 @@
     <p>These are not the tree's codes, but they have the same lengths, so they cost the same 23 bits. Counting up keeps the code prefix-free: every 3-bit code starts with 1, and the only 1-bit code is 0.</p>
 
     <h2 id="joining">How the two ideas join</h2>
-    <p>LZ77 produces two kinds of token, and Huffman coding needs an alphabet of symbols. DEFLATE uses two alphabets. Literals and lengths share the first, because the decoder must tell them apart before it knows which it is reading.</p>
+    <p>LZ77 hands over a stream of tokens. Huffman coding needs <em>symbols</em> from a fixed alphabet, so it can count them and give each a code. The join is a translation from one to the other, and then from symbols to bits. Here it is for the ten tokens from the <a href="#window">window figure</a>.</p>
+    <figure class="diagram wide" id="join">
+      <svg viewBox="-16 -16 1168 224" role="img" aria-label="The ten tokens of abracadabra ×3 become literal/length symbols and distance symbols with extra bits, then fixed Huffman codes: 103 bits in all">
+        <text class="label strong" x="0" y="15">tokens</text>
+        <text class="label strong" x="0" y="86">symbols</text>
+        <text class="label strong" x="0" y="154">bits</text>
+        <g class="node c2 tok" data-id="k0"><rect x="146" y="0" width="30" height="30" rx="5"/><text x="161" y="15">a</text></g>
+        <g class="node c2 tok" data-id="k1"><rect x="222" y="0" width="30" height="30" rx="5"/><text x="237" y="15">b</text></g>
+        <g class="node c2 tok" data-id="k2"><rect x="298" y="0" width="30" height="30" rx="5"/><text x="313" y="15">r</text></g>
+        <g class="node c2 tok" data-id="k3"><rect x="374" y="0" width="30" height="30" rx="5"/><text x="389" y="15">a</text></g>
+        <g class="node c2 tok" data-id="k4"><rect x="450" y="0" width="30" height="30" rx="5"/><text x="465" y="15">c</text></g>
+        <g class="node c2 tok" data-id="k5"><rect x="526" y="0" width="30" height="30" rx="5"/><text x="541" y="15">a</text></g>
+        <g class="node c2 tok" data-id="k6"><rect x="602" y="0" width="30" height="30" rx="5"/><text x="617" y="15">d</text></g>
+        <g class="node c1 tok" data-id="k7"><rect x="689.5" y="0" width="80" height="30" rx="5"/><text x="729.5" y="15">(4,7)</text></g>
+        <g class="node c2 tok" data-id="k8"><rect x="827" y="0" width="30" height="30" rx="5"/><text x="842" y="15">␣</text></g>
+        <g class="node c1 tok" data-id="k9"><rect x="935" y="0" width="80" height="30" rx="5"/><text x="975" y="15">(23,12)</text></g>
+        <g class="node c2 sym sym-lit" data-id="s0"><rect x="139" y="64" width="44" height="44" rx="6"/><text x="161" y="86">97</text></g>
+        <g class="node c2 sym sym-lit" data-id="s1"><rect x="215" y="64" width="44" height="44" rx="6"/><text x="237" y="86">98</text></g>
+        <g class="node c2 sym sym-lit" data-id="s2"><rect x="291" y="64" width="44" height="44" rx="6"/><text x="313" y="86">114</text></g>
+        <g class="node c2 sym sym-lit" data-id="s3"><rect x="367" y="64" width="44" height="44" rx="6"/><text x="389" y="86">97</text></g>
+        <g class="node c2 sym sym-lit" data-id="s4"><rect x="443" y="64" width="44" height="44" rx="6"/><text x="465" y="86">99</text></g>
+        <g class="node c2 sym sym-lit" data-id="s5"><rect x="519" y="64" width="44" height="44" rx="6"/><text x="541" y="86">97</text></g>
+        <g class="node c2 sym sym-lit" data-id="s6"><rect x="595" y="64" width="44" height="44" rx="6"/><text x="617" y="86">100</text></g>
+        <g class="node c1 sym sym-len" data-id="s7"><rect x="657.5" y="64" width="64" height="44" rx="6"/><text x="689.5" y="79">258</text><text class="sub" x="689.5" y="96">len 4</text></g>
+        <g class="node c1 sym sym-dist" data-id="s8"><rect x="727" y="64" width="74" height="44" rx="18"/><text x="764" y="79">d5</text><text class="sub" x="764" y="96">dist 7</text></g>
+        <g class="node c2 sym sym-lit" data-id="s9"><rect x="820" y="64" width="44" height="44" rx="6"/><text x="842" y="86">32</text></g>
+        <g class="node c1 sym sym-len" data-id="s10"><rect x="883" y="64" width="96" height="44" rx="6"/><text x="931" y="79">270</text><text class="sub" x="931" y="96">len 23</text></g>
+        <g class="node c1 sym sym-dist" data-id="s11"><rect x="985" y="64" width="82" height="44" rx="18"/><text x="1026" y="79">d6</text><text class="sub" x="1026" y="96">dist 12</text></g>
+        <g class="node sym sym-end" data-id="s12"><rect x="1078.5" y="64" width="52" height="44" rx="6"/><text x="1104.5" y="79">256</text><text class="sub" x="1104.5" y="96">end</text></g>
+        <g class="node c5 bits" data-id="b0"><rect x="86" y="140" width="34" height="28" rx="4"/><text class="mono" x="103" y="154">110</text></g>
+        <g class="node c5 bits" data-id="b1"><rect x="126" y="140" width="70" height="28" rx="4"/><text class="mono" x="161" y="154">10010001</text></g>
+        <g class="node c5 bits" data-id="b2"><rect x="202" y="140" width="70" height="28" rx="4"/><text class="mono" x="237" y="154">10010010</text></g>
+        <g class="node c5 bits" data-id="b3"><rect x="278" y="140" width="70" height="28" rx="4"/><text class="mono" x="313" y="154">10100010</text></g>
+        <g class="node c5 bits" data-id="b4"><rect x="354" y="140" width="70" height="28" rx="4"/><text class="mono" x="389" y="154">10010001</text></g>
+        <g class="node c5 bits" data-id="b5"><rect x="430" y="140" width="70" height="28" rx="4"/><text class="mono" x="465" y="154">10010011</text></g>
+        <g class="node c5 bits" data-id="b6"><rect x="506" y="140" width="70" height="28" rx="4"/><text class="mono" x="541" y="154">10010001</text></g>
+        <g class="node c5 bits" data-id="b7"><rect x="582" y="140" width="70" height="28" rx="4"/><text class="mono" x="617" y="154">10010100</text></g>
+        <g class="node c5 bits" data-id="b8"><rect x="658" y="140" width="63" height="28" rx="4"/><text class="mono" x="689.5" y="154">0000010</text></g>
+        <g class="node c5 bits" data-id="b9"><rect x="727" y="140" width="49" height="28" rx="4"/><text class="mono" x="751.5" y="154">00101</text></g>
+        <g class="node bits extra" data-id="b10"><rect x="782" y="140" width="19" height="28" rx="4"/><text class="mono" x="791.5" y="154">0</text></g>
+        <g class="node c5 bits" data-id="b11"><rect x="807" y="140" width="70" height="28" rx="4"/><text class="mono" x="842" y="154">01010000</text></g>
+        <g class="node c5 bits" data-id="b12"><rect x="883" y="140" width="63" height="28" rx="4"/><text class="mono" x="914.5" y="154">0001110</text></g>
+        <g class="node bits extra" data-id="b13"><rect x="952" y="140" width="27" height="28" rx="4"/><text class="mono" x="965.5" y="154">00</text></g>
+        <g class="node c5 bits" data-id="b14"><rect x="985" y="140" width="49" height="28" rx="4"/><text class="mono" x="1009.5" y="154">00110</text></g>
+        <g class="node bits extra" data-id="b15"><rect x="1040" y="140" width="27" height="28" rx="4"/><text class="mono" x="1053.5" y="154">11</text></g>
+        <g class="node c5 bits" data-id="b16"><rect x="1073" y="140" width="63" height="28" rx="4"/><text class="mono" x="1104.5" y="154">0000000</text></g>
+        <text class="label" x="103" y="86" text-anchor="middle" data-id="hdr-label">header</text>
+        <text class="label strong join-total" x="86" y="194">103 bits: 3 of header, 64 for 8 literals, 29 for 2 back-references, 7 to end the block</text>
+      </svg>
+      <figcaption>Notice that a <span data-ref="join:k7 k9 s7 s8 s10 s11">back-reference</span> becomes two symbols from two different alphabets (square: literal/length; rounded: distance), each followed by raw extra bits, and that the <span data-ref="join:s12">end-of-block symbol</span> costs bits too.</figcaption>
+    </figure>
+    <bh-stepper for="join">
+      <bh-step highlight="k0 k1 k2 k3 k4 k5 k6 k7 k8 k9"><p><strong>Start from LZ77's output:</strong> eight literals and two back-references.</p></bh-step>
+      <bh-step highlight="k0 k1 k2 k3 k4 k5 k6 k8 s0 s1 s2 s3 s4 s5 s6 s9"><p><strong>A literal is its own symbol.</strong> The byte <code>a</code> (97) is symbol 97 of the <em>literal/length alphabet</em>, which runs from 0 to 285. All eight literals map this way.</p></bh-step>
+      <bh-step highlight="k7 k9 s7 s8 s10 s11"><p><strong>A back-reference becomes two symbols.</strong> Length 4 is symbol 258 of the same alphabet. Distance 7 is code d5 of a second, <em>distance alphabet</em>; d5 covers distances 7–8, so 1 extra bit follows to pick 7. (23, 12) becomes 270, covering lengths 23–26, with 2 extra bits, then d6, covering 9–12, with 2 more.</p></bh-step>
+      <bh-step highlight="s12"><p><strong>The block must end.</strong> Symbol 256, end-of-block, comes from the literal/length alphabet, so it sits among the literals and lengths and gets a code like them.</p></bh-step>
+      <bh-step><p><strong>Codes turn symbols into bits.</strong> This block uses the fixed codes: 8 bits per literal, 7 for symbols 256–279, 5 per distance code. Extra bits go out as they are, uncoded. With the 3 header bits that is 103 bits, the number in the first figure.</p></bh-step>
+    </bh-stepper>
+
+    <h2 id="two-alphabets">Why two alphabets and extra bits</h2>
+    <p>Each choice in that translation buys something:</p>
+    <dl class="kv">
+      <dt>One alphabet for literals and lengths</dt><dd>The decoder reads one code and learns both what comes next and, for a literal, which byte. A separate literal-or-copy flag would cost a bit on every token; inside one alphabet, whichever kind is common simply gets the shorter codes.</dd>
+      <dt>A second alphabet for distances</dt><dd>A distance only ever follows a length, so the decoder always knows which table to use, and distances get a code fitted to their own skew: recent copies are common.</dd>
+      <dt>Buckets and extra bits</dt><dd>There are 256 possible lengths and 32,768 distances, far too many symbols for a small table that is cheap to send. So one symbol stands for a range, and raw extra bits pick the value inside it. Small lengths and distances are common, so they get exact symbols; large ones share.</dd>
+    </dl>
     <div class="table-wrap wide" id="alphabets" data-linkable>
       <table>
         <caption>The literal/length alphabet (0–285) and the distance alphabet (0–29). Extra bits follow a symbol, as a plain binary number.</caption>
-        <thead><tr><th>Symbols</th><th>Mean</th><th class="num">Extra bits</th><th>Example</th></tr></thead>
+        <thead><tr><th>Symbols</th><th>Means</th><th class="num">Extra bits</th><th>Example</th></tr></thead>
         <tbody>
           <tr><td>0–255</td><td>a literal byte</td><td class="num">0</td><td><code>97</code> is <code>a</code></td></tr>
           <tr><td>256</td><td>end of block</td><td class="num">0</td><td>every block ends with it</td></tr>
@@ -356,7 +424,20 @@
         </tbody>
       </table>
     </div>
-    <p>A back-reference is therefore a length symbol, its extra bits, a distance symbol from the second alphabet, and its extra bits. Short lengths and distances are common, so they get their own symbols; long ones share a symbol and are told apart by the extra bits.</p>
+    <p>The decoder's inner loop is the same translation run backwards. Its two tables are the two alphabets:</p>
+    <pre data-title="inflate one Huffman block"><code class="language-python">while True:
+    sym = read_code(lit_len_table)    # literal, length or end
+    if sym &lt; 256:
+        out.append(sym)               # a literal byte
+    elif sym == 256:
+        break                         # end of block
+    else:
+        i = sym - 257
+        length = LENGTH_BASE[i] + read_bits(LENGTH_EXTRA[i])
+        d = read_code(distance_table) # always follows a length
+        distance = DIST_BASE[d] + read_bits(DIST_EXTRA[d])
+        for _ in range(length):       # byte by byte: may overlap
+            out.append(out[-distance])</code></pre>
 
     <h2 id="block-types">Three kinds of block</h2>
     <p>A stream is a series of blocks. Each block starts with 3 header bits: <code>BFINAL</code> (is this the last block?) and the 2-bit <code>BTYPE</code>. The type says where the codes come from.</p>
@@ -949,6 +1030,50 @@ document.addEventListener("DOMContentLoaded", () => {
         why.setAttribute("y", y);
         fade(why, s[l].why);
       }
+    });
+  }
+
+  // ---- The join: tokens become symbols, symbols become codes -------------------------------
+  // Geometry generated from the page's encoder at authoring time; the markup is its last step.
+  {
+    const JOIN = {"Y":{"tok":0,"sym":64,"code":140},"H":{"tok":30,"sym":44,"code":28},"toks":[{"id":"k0","label":"a","tone":"c2","x":146,"w":30},{"id":"k1","label":"b","tone":"c2","x":222,"w":30},{"id":"k2","label":"r","tone":"c2","x":298,"w":30},{"id":"k3","label":"a","tone":"c2","x":374,"w":30},{"id":"k4","label":"c","tone":"c2","x":450,"w":30},{"id":"k5","label":"a","tone":"c2","x":526,"w":30},{"id":"k6","label":"d","tone":"c2","x":602,"w":30},{"id":"k7","label":"(4,7)","tone":"c1","x":689.5,"w":80},{"id":"k8","label":"\u2423","tone":"c2","x":827,"w":30},{"id":"k9","label":"(23,12)","tone":"c1","x":935,"w":80}],"syms":[{"id":"s0","kind":"lit","tok":0,"text":"97","sub":"","cx":161,"w":44},{"id":"s1","kind":"lit","tok":1,"text":"98","sub":"","cx":237,"w":44},{"id":"s2","kind":"lit","tok":2,"text":"114","sub":"","cx":313,"w":44},{"id":"s3","kind":"lit","tok":3,"text":"97","sub":"","cx":389,"w":44},{"id":"s4","kind":"lit","tok":4,"text":"99","sub":"","cx":465,"w":44},{"id":"s5","kind":"lit","tok":5,"text":"97","sub":"","cx":541,"w":44},{"id":"s6","kind":"lit","tok":6,"text":"100","sub":"","cx":617,"w":44},{"id":"s7","kind":"len","tok":7,"text":"258","sub":"len 4","cx":689.5,"w":64},{"id":"s8","kind":"dist","tok":7,"text":"d5","sub":"dist 7","cx":764,"w":74},{"id":"s9","kind":"lit","tok":8,"text":"32","sub":"","cx":842,"w":44},{"id":"s10","kind":"len","tok":9,"text":"270","sub":"len 23","cx":931,"w":96},{"id":"s11","kind":"dist","tok":9,"text":"d6","sub":"dist 12","cx":1026,"w":82},{"id":"s12","kind":"end","tok":null,"text":"256","sub":"end","cx":1104.5,"w":52}],"pieces":[{"id":"b0","owner":"hdr","bits":"110","x":86,"w":34,"extra":false},{"id":"b1","owner":"s0","bits":"10010001","x":126,"w":70,"extra":false},{"id":"b2","owner":"s1","bits":"10010010","x":202,"w":70,"extra":false},{"id":"b3","owner":"s2","bits":"10100010","x":278,"w":70,"extra":false},{"id":"b4","owner":"s3","bits":"10010001","x":354,"w":70,"extra":false},{"id":"b5","owner":"s4","bits":"10010011","x":430,"w":70,"extra":false},{"id":"b6","owner":"s5","bits":"10010001","x":506,"w":70,"extra":false},{"id":"b7","owner":"s6","bits":"10010100","x":582,"w":70,"extra":false},{"id":"b8","owner":"s7","bits":"0000010","x":658,"w":63,"extra":false},{"id":"b9","owner":"s8","bits":"00101","x":727,"w":49,"extra":false},{"id":"b10","owner":"s8","bits":"0","x":782,"w":19,"extra":true},{"id":"b11","owner":"s9","bits":"01010000","x":807,"w":70,"extra":false},{"id":"b12","owner":"s10","bits":"0001110","x":883,"w":63,"extra":false},{"id":"b13","owner":"s10","bits":"00","x":952,"w":27,"extra":true},{"id":"b14","owner":"s11","bits":"00110","x":985,"w":49,"extra":false},{"id":"b15","owner":"s11","bits":"11","x":1040,"w":27,"extra":true},{"id":"b16","owner":"s12","bits":"0000000","x":1073,"w":63,"extra":false}],"total":103};
+    const { Y, H } = JOIN, tokOf = (s) => JOIN.toks[s.tok];
+    const SHOW = { lit: 1, len: 2, dist: 2, end: 3 };
+    const joinState = (k) => {
+      const s = {};
+      for (const sym of JOIN.syms) {
+        const t = sym.tok === null ? null : tokOf(sym);
+        s[sym.id] = k >= SHOW[sym.kind] || !t
+          ? { x: sym.cx - sym.w / 2, y: Y.sym, w: sym.w, h: H.sym, text: sym.text, op: k >= SHOW[sym.kind] ? 1 : 0, sub: sym.sub ? 1 : 0 }
+          : { x: t.x, y: Y.tok, w: t.w, h: H.tok, text: t.label, op: 0, sub: 0 };
+      }
+      for (const p of JOIN.pieces) {
+        const o = JOIN.syms.find((x) => x.id === p.owner);
+        s[p.id] = k >= 4 ? { x: p.x, y: Y.code, op: 1 } : { x: o ? o.cx - p.w / 2 : p.x, y: Y.sym, op: 0 };
+      }
+      s.total = { n: k >= 4 ? JOIN.total : 0, op: k >= 4 ? 1 : 0 };
+      return s;
+    };
+    const fig = document.getElementById("join");
+    const total = fig && fig.querySelector(".join-total"), rest = total && total.textContent.replace(/^\d+/, "");
+    scene("join", joinState(4), [0, 1, 2, 3, 4].map(joinState), (part, s) => {
+      for (const sym of JOIN.syms) {
+        const g = part(sym.id), v = s[sym.id], [r, t, sub] = g.children;
+        r.setAttribute("x", v.x); r.setAttribute("y", v.y); r.setAttribute("width", v.w); r.setAttribute("height", v.h);
+        t.setAttribute("x", v.x + v.w / 2); t.setAttribute("y", v.y + v.h / 2 - 7 * v.sub);
+        if (t.textContent !== v.text) t.textContent = v.text;
+        if (sub) { sub.setAttribute("x", v.x + v.w / 2); sub.setAttribute("y", v.y + 32); fade(sub, v.sub); }
+        fade(g, v.op);
+      }
+      for (const p of JOIN.pieces) {
+        const g = part(p.id), v = s[p.id], [r, t] = g.children;
+        r.setAttribute("x", v.x); r.setAttribute("y", v.y);
+        t.setAttribute("x", v.x + p.w / 2); t.setAttribute("y", v.y + H.code / 2);
+        fade(g, v.op);
+      }
+      fade(part("hdr-label"), s.total.op);
+      total.textContent = `${Math.round(s.total.n)}${rest}`;
+      fade(total, s.total.op);
     });
   }
 

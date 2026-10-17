@@ -90,6 +90,18 @@ test("the recorded streams are valid DEFLATE for the page's inputs", () => {
   assert.equal(zlib.gzipSync(Buffer.from(EXAMPLE), { level: 9 }).length - zlib.deflateRawSync(Buffer.from(EXAMPLE), { level: 9 }).length, GZIP_OVERHEAD);
 });
 
+test("the join figure's bits are the encoder's fixed-Huffman stream, in read order", () => {
+  const fig = PAGE.match(/<figure[^>]*id="join"[\s\S]*?<\/figure>/)[0];
+  const shown = [...fig.matchAll(/data-id="b\d+"><rect [^>]*\/><text class="mono"[^>]*>([01]+)<\/text>/g)].map((m) => m[1]).join("");
+  const stream = Deflate.encode(utf8(EXAMPLE)).streams.fixed;
+  const read = Array.from({ length: stream.length * 8 }, (_, i) => (stream[i >> 3] >> (i & 7)) & 1).join("");
+  assert.equal(shown.length, 103);
+  assert.equal(shown, read.slice(0, 103));
+  assert.match(fig, />103 bits: 3 of header, 64 for 8 literals, 29 for 2 back-references, 7 to end the block</);
+  const toks = [...fig.matchAll(/class="node c[12] tok" data-id="k\d+"><rect [^>]*\/><text[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]);
+  assert.deepEqual(toks, ["a", "b", "r", "a", "c", "a", "d", "(4,7)", "␣", "(23,12)"]);
+});
+
 test("the opening answer and the bit walk match the recorded zlib stream", () => {
   const ex = example();
   assert.equal(ex.gzipBytes, 33);
