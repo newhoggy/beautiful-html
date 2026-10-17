@@ -511,6 +511,25 @@ test("where the fixed code falls short: the paragraph's fitted codes and totals"
   assert.equal(Math.round((1 - 1876 / 2378) * 100), 21);
 });
 
+test("the bridges between sections quote real numbers", () => {
+  const tr = trace(Buffer.from(REFERENCE.paragraph, "hex"));
+  const data = tr.fields.filter((f) => ["literal", "length", "distance", "end"].includes(f.kind));
+  const fixedLen = (sym) => (sym < 144 ? 8 : sym < 256 ? 9 : sym < 280 ? 7 : 8), extra = (f) => (f.extraBits || "").length;
+  const saved = data.reduce((s, f) => s + (f.kind === "distance" ? 5 : fixedLen(f.value)) + extra(f), 0) - data.reduce((s, f) => s + f.bits.length + extra(f), 0);
+  assert.equal(saved, 854);
+  assert.match(PAGE, /the fitted code saved 854 bits on the data, and sending it cost 352 of them/);
+  // Step 3 → 4: how unequal the paragraph's run symbols are.
+  const runs = tr.fields.filter((f) => f.kind === "clsym"), n = (sym) => runs.filter((f) => f.symbol === sym).length;
+  assert.deepEqual([runs.length, n(8), n(5), n(0), n(2), n(16)], [78, 14, 14, 12, 1, 0]);
+  assert.ok(Math.max(...[...Array(19).keys()].map(n)) === 14, "8 and 5 are the most common");
+  assert.match(PAGE, /Of the paragraph's 78, the lengths 8 and 5 appear 14 times each and 0 appears 12 times, while 2 appears once and 16 not at all/);
+  // Choosing: the example's dynamic block is twice its fixed one; random bytes grow under both codes.
+  const ex = Deflate.encode(utf8(EXAMPLE)), rn = Deflate.encode(noise());
+  assert.deepEqual([ex.streams.dynamic.length, ex.streams.fixed.length], [26, 13]);
+  assert.ok(rn.streams.fixed.length > 1024 && rn.streams.dynamic.length > 1024);
+  assert.match(PAGE, /The example's dynamic block is twice the size of its fixed one, while the paragraph's dynamic block is a fifth smaller than its fixed one/);
+});
+
 test("the BTYPE table matches what zlib accepts", () => {
   // First byte: BFINAL in bit 0, BTYPE in bits 1–2 (read low bit first).
   assert.equal(zlib.inflateRawSync(Buffer.from([0b001, 0x00, 0x00, 0xff, 0xff])).length, 0, "00: an empty stored block");

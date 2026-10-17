@@ -307,7 +307,7 @@
     <p>Overlap is not a corner case. It is how LZ77 encodes runs: <code>aaaaaaaa</code> is the literal <code>a</code> followed by <code>(7, 1)</code>, "copy 7 bytes from 1 back".</p>
 
     <h2 id="huffman">Huffman: short codes for common symbols</h2>
-    <p>Eight bits per letter is fair only if every letter is equally likely. In <code>abracadabra</code> the counts are a×5, b×2, r×2, c×1 and d×1, so <em>a</em> should get the shortest code. Huffman's algorithm finds the best codes for known counts, and it is greedy: <strong>repeatedly join the two rarest things.</strong></p>
+    <p>LZ77 has removed the repetition, but it leaves every literal at a full 8 bits: the common <code>a</code> costs as much as the rare <code>d</code>. Eight bits per letter is fair only if every letter is equally likely. In <code>abracadabra</code> the counts are a×5, b×2, r×2, c×1 and d×1, so <em>a</em> should get the shortest code. Huffman's algorithm finds the best codes for known counts, and it is greedy: <strong>repeatedly join the two rarest things.</strong></p>
     <p>Here the symbols are the letters themselves, to keep the tree small. DEFLATE runs the same algorithm on the output of LZ77 instead, as <a href="#joining">the join</a> below shows: on counts of literals, lengths and distances, not of raw bytes.</p>
     <figure class="diagram wide" id="huffman-tree">
       <svg viewBox="-16 -16 872 368" role="img" aria-label="A Huffman tree for abracadabra: a sits one level below the root with code 0; b, r, c and d sit three levels down with three-bit codes">
@@ -362,6 +362,7 @@
     </details>
 
     <h2 id="joining">How the two ideas join</h2>
+    <p>The two tools don't fit together yet. Huffman coding works on a known alphabet of symbols, like the five letters of <code>abracadabra</code>, and counts how often each one appears. LZ77's output is not like that: it mixes literal bytes with back-references, and a back-reference is a pair of numbers, a length up to 258 and a distance up to 32,768. Before Huffman coding can start, every token has to become symbols from a fixed alphabet. That translation is the join.</p>
     <p>The two stages meet once per block, always in this order:</p>
     <ol class="steps">
       <li><strong>LZ77</strong> turns the block's bytes into tokens: literals and (length, distance) copies.</li>
@@ -509,6 +510,7 @@
             out.append(out[-distance])</code></pre>
 
     <h2 id="block-types">Blocks, and the fixed code</h2>
+    <p>The join figure turned symbols into bits with "the fixed tables", taking them for granted. But a decoder can read the bits only if it knows which codes the encoder used, and there is more than one sensible choice. So DEFLATE splits a stream into blocks, and each block says at its start how it is coded.</p>
     <p>A stream is a series of blocks. Each block starts with 3 header bits: <code>BFINAL</code> (1 if this is the last block) and the 2-bit <code>BTYPE</code>, which says where the codes come from. Two bits allow four values, and only three are used:</p>
     <div class="table-wrap" id="btype" data-linkable>
       <table>
@@ -684,7 +686,7 @@
     <p>These are not the tree's codes, but they have the same lengths, so they cost the same 23 bits. Counting up keeps the code prefix-free: every 3-bit code starts with 1, and the only 1-bit code is 0.</p>
 
     <h2 id="dynamic-header">Sending a dynamic code</h2>
-    <p>A dynamic block must tell the decoder its codes before its data. Thanks to <a href="#canonical">canonical codes</a>, it only needs to send each symbol's code length: 286 literal/length symbols and 30 distance symbols, 316 lengths in all, each from 0 to 15. The question is how to send them cheaply. Here are four tries, each fixing the biggest waste in the one before, measured on two blocks: the worked example written as a dynamic block (the one <a href="#dynamic-block">walked through below</a>), and zlib's real block for the 381-byte paragraph.</p>
+    <p>A dynamic block must tell the decoder its codes before its data. Thanks to <a href="#canonical">canonical codes</a>, it only needs to send each symbol's code length: 286 literal/length symbols and 30 distance symbols, 316 lengths in all, each from 0 to 15. The question is how to send them cheaply, and it matters: every bit spent on the code comes out of the saving. For the paragraph, the fitted code saved 854 bits on the data, and sending it cost 352 of them. Here are four tries, each fixing the biggest waste in the one before, measured on two blocks: the worked example written as a dynamic block (the one <a href="#dynamic-block">walked through below</a>), and zlib's real block for the 381-byte paragraph.</p>
     <h3 id="step-naive">1. Every length, 4 bits each</h3>
     <p>Write all 316 lengths as plain 4-bit numbers, in symbol order. That is 1,264 bits, 158 bytes, in every dynamic block whatever it holds. The example's data is only 41 bits, so its code table would cost 30 times as much as the data it describes. Even the paragraph's data, 1,521 bits, would nearly double.</p>
     <h3 id="step-counts">2. Say how many</h3>
@@ -692,7 +694,7 @@
 
     <h2 id="dynamic-runs">Runs, and a code for the runs</h2>
     <h3 id="step-runs">3. Replace runs with one symbol</h3>
-    <p>Write the lengths with a small alphabet of 19 symbols instead: 0–15 for a length, 16 to repeat the previous length, and 17 and 18 for runs of zeros, each followed by plain extra bits that give the count. For now, write each of these symbols as a plain 5-bit number. A whole stretch of unused byte values becomes one symbol: the example's 262 unused literal/length symbols take just 7. The header drops to 146 bits for the example and 443 for the paragraph.</p>
+    <p>Write the lengths with a small alphabet of 19 symbols instead: 0–15 for a length, 16 to repeat the previous length, and 17 and 18 for runs of zeros, each followed by plain extra bits that give the count. For now, write each of these symbols as a plain 5-bit number. A whole stretch of unused byte values becomes one symbol: the example's 262 unused literal/length symbols take just 7. The header drops to 146 bits for the example and 443 for the paragraph. That is the big win, but the paragraph's header is still 443 bits.</p>
     <div class="table-wrap" id="cl-alphabet" data-linkable>
       <table>
         <caption>The code-length alphabet. Fixed by the format: the same in every dynamic block. Each range follows from its extra bits: 2 bits give 4 counts, 3 give 8, 7 give 128.</caption>
@@ -707,7 +709,7 @@
     </div>
     <p>Runs start at 3 because a run of 1 or 2 is cheaper written out. Zeros get two run symbols, a short one and a long one, because they are by far the most common length.</p>
     <h3 id="step-coded">4. Huffman-code the run symbols</h3>
-    <p>Some of these 19 symbols are far more common than others, so DEFLATE gives them a Huffman code too: the <em>code-length code</em>, a Huffman code whose job is to send the other two codes. Its own 19 lengths go first, as plain 3-bit numbers. A dynamic block is therefore a stack of three layers, each written with the one below it:</p>
+    <p>Step 3 still spends 5 bits on every run symbol, yet they are far from equally common. Of the paragraph's 78, the lengths 8 and 5 appear 14 times each and 0 appears 12 times, while 2 appears once and 16 not at all. That is the same skew Huffman coding removes from the data, one level down, so DEFLATE gives these symbols a Huffman code too: the <em>code-length code</em>, a Huffman code whose job is to send the other two codes. Its own 19 lengths go first, as plain 3-bit numbers. A dynamic block is therefore a stack of three layers, each written with the one below it:</p>
     <div class="table-wrap" id="code-layers" data-linkable>
       <table>
         <caption>The three layers of a dynamic block, from the top. A decoder reads them from the bottom up.</caption>
@@ -849,7 +851,7 @@
     </details>
 
     <h2 id="choosing">Choosing a block type</h2>
-    <p>With both kinds of code seen, here are the three block types side by side.</p>
+    <p>An encoder now has a choice for every block, and it matters. The example's dynamic block is twice the size of its fixed one, while the paragraph's dynamic block is a fifth smaller than its fixed one. And for data with no repetition or skew, such as random bytes, both codes make things worse: the fixed code spends 8 or 9 bits on every byte. That is what the third type, the stored block, is for: it copies the bytes as they are. Here are the three side by side.</p>
     <div class="compare wide">
       <div class="option">
         <h3>Stored (00)</h3>
@@ -886,7 +888,7 @@
     </figure>
 
     <h2 id="not-symbols">Everything in the stream that isn't a symbol</h2>
-    <p>A DEFLATE stream is mostly Huffman codes, but not entirely. Bits are written in two ways, and a decoder must know which kind comes next:</p>
+    <p>Every part of a stream has now appeared, but scattered across the sections above, each one introduced where it was needed. To read a stream yourself, or to write a decoder, you need them in one place, with one rule for how each is written. A DEFLATE stream is mostly Huffman codes, but not entirely. Bits are written in two ways, and a decoder must know which kind comes next:</p>
     <ul>
       <li><strong>A Huffman code</strong> is read one bit at a time, most significant bit first, because the decoder walks down the code tree as each bit arrives.</li>
       <li><strong>Everything else is a plain number</strong> of a fixed, known width, read lowest bit first. Each byte of the stream fills from its lowest bit up, so a plain number's bits arrive in the order they are packed.</li>
@@ -927,7 +929,7 @@ HLIT      | BTYPE | BFINAL
     <p>That is why the stream needs no separators or length prefixes, and also why it must be read strictly in order: where <code>HDIST</code> starts depends on having read <code>HLIT</code>, and one corrupted bit misaligns everything after it.</p>
 
     <h2 id="try-it">Try it</h2>
-    <p>Type anything, or pick an example. The tokens are what LZ77 found; the numbers show each saving on its own and both together. Every count is the size of a real DEFLATE stream that this page's encoder writes, not an estimate.</p>
+    <p>You have seen both savings on one 35-byte string. Here they are on any text you like. Type anything, or pick an example. The tokens are what LZ77 found; the numbers show each saving on its own and both together. Every count is the size of a real DEFLATE stream that this page's encoder writes, not an estimate.</p>
     <bh-playground class="wide" id="deflate-lab">
       <div>
         <label class="control" for="lab-text"><span>Text to compress <output id="lab-size">35 bytes</output></span></label>
@@ -976,7 +978,7 @@ HLIT      | BTYPE | BFINAL
     <p>Click any back-reference to see which earlier bytes it copies, and use <strong>Write it as</strong> to see the same tokens as each kind of block: the smallest is what an encoder would send, but every one decodes. The paragraph shows both savings clearly: LZ77 finds the repeated words, and the skew of English letters pays for a dynamic table. One letter ×300 is almost all repetition. "No repeats" has nothing for LZ77 and too little text to pay for a table, so it comes out slightly larger than it went in.</p>
 
     <h2 id="serial">Why decoding is serial</h2>
-    <p>The output is dense: there are no separators and no index. A code's length is known only once it has been decoded, so the decoder cannot find where symbol <em>n</em> + 1 starts without decoding symbol <em>n</em>. Back-references add a second chain: a copy reads bytes that earlier tokens wrote.</p>
+    <p>Everything so far has been about size. The price of that density is speed. The output has no separators and no index. A code's length is known only once it has been decoded, so the decoder cannot find where symbol <em>n</em> + 1 starts without decoding symbol <em>n</em>. Back-references add a second chain: a copy reads bytes that earlier tokens wrote.</p>
     <p>That is why a gzip file is decompressed by one core, front to back, however many cores the machine has. Getting around it, for example to decode on a GPU, means finding where blocks start without decoding what comes before, and resolving copies whose sources aren't decoded yet. A later series here takes that on; nothing on this page depends on it.</p>
 
     <h2 id="edge-cases">Edge cases</h2>
