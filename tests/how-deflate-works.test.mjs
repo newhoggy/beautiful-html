@@ -205,6 +205,35 @@ test("the alphabet explorer's strips and default state are the encoder's mapping
   assert.match(lab, /data-sym="270" title="[^"]*" aria-current="true"/);
 });
 
+test("the bit walk's output figure is what zlib's stream decodes to", () => {
+  // Replay the recorded stream's tokens: which bytes are literals, which are copies, and which
+  // bytes a copy reads after writing them itself.
+  const kinds = [], copies = [];
+  let len = 0;
+  for (const f of example().fields) {
+    if (f.kind === "literal") kinds.push("c2");
+    if (f.kind === "length") len = f.length;
+    if (f.kind === "distance") { copies.push({ at: kinds.length, len, dist: f.distance }); for (let k = 0; k < len; k++) kinds.push("c1"); }
+  }
+  assert.deepEqual(copies, [{ at: 8, len: 3, dist: 7 }, { at: 13, len: 22, dist: 12 }]);
+  const last = copies[1], selfRead = new Set();
+  for (let k = 0; k < last.len; k++) if (last.at + k - last.dist >= last.at) selfRead.add(last.at + k - last.dist);
+  assert.deepEqual([...selfRead], [13, 14, 15, 16, 17, 18, 19, 20, 21, 22]);
+
+  const fig = PAGE.match(/<figure class="diagram wide" id="bit-output"[\s\S]*?<\/figure>/)[0];
+  const cells = [...fig.matchAll(/<g class="node (c[12])( overlap)?" data-id="o(\d+)"><rect [^>]*\/><text[^>]*>([^<]*)<\/text><\/g>/g)];
+  assert.equal(cells.length, EXAMPLE.length);
+  cells.forEach(([, tone, overlap, i, ch]) => {
+    assert.equal(tone, kinds[+i], `byte ${i} kind`);
+    assert.equal(!!overlap, selfRead.has(+i), `byte ${i} striping`);
+    assert.equal(ch === "␣" ? " " : ch, EXAMPLE[+i]);
+  });
+  // The arc runs from the copy's first write back to its first read; the brackets span both ranges.
+  assert.match(fig, /data-id="copy2" d="M270 36 C270 0 34 0 34 25"/);
+  assert.match(fig, />copied from: bytes 1–22</);
+  assert.match(fig, />written to: bytes 13–34</);
+});
+
 test("the BTYPE table matches what zlib accepts", () => {
   // First byte: BFINAL in bit 0, BTYPE in bits 1–2 (read low bit first).
   assert.equal(zlib.inflateRawSync(Buffer.from([0b001, 0x00, 0x00, 0xff, 0xff])).length, 0, "00: an empty stored block");
