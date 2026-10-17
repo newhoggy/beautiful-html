@@ -476,7 +476,7 @@ test("the page finishes the fixed scheme before building up to the dynamic one",
   const order = [...PAGE.matchAll(/<h2 id="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(order, ["question", "two-ideas", "lz77", "huffman", "joining", "join-example", "two-alphabets",
     "block-types", "one-block", "fixed-limits",                   // the fixed code, its bit walk, and where it falls short
-    "canonical", "dynamic-header", "dynamic-runs", "dynamic-block", // the build-up to a dynamic block, then its walk
+    "example-code", "canonical", "dynamic-header", "dynamic-runs", "dynamic-block", // the build-up to a dynamic block, then its walk
     "choosing", "not-symbols", "try-it", "serial", "edge-cases", "terms", "further-reading"]);
 });
 
@@ -555,6 +555,34 @@ test("the send-steps figure is the example's real code-length list", () => {
   assert.match(fig, /so 38 slots go\. 1,122 bits/);
   assert.match(fig, /19 symbols at 5 bits each, plus their extra bits: 146 bits/);
   assert.match(fig, /With the 54 bits that describe this code, that makes 159 bits: for this short list, 13 more than step 3/);
+});
+
+test("the example's tree is the encoder's Huffman code for its LZ77 symbols", () => {
+  const tr = trace(Buffer.from(Deflate.encode(utf8(EXAMPLE)).streams.dynamic));
+  const counts = new Map();
+  for (const f of tr.fields) if (["literal", "length", "end"].includes(f.kind)) counts.set(f.value, (counts.get(f.value) || 0) + 1);
+  const lengths = Deflate.codeLengths(Array.from({ length: 286 }, (_, s) => counts.get(s) || 0), 15);
+  const fig = PAGE.match(/<figure class="diagram wide" id="example-tree">[\s\S]*?<\/figure>/)[0];
+  const SYM = { "x-sp": 32, "x-b": 98, "x-c": 99, "x-d": 100, "x-r": 114, "x-end": 256, "x-258": 258, "x-270": 270, "x-a": 97 };
+  // The drawn tree, from its edges: each leaf's depth must be its code length.
+  const parent = new Map([...fig.matchAll(/data-id="e-(x-n\d+)-(x-[a-z0-9]+)"/g)].map((m) => [m[2], m[1]]));
+  const depth = (id) => (parent.has(id) ? 1 + depth(parent.get(id)) : 0);
+  assert.equal([...counts.keys()].length, 9);
+  for (const [id, sym] of Object.entries(SYM)) {
+    assert.equal(depth(id), lengths[sym], `${id} depth`);
+    assert.match(fig, new RegExp(`data-id="${id}-len"[^>]*>${lengths[sym]} bits<`));
+    assert.match(fig, new RegExp(`data-id="${id}"><rect [^>]*/><text[^>]*>[^<]+</text><text class="sub"[^>]*>×${counts.get(sym)}<`));
+  }
+  // Each inner node's weight is the sum of its leaves' counts.
+  const kids = new Map(); for (const [c, p] of parent) kids.set(p, [...(kids.get(p) || []), c]);
+  const weight = (id) => (SYM[id] !== undefined ? counts.get(SYM[id]) : kids.get(id).reduce((s, k) => s + weight(k), 0));
+  for (const m of fig.matchAll(/data-id="(x-n\d+)"><rect [^>]*\/><text[^>]*>(\d+)</g)) assert.equal(+m[2], weight(m[1]), m[1]);
+  // 85 bits with the fixed code, 34 with these codes.
+  const fixedLen = (s) => (s < 144 ? 8 : s < 256 ? 9 : s < 280 ? 7 : 8);
+  let fixed = 0, fitted = 0; for (const [s, n] of counts) { fixed += n * fixedLen(s); fitted += n * lengths[s]; }
+  assert.deepEqual([fixed, fitted], [85, 34]);
+  assert.match(PAGE, /With the fixed code these 11 symbols cost 85 bits/);
+  assert.match(PAGE, /The 11 symbols now cost 34 bits instead of 85/);
 });
 
 test("the BTYPE table matches what zlib accepts", () => {
