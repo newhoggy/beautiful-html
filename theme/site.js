@@ -111,6 +111,11 @@ window.BH_SITE = {
     "href": "docs/component-gallery.html#glossary-terms",
     "title": "Component gallery",
     "section": "Glossary terms"
+   },
+   {
+    "href": "docs/how-deflate-works.html#terms",
+    "title": "How DEFLATE works",
+    "section": "Terms used on this page"
    }
   ],
   "docs/adr-001-rate-limit-in-each-service.html": [

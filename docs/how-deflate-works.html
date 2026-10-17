@@ -877,7 +877,7 @@ HLIT      | BTYPE | BFINAL
 011          end of block (256)
 00000        padding (not read)</code></pre>
       <bh-cw-step lines="1-2"><p><strong>The block header.</strong> <code>BFINAL</code> is 1. <code>BTYPE</code> arrives as <code>0</code>, then <code>1</code>: binary 10, a dynamic block. Every code from here on is defined by the block itself.</p></bh-cw-step>
-      <bh-cw-step lines="3-5"><p><strong>How many lengths follow.</strong> The code lengths come next as a bare list in symbol order: the first is symbol 0's, the second symbol 1's, with no symbol numbers and nothing to mark where the list ends and the data begins. So the block says first how long each list is. <code>HLIT</code>: 271 literal/length lengths, for symbols 0–270. 270 is the highest symbol this block uses, so the encoder stops there and leaves out 271–285. <code>HDIST</code>: 7 distance lengths, d0–d6. <code>HCLEN</code>: 18 of the 19 code-length-code lengths. The names are the RFC's: they count the <strong>lit</strong>eral/length, <strong>dist</strong>ance and <strong>c</strong>ode-<strong>len</strong>gth codes. The RFC never says what the H stands for, though it is usually read as Huffman.</p><p>All three are plain numbers, which arrive lowest bit first, so each line shows the bits the usual way round as well: <code>0111</code> arrives, read backwards that is <code>1110</code> = 14, and <code>HCLEN</code> stores the count minus 4.</p></bh-cw-step>
+      <bh-cw-step lines="3-5" id="dyn-walk-step-2"><p><strong>How many lengths follow.</strong> The code lengths come next as a bare list in symbol order: the first is symbol 0's, the second symbol 1's, with no symbol numbers and nothing to mark where the list ends and the data begins. So the block says first how long each list is. <code>HLIT</code>: 271 literal/length lengths, for symbols 0–270. 270 is the highest symbol this block uses, so the encoder stops there and leaves out 271–285. <code>HDIST</code>: 7 distance lengths, d0–d6. <code>HCLEN</code>: 18 of the 19 code-length-code lengths. The names are the RFC's: they count the <strong>lit</strong>eral/length, <strong>dist</strong>ance and <strong>c</strong>ode-<strong>len</strong>gth codes. The RFC never says what the H stands for, though it is usually read as Huffman.</p><p>All three are plain numbers, which arrive lowest bit first, so each line shows the bits the usual way round as well: <code>0111</code> arrives, read backwards that is <code>1110</code> = 14, and <code>HCLEN</code> stores the count minus 4.</p></bh-cw-step>
       <bh-cw-step lines="6-23"><p><strong>The code-length code.</strong> CL is short for <em>code length</em>: the code-length alphabet has 19 symbols, 0–18, used to write out the code lengths that follow, and each of these lines gives the length of one of their codes. There are 18 plain 3-bit lengths, in the fixed order 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1. They define a small Huffman code over the code-length symbols: 3, 4 and 18 get <code>00</code>, <code>01</code> and <code>10</code>; 17 gets <code>110</code>; 1 gets <code>1110</code>; 0 and 2 get <code>11110</code> and <code>11111</code>. Symbol 15 is unused and would come last, so <code>HCLEN</code> leaves it off.</p><p>11 of these 18 lengths are 0, and each costs the full 3 bits: 33 bits that only say "unused". This list is the bottom of the stack, with no code of its own, so unlike the lists that follow, its zeros can't be run-length coded. All the format can do is put the usually-unused symbols last, so that <code>HCLEN</code> cuts off the zeros at the end. Here most of the unused symbols come before 4, 3, 2 and 1, which are used: the <a href="#dynamic-header">order</a> bets on lengths near 8, as in a typical block, but this block's codes are only 1 to 4 bits long, so the bet loses.</p></bh-cw-step>
       <bh-cw-step lines="24-39"><p><strong>271 literal/length code lengths, in 16 code-length symbols.</strong> Runs of zeros cover the byte values this text never uses: one 18 and its 7 extra bits cover 138 of them. Only 9 symbols get a length: <code>a</code> gets 2 bits; <code>r</code>, end-of-block, 258 and 270 get 3; ␣, <code>b</code>, <code>c</code> and <code>d</code> get 4. Symbol 257 sits between used symbols, so its zero is written on its own, for 5 bits.</p><p>A length of 0 means the symbol gets no code. It costs nothing in the data, and the decoder skips it when it builds the codes, which is what lets the 9 used symbols share all of the code space. But the list still needs a 0 in its place, because position is the symbol number.</p></bh-cw-step>
       <bh-cw-step lines="40-42"><p><strong>7 distance code lengths.</strong> Five zeros for d0–d4 (symbol 17 and 3 extra bits), then d5 and d6 get 1 bit each. That ends the header: 159 bits after <code>BTYPE</code> to describe both codes.</p></bh-cw-step>
@@ -916,6 +916,67 @@ HLIT      | BTYPE | BFINAL
       <dt>End of block</dt><dd>Symbol 256 ends every Huffman block, even the last. It needs a code, so it counts as a symbol when the tree is built.</dd>
       <dt>Empty input</dt><dd>zlib writes 2 bytes, <code>03 00</code>: a final fixed block holding only the end-of-block code.</dd>
       <dt>Incompressible input</dt><dd>Stored blocks cap the overhead at 5 bytes per 65,535. A large file of random bytes grows by under 0.01%; the 1 KiB in the chart grows by 0.5%.</dd>
+    </dl>
+
+    <h2 id="terms">Terms used on this page</h2>
+    <p>These are defined here, for this page. DEFLATE's broader terms are in the <a href="glossary.html">site glossary</a>: <a href="glossary.html#deflate">DEFLATE</a>, <a href="glossary.html#lz77">LZ77</a>, <a href="glossary.html#huffman-code">Huffman code</a>, <a href="glossary.html#canonical-huffman-code">canonical Huffman code</a>, <a href="glossary.html#back-reference">back-reference</a>, <a href="glossary.html#sliding-window">sliding window</a>, <a href="glossary.html#end-of-block">end-of-block</a> and <a href="glossary.html#extra-bits">extra bits</a>.</p>
+    <dl class="glossary wide">
+      <dt id="alphabet" data-aliases="alphabets">Alphabet</dt>
+      <dd><p>The fixed set of symbols a Huffman code is built over. DEFLATE uses three: literal/length, distance and code-length. <a href="#joining">How the two ideas join</a></p></dd>
+
+      <dt id="bfinal">BFINAL</dt>
+      <dd><p>The first bit of every block: 1 if it is the last block of the stream. <a href="#block-types">Three kinds of block</a></p></dd>
+
+      <dt id="btype-field">BTYPE</dt>
+      <dd><p>The 2 bits after <code>BFINAL</code> that give the block type: 00 stored, 01 fixed Huffman codes, 10 dynamic Huffman codes. 11 is invalid. Like every plain number, they arrive lowest bit first. <a href="#btype">The values</a></p></dd>
+
+      <dt id="code-length" data-aliases="code lengths">Code length</dt>
+      <dd><p>The number of bits in a symbol's Huffman code. 0 means the symbol has no code. A dynamic block sends only the lengths; the codes follow from them by the canonical rule. <a href="#canonical">Send lengths, not trees</a></p></dd>
+
+      <dt id="code-length-code" data-aliases="code-length codes, code-length alphabet, code-length symbol, code-length symbols, CL symbol, CL symbols">Code-length code</dt>
+      <dd><p>The small Huffman code a dynamic block uses to write down its code lengths. Its alphabet has 19 symbols: 0–15 are lengths, 16 repeats the previous length, and 17 and 18 are runs of zeros. CL is short for code length. <a href="#dynamic-header">Compressing the code lengths</a></p></dd>
+
+      <dt id="distance-alphabet" data-aliases="distance symbol, distance symbols, distance code, distance codes">Distance alphabet</dt>
+      <dd><p>The 30 symbols, d0–d29, that stand for back-reference distances from 1 to 32,768. Most stand for a range, picked out by extra bits. It has a Huffman code of its own. <a href="#joining">How the two ideas join</a></p></dd>
+
+      <dt id="dynamic-huffman-code" data-aliases="dynamic Huffman codes, dynamic codes, dynamic block, dynamic blocks, dynamic Huffman block">Dynamic Huffman code</dt>
+      <dd><p>Codes built for one block from that block's own symbol counts, and sent as code lengths at its start (<code>BTYPE</code> 10). They don't change while the block is read: <em>dynamic</em> means per block, not adaptive. <a href="#dynamic-block">A dynamic block, bit by bit</a></p></dd>
+
+      <dt id="fixed-huffman-code" data-aliases="fixed Huffman codes, fixed codes, fixed code, fixed block, fixed blocks">Fixed Huffman code</dt>
+      <dd><p>Codes set once by the RFC, for any block with <code>BTYPE</code> 01, so no table is sent: 8 or 9 bits per literal, 7 or 8 per length symbol, 5 per distance symbol. <a href="#fixed-lengths">Why 7–9 bits</a></p></dd>
+
+      <dt id="hclen">HCLEN</dt>
+      <dd><p>4 bits in a dynamic block's header: how many code-length-code lengths follow, minus 4. Those lengths come in a fixed order, so the count can cut off the usually-unused ones at the end. <a href="#dynamic-header">Compressing the code lengths</a></p></dd>
+
+      <dt id="hdist">HDIST</dt>
+      <dd><p>5 bits in a dynamic block's header: how many distance code lengths follow, minus 1. <a href="#dyn-walk-step-2">In the bit walk</a></p></dd>
+
+      <dt id="hlit">HLIT</dt>
+      <dd><p>5 bits in a dynamic block's header: how many literal/length code lengths follow, minus 257. The lengths come as a bare list in symbol order, so the count says where the list ends. <a href="#dyn-walk-step-2">In the bit walk</a></p></dd>
+
+      <dt id="literal" data-aliases="literals">Literal</dt>
+      <dd><p>A byte that LZ77 sends as itself, because no match of 3 or more starts there. It becomes the literal/length symbol with the same value, 0–255. <a href="#lz77">LZ77</a></p></dd>
+
+      <dt id="literal-length-alphabet" data-aliases="literal/length, literal/length symbol, literal/length symbols, literal/length code, literal/length codes">Literal/length alphabet</dt>
+      <dd><p>The 286 symbols 0–285: 0–255 for literal bytes, 256 for the end of the block, and 257–285 for ranges of lengths. One Huffman code covers them all, so a single code says whether a literal or a copy comes next. <a href="#joining">How the two ideas join</a></p></dd>
+
+      <dt id="overlapping-copy" data-aliases="overlapping copies">Overlapping copy</dt>
+      <dd><p>A back-reference whose length is greater than its distance, so it reads bytes it is itself writing. It works because the decoder copies one byte at a time; distance 1 simply repeats a byte. <a href="#one-block">The bit walk shows one</a></p></dd>
+
+      <dt id="plain-number" data-aliases="plain numbers, plain field, plain fields">Plain number</dt>
+      <dd><p>A field of fixed, known width that is not Huffman-coded, read lowest bit first: the block header, the extra bits, a dynamic block's counts and code-length-code lengths, and a stored block's <code>LEN</code> and <code>NLEN</code>. <a href="#not-symbols">Every plain field</a></p></dd>
+
+      <dt id="prefix-code" data-aliases="prefix codes, prefix-free">Prefix code</dt>
+      <dd><p>A code in which no codeword is the start of another, so codes can be read back to back without separators. Every Huffman code is a prefix code. <a href="#huffman">Huffman</a></p></dd>
+
+      <dt id="stored-block" data-aliases="stored blocks">Stored block</dt>
+      <dd><p>A block of up to 65,535 raw bytes (<code>BTYPE</code> 00), after a byte-aligned length and its complement. Encoders use it when compressing would make the data bigger. <a href="#block-types">Three kinds of block</a></p></dd>
+
+      <dt id="symbol" data-aliases="symbols">Symbol</dt>
+      <dd><p>One element of an alphabet: what Huffman coding counts and gives a code. DEFLATE maps LZ77's tokens onto symbols, so Huffman coding never sees the raw bytes. <a href="#joining">How the two ideas join</a></p></dd>
+
+      <dt id="token" data-aliases="tokens">Token</dt>
+      <dd><p>One item of LZ77's output: a literal, or a back-reference (length, distance). Each becomes one or two symbols. <a href="#lz77">LZ77</a></p></dd>
     </dl>
 
     <h2 id="further-reading">Further reading</h2>

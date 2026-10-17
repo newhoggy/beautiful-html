@@ -400,6 +400,23 @@ test("the dynamic bit walk is every bit of the encoder's dynamic block, in read 
   assert.equal(Deflate.encode(utf8(EXAMPLE)).bits.fixed - 3, 100);
 });
 
+test("the page's own glossary: A–Z, no clash with the site glossary, every link resolves", () => {
+  const terms = (html) => [...html.matchAll(/<dt id="([^"]+)"(?: data-aliases="([^"]*)")?>([^<]+)<\/dt>/g)]
+    .map(([, id, aliases = "", term]) => ({ id, names: [term, ...aliases.split(",").map((x) => x.trim()).filter(Boolean)].map((n) => n.toLowerCase()), term }));
+  const local = terms(PAGE.match(/<dl class="glossary wide">[\s\S]*?<\/dl>/)[0]);
+  const site = terms(fs.readFileSync(path.join(ROOT, "docs/glossary.html"), "utf8"));
+  assert.equal(local.length, 19);
+  const sorted = [...local].sort((x, y) => x.term.localeCompare(y.term, "en", { sensitivity: "base" }));
+  assert.deepEqual(local.map((e) => e.id), sorted.map((e) => e.id), "kept A–Z");
+  const siteNames = new Map(site.flatMap((e) => e.names.map((n) => [n, e.id])));
+  for (const e of local) for (const n of e.names) assert.ok(!siteNames.has(n), `"${n}" is already the site glossary's "${siteNames.get(n)}"`);
+  const ids = new Set([...PAGE.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+  const box = PAGE.match(/<h2 id="terms">[\s\S]*?<\/dl>/)[0];
+  for (const [, href] of box.matchAll(/href="#([^"]+)"/g)) assert.ok(ids.has(href), `#${href}`);
+  const siteIds = new Set(site.map((e) => e.id));
+  for (const [, href] of box.matchAll(/href="glossary\.html#([^"]+)"/g)) assert.ok(siteIds.has(href), `glossary.html#${href}`);
+});
+
 test("the BTYPE table matches what zlib accepts", () => {
   // First byte: BFINAL in bit 0, BTYPE in bits 1–2 (read low bit first).
   assert.equal(zlib.inflateRawSync(Buffer.from([0b001, 0x00, 0x00, 0xff, 0xff])).length, 0, "00: an empty stored block");
