@@ -436,6 +436,42 @@ test("the code-length alphabet table holds for every run symbol in real dynamic 
   assert.ok(seen >= 10);
 });
 
+test("the four steps to sending a dynamic code cost what the page says", () => {
+  // Each step's header cost, computed from the real blocks' code lengths and run symbols.
+  const steps = (buf) => {
+    const tr = trace(buf), b = tr.blocks[0], runs = tr.fields.filter((f) => f.kind === "clsym");
+    const data = tr.fields.filter((f) => ["literal", "length", "distance", "end"].includes(f.kind)).reduce((s, f) => s + f.bits.length + (f.extraBits || "").length, 0);
+    return {
+      data,
+      naive: (286 + 30) * 4,                                                    // 1. every length, 4 bits
+      counts: 5 + 5 + (b.hlit + b.hdist) * 4,                                   // 2. counts, then lengths up to the highest used
+      runs: 5 + 5 + runs.length * 5 + runs.reduce((s, f) => s + f.extraBits.length, 0), // 3. run symbols as plain 5-bit numbers
+      coded: b.headerBits,                                                      // 4. DEFLATE's scheme
+      runSymbols: runs.length,
+    };
+  };
+  const ex = steps(Buffer.from(Deflate.encode(utf8(EXAMPLE)).streams.dynamic)), para = steps(Buffer.from(REFERENCE.paragraph, "hex"));
+  assert.deepEqual([ex.naive, ex.counts, ex.runs, ex.coded, ex.data, ex.runSymbols], [1264, 1122, 146, 159, 41, 19]);
+  assert.deepEqual([para.naive, para.counts, para.runs, para.coded, para.data], [1264, 1158, 443, 352, 1521]);
+  const chart = PAGE.match(/<figure class="frame wide" id="header-steps">[\s\S]*?<\/figure>/)[0];
+  const rows = [...chart.matchAll(/<tr><td>[^<]*<\/td><td>(\d+)<\/td><td>(\d+)<\/td><\/tr>/g)].map((m) => [+m[1], +m[2]]);
+  assert.deepEqual(rows, [[ex.naive, para.naive], [ex.counts, para.counts], [ex.runs, para.runs], [ex.coded, para.coded]]);
+  const prose = text(PAGE.match(/<h2 id="dynamic-header">[\s\S]*?<figure class="frame wide" id="header-steps">/)[0]);
+  assert.match(prose, /That is 1,264 bits, 158 bytes/);
+  assert.match(prose, /The example's data is only 41 bits, so its code table would cost 30 times as much/);
+  assert.equal(Math.floor(ex.naive / ex.data), 30);
+  assert.match(prose, /Even the paragraph's data, 1,521 bits/);
+  assert.match(prose, /1,122 bits for the example and 1,158 for the paragraph/);
+  assert.match(prose, /The header drops to 146 bits for the example and 443 for the paragraph/);
+  assert.match(prose, /it costs 159 bits for the example and 352 for the paragraph\. For the paragraph, coding the run symbols saved another 91 bits\. For the tiny example it cost 13 more: describing the small code took more than it saved on just 19 run symbols/);
+  assert.equal(para.runs - para.coded, 91);
+  assert.equal(ex.coded - ex.runs, 13);
+  // "the example's 262 unused literal/length symbols take just 7"
+  const exRuns = trace(Buffer.from(Deflate.encode(utf8(EXAMPLE)).streams.dynamic)).fields.filter((f) => f.kind === "clsym" && f.at < f.hlit && f.value === 0);
+  assert.deepEqual([exRuns.reduce((s, f) => s + f.count, 0), exRuns.length], [262, 7]);
+  assert.match(prose, /the example's 262 unused literal\/length symbols take just 7/);
+});
+
 test("the BTYPE table matches what zlib accepts", () => {
   // First byte: BFINAL in bit 0, BTYPE in bits 1–2 (read low bit first).
   assert.equal(zlib.inflateRawSync(Buffer.from([0b001, 0x00, 0x00, 0xff, 0xff])).length, 0, "00: an empty stored block");

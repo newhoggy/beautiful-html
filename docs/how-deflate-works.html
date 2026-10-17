@@ -614,13 +614,16 @@
       <figcaption>Each input has a different winner. The short string can't pay for a table; the paragraph can; random bytes can't be compressed at all, so storing them is cheapest. The first three columns are the same tokens written as each block type; zlib picks per block.</figcaption>
     </figure>
 
-    <h2 id="dynamic-header">Compressing the code lengths</h2>
-    <p>A dynamic block opens with up to 316 code lengths, one per symbol of both alphabets. Sent as 4-bit numbers that would be about 160 bytes, more than many blocks save. So DEFLATE compresses the lengths too, with a third, smaller Huffman code.</p>
-    <ol class="steps">
-      <li><strong>Count the alphabets.</strong> <code>HLIT</code> and <code>HDIST</code>, plain 5-bit numbers, say how many literal/length and distance codes follow, so unused symbols at the top cost nothing.</li>
-      <li><strong>Run-length the lengths.</strong> The lengths are written with the 19 symbols of the code-length alphabet, in the table below. Symbols 16, 17 and 18 let one symbol stand for a whole run, so a block's long stretches of unused byte values usually cost a symbol each.</li>
-      <li><strong>Code those symbols.</strong> The 19 symbols get their own canonical code, whose lengths come first, as plain 3-bit numbers, in the fixed order 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15. <code>HCLEN</code> (4 bits) says how many are sent; any not sent count as 0.</li>
-    </ol>
+    <h2 id="dynamic-header">Sending a dynamic code</h2>
+    <p>A dynamic block must tell the decoder its codes before its data. Thanks to <a href="#canonical">canonical codes</a>, it only needs to send each symbol's code length: 286 literal/length symbols and 30 distance symbols, 316 lengths in all, each from 0 to 15. The question is how to send them cheaply. Here are four tries, each fixing the biggest waste in the one before, measured on two blocks: the worked example written as a dynamic block (the one <a href="#dynamic-block">walked through below</a>), and zlib's real block for the 381-byte paragraph.</p>
+    <h3 id="step-naive">1. Every length, 4 bits each</h3>
+    <p>Write all 316 lengths as plain 4-bit numbers, in symbol order. That is 1,264 bits, 158 bytes, in every dynamic block whatever it holds. The example's data is only 41 bits, so its code table would cost 30 times as much as the data it describes. Even the paragraph's data, 1,521 bits, would nearly double.</p>
+    <h3 id="step-counts">2. Say how many</h3>
+    <p>Any one block uses few of the symbols. So send two counts first, <code>HLIT</code> and <code>HDIST</code> (plain 5-bit numbers), and stop each list after its highest used symbol; the rest count as 0. It barely helps: 1,122 bits for the example and 1,158 for the paragraph. The unused symbols are mostly in the middle of the alphabet, the byte values a text never contains, not at the end. The counts stay in the final scheme anyway: with no separators, they are how the decoder knows where each list ends.</p>
+
+    <h2 id="dynamic-runs">Runs, and a code for the runs</h2>
+    <h3 id="step-runs">3. Replace runs with one symbol</h3>
+    <p>Write the lengths with a small alphabet of 19 symbols instead: 0–15 for a length, 16 to repeat the previous length, and 17 and 18 for runs of zeros, each followed by plain extra bits that give the count. For now, write each of these symbols as a plain 5-bit number. A whole stretch of unused byte values becomes one symbol: the example's 262 unused literal/length symbols take just 7. The header drops to 146 bits for the example and 443 for the paragraph.</p>
     <div class="table-wrap" id="cl-alphabet" data-linkable>
       <table>
         <caption>The code-length alphabet. Fixed by the format: the same in every dynamic block. Each range follows from its extra bits: 2 bits give 4 counts, 3 give 8, 7 give 128.</caption>
@@ -633,16 +636,48 @@
         </tbody>
       </table>
     </div>
-    <p>Runs start at 3 because a run of 1 or 2 is cheaper written out. Zeros get two run symbols, a short one and a long one, because they are by far the most common length. What changes from block to block is only <em>which</em> of these 19 symbols the block uses, and the code each one gets: in the worked example below, symbol 18 is <code>10</code> and 16 isn't used at all, but 18 still means 11–138 zeros with 7 extra bits.</p>
-    <p>The odd order is a bet on which code lengths a block will use, most likely first, so that <code>HCLEN</code> can cut off the unlikely ones. The RFC lists it without a reason, but it reads in four parts:</p>
-    <ul>
-      <li><strong>16, 17, 18</strong>: the repeat and zero-run symbols, which nearly every dynamic block uses to skip the byte values it never sees.</li>
-      <li><strong>0</strong>: every block has unused symbols.</li>
-      <li><strong>8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1</strong>: outward from 8, because with 286 symbols most codes come out around 7–9 bits, and very short or very long codes are rare.</li>
-      <li><strong>15</strong> last, the rarest of all.</li>
-    </ul>
-    <p>For the paragraph, zlib's codes use lengths 2 to 8, so <code>HCLEN</code> is 16 and the last three, 14, 1 and 15, are never sent.</p>
-    <p>For the 381-byte paragraph in the chart, zlib's whole header (<code>HLIT</code> = 270, <code>HDIST</code> = 17, <code>HCLEN</code> = 16, then the lengths) is 352 bits, about 44 bytes. That is the price of the table, and the paragraph is long enough to repay it.</p>
+    <p>Runs start at 3 because a run of 1 or 2 is cheaper written out. Zeros get two run symbols, a short one and a long one, because they are by far the most common length.</p>
+    <h3 id="step-coded">4. Huffman-code the run symbols</h3>
+    <p>Some of these 19 symbols are far more common than others, so DEFLATE gives them a Huffman code too: the <em>code-length code</em>, a Huffman code whose job is to send the other two codes. Its own 19 lengths go first, as plain 3-bit numbers. A dynamic block is therefore a stack of three layers, each written with the one below it:</p>
+    <div class="table-wrap" id="code-layers" data-linkable>
+      <table>
+        <caption>The three layers of a dynamic block, from the top. A decoder reads them from the bottom up.</caption>
+        <thead><tr><th>Layer</th><th>Written with</th><th>Size</th></tr></thead>
+        <tbody>
+          <tr><td>the data</td><td>the literal/length and distance codes</td><td>the whole block</td></tr>
+          <tr><td>those two codes' lengths</td><td>the code-length code</td><td>up to 316 lengths</td></tr>
+          <tr><td>the code-length code's lengths</td><td>plain 3-bit numbers</td><td>at most 19 × 3 = 57 bits</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>It stops at three layers because the bottom one is so small: 57 bits at most, too little for yet another code to repay its own description. This is DEFLATE's actual scheme, and it costs 159 bits for the example and 352 for the paragraph. For the paragraph, coding the run symbols saved another 91 bits. For the tiny example it cost 13 more: describing the small code took more than it saved on just 19 run symbols. DEFLATE has no way to stop at step 3, which is one more reason tiny blocks are written with the fixed codes.</p>
+    <figure class="frame wide" id="header-steps">
+      <bh-chart type="bar" unit="bits" y-label="Bits to send the codes">
+        <table>
+          <thead><tr><th>Step</th><th>The example</th><th>The paragraph</th></tr></thead>
+          <tbody>
+            <tr><td>1. 4 bits each</td><td>1264</td><td>1264</td></tr>
+            <tr><td>2. Say how many</td><td>1122</td><td>1158</td></tr>
+            <tr><td>3. Runs</td><td>146</td><td>443</td></tr>
+            <tr><td>4. Code the runs</td><td>159</td><td>352</td></tr>
+          </tbody>
+        </table>
+      </bh-chart>
+      <figcaption>Runs make the big difference. Coding the run symbols pays off for the paragraph but not for the 35-byte example, whose header ends up bigger than its data either way.</figcaption>
+    </figure>
+    <p>What changes from block to block is only <em>which</em> of the 19 symbols a block uses, and the code each one gets: in the worked example below, symbol 18 is <code>10</code> and 16 isn't used at all, but 18 still means 11–138 zeros with 7 extra bits. For the 381-byte paragraph in the chart, zlib's whole header (<code>HLIT</code> = 270, <code>HDIST</code> = 17, <code>HCLEN</code> = 16, then the lengths) is 352 bits, about 44 bytes. That is the price of the table, and the paragraph is long enough to repay it.</p>
+    <p>The code-length code's 19 lengths are sent in a fixed order, 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15, and <code>HCLEN</code> (4 bits) says how many are sent; any not sent count as 0.</p>
+    <details class="disclosure" id="cl-order" data-linkable>
+      <summary>Go deeper: why that order?</summary>
+      <p>The order is a bet on which code lengths a block will use, most likely first, so that <code>HCLEN</code> can cut off the unlikely ones. The RFC lists it without a reason, but it reads in four parts:</p>
+      <ul>
+        <li><strong>16, 17, 18</strong>: the repeat and zero-run symbols, which nearly every dynamic block uses to skip the byte values it never sees.</li>
+        <li><strong>0</strong>: every block has unused symbols.</li>
+        <li><strong>8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1</strong>: outward from 8, because with 286 symbols most codes come out around 7–9 bits, and very short or very long codes are rare.</li>
+        <li><strong>15</strong> last, the rarest of all.</li>
+      </ul>
+      <p>For the paragraph, zlib's codes use lengths 2 to 8, so <code>HCLEN</code> is 16 and the last three, 14, 1 and 15, are never sent.</p>
+    </details>
 
     <h2 id="not-symbols">Everything in the stream that isn't a symbol</h2>
     <p>A DEFLATE stream is mostly Huffman codes, but not entirely. Bits are written in two ways, and a decoder must know which kind comes next:</p>
@@ -820,7 +855,7 @@ HLIT      | BTYPE | BFINAL
 
     <h2 id="dynamic-block">The same tokens as a dynamic block</h2>
     <p>zlib wrote a fixed block for the opening string. To see every part of a <em>dynamic</em> Huffman block, here are the same tokens written as one by this page's encoder: it is the "dynamic" choice under <a href="#try-it">Write it as</a>. <em>Dynamic</em> means the codes are built for this one block, from its own counts, and sent at its start. They don't change while the block is read. The 26 bytes are <code>75 c6 31 15 00 00 08 42 c1 2a 56 fb 6a 02 fa 0f 3c 02 30 dd b1 e2 f8 30 e5 06</code>. This encoder's parse uses the copies from the <a href="#window">window figure</a>, (4, 7) and (23, 12), rather than zlib's (3, 7) and (22, 12).</p>
-    <p>A dynamic block holds two levels of code: one for the data, and a smaller one for writing down the data codes' lengths. Keep them apart, because the walk below sends the second level first:</p>
+    <p>This is <a href="#step-coded">step 4</a> in full. It has the codes for the data, and the code-length code that sends their lengths. Keep the levels apart, because the walk below sends them bottom-up, the code-length code first:</p>
     <div class="table-wrap wide" id="dynamic-levels" data-linkable>
       <table>
         <caption>The three alphabets, and where the walk below defines and uses each one's code. The alphabets are the same in every dynamic block; the symbols used and their codes are this block's.</caption>
@@ -891,7 +926,7 @@ HLIT      | BTYPE | BFINAL
 00000        padding (not read)</code></pre>
       <bh-cw-step lines="1-2"><p><strong>The block header.</strong> <code>BFINAL</code> is 1. <code>BTYPE</code> arrives as <code>0</code>, then <code>1</code>: binary 10, a dynamic block. Every code from here on is defined by the block itself.</p></bh-cw-step>
       <bh-cw-step lines="3-5" id="dyn-walk-step-2"><p><strong>How many lengths follow.</strong> The code lengths come next as a bare list in symbol order: the first is symbol 0's, the second symbol 1's, with no symbol numbers and nothing to mark where the list ends and the data begins. So the block says first how long each list is. <code>HLIT</code>: 271 literal/length lengths, for symbols 0–270. 270 is the highest symbol this block uses, so the encoder stops there and leaves out 271–285. <code>HDIST</code>: 7 distance lengths, d0–d6. <code>HCLEN</code>: 18 of the 19 code-length-code lengths. The names are the RFC's: they count the <strong>lit</strong>eral/length, <strong>dist</strong>ance and <strong>c</strong>ode-<strong>len</strong>gth codes. The RFC never says what the H stands for, though it is usually read as Huffman.</p><p>All three are plain numbers, which arrive lowest bit first, so each line shows the bits the usual way round as well: <code>0111</code> arrives, read backwards that is <code>1110</code> = 14, and <code>HCLEN</code> stores the count minus 4.</p></bh-cw-step>
-      <bh-cw-step lines="6-23"><p><strong>The code-length code.</strong> CL is short for <em>code length</em>: the code-length alphabet has 19 symbols, 0–18, used to write out the code lengths that follow, and each of these lines gives the length of one of their codes. There are 18 plain 3-bit lengths, in the fixed order 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1. In this block, they define a small Huffman code over the code-length symbols: 3, 4 and 18 get <code>00</code>, <code>01</code> and <code>10</code>; 17 gets <code>110</code>; 1 gets <code>1110</code>; 0 and 2 get <code>11110</code> and <code>11111</code>. Symbol 15 is unused and would come last, so <code>HCLEN</code> leaves it off.</p><p>In this block, 11 of these 18 lengths are 0, and each costs the full 3 bits: 33 bits that only say "unused". This list is the bottom of the stack, with no code of its own, so unlike the lists that follow, its zeros can't be run-length coded. All the format can do is put the usually-unused symbols last, so that <code>HCLEN</code> cuts off the zeros at the end. Here most of the unused symbols come before 4, 3, 2 and 1, which are used: the <a href="#dynamic-header">order</a> bets on lengths near 8, as in a typical block, but this block's codes are only 1 to 4 bits long, so the bet loses.</p></bh-cw-step>
+      <bh-cw-step lines="6-23"><p><strong>The code-length code.</strong> CL is short for <em>code length</em>: the code-length alphabet has 19 symbols, 0–18, used to write out the code lengths that follow, and each of these lines gives the length of one of their codes. There are 18 plain 3-bit lengths, in the fixed order 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1. In this block, they define a small Huffman code over the code-length symbols: 3, 4 and 18 get <code>00</code>, <code>01</code> and <code>10</code>; 17 gets <code>110</code>; 1 gets <code>1110</code>; 0 and 2 get <code>11110</code> and <code>11111</code>. Symbol 15 is unused and would come last, so <code>HCLEN</code> leaves it off.</p><p>In this block, 11 of these 18 lengths are 0, and each costs the full 3 bits: 33 bits that only say "unused". This list is the bottom of the stack, with no code of its own, so unlike the lists that follow, its zeros can't be run-length coded. All the format can do is put the usually-unused symbols last, so that <code>HCLEN</code> cuts off the zeros at the end. Here most of the unused symbols come before 4, 3, 2 and 1, which are used: the <a href="#cl-order">order</a> bets on lengths near 8, as in a typical block, but this block's codes are only 1 to 4 bits long, so the bet loses.</p></bh-cw-step>
       <bh-cw-step lines="24-39"><p><strong>271 literal/length code lengths, in 16 code-length symbols.</strong> Runs of zeros cover the byte values this text never uses: one 18 and its 7 extra bits cover 138 of them, the most any one run can. In this block only 9 symbols get a length: <code>a</code> gets 2 bits; <code>r</code>, end-of-block, 258 and 270 get 3; ␣, <code>b</code>, <code>c</code> and <code>d</code> get 4. Symbol 257 sits between used symbols, so its zero is written on its own, for 5 bits.</p><p>A length of 0 means the symbol gets no code. It costs nothing in the data, and the decoder skips it when it builds the codes, which is what lets the 9 used symbols share all of the code space. But the list still needs a 0 in its place, because position is the symbol number.</p></bh-cw-step>
       <bh-cw-step lines="40-42"><p><strong>7 distance code lengths.</strong> Five zeros for d0–d4 (symbol 17 and 3 extra bits), then d5 and d6 get 1 bit each. That ends the header: 159 bits after <code>BTYPE</code> to describe both codes.</p></bh-cw-step>
       <bh-cw-step lines="43-49"><p><strong>The data, in this block's own codes.</strong> From the lengths alone the decoder builds this block's canonical codes: <code>a</code> = <code>00</code>; <code>r</code> = <code>010</code>, end = <code>011</code>, 258 = <code>100</code>, 270 = <code>101</code>; ␣ = <code>1100</code>, <code>b</code> = <code>1101</code>, <code>c</code> = <code>1110</code>, <code>d</code> = <code>1111</code>. So <code>a</code> costs 2 bits here, against 8 with the fixed code.</p></bh-cw-step>
@@ -947,7 +982,7 @@ HLIT      | BTYPE | BFINAL
       <dd><p>The number of bits in a symbol's Huffman code. 0 means the symbol has no code. A dynamic block sends only the lengths; the codes follow from them by the canonical rule. <a href="#canonical">Send lengths, not trees</a></p></dd>
 
       <dt id="code-length-code" data-aliases="code-length codes, code-length alphabet, code-length symbol, code-length symbols, CL symbol, CL symbols">Code-length code</dt>
-      <dd><p>The small Huffman code a dynamic block uses to write down its code lengths. Its alphabet has 19 symbols: 0–15 are lengths, 16 repeats the previous length, and 17 and 18 are runs of zeros. CL is short for code length. <a href="#dynamic-header">Compressing the code lengths</a></p></dd>
+      <dd><p>The small Huffman code a dynamic block uses to write down its code lengths. Its alphabet has 19 symbols: 0–15 are lengths, 16 repeats the previous length, and 17 and 18 are runs of zeros. CL is short for code length. <a href="#step-coded">Huffman-code the run symbols</a></p></dd>
 
       <dt id="distance-alphabet" data-aliases="distance symbol, distance symbols, distance code, distance codes">Distance alphabet</dt>
       <dd><p>The 30 symbols, d0–d29, that stand for back-reference distances from 1 to 32,768. Most stand for a range, picked out by extra bits. It has a Huffman code of its own. <a href="#joining">How the two ideas join</a></p></dd>
@@ -959,7 +994,7 @@ HLIT      | BTYPE | BFINAL
       <dd><p>Codes set once by the RFC, for any block with <code>BTYPE</code> 01, so no table is sent: 8 or 9 bits per literal, 7 or 8 per length symbol, 5 per distance symbol. <a href="#fixed-lengths">Why 7–9 bits</a></p></dd>
 
       <dt id="hclen">HCLEN</dt>
-      <dd><p>4 bits in a dynamic block's header: how many code-length-code lengths follow, minus 4. Those lengths come in a fixed order, so the count can cut off the usually-unused ones at the end. <a href="#dynamic-header">Compressing the code lengths</a></p></dd>
+      <dd><p>4 bits in a dynamic block's header: how many code-length-code lengths follow, minus 4. Those lengths come in a fixed order, so the count can cut off the usually-unused ones at the end. <a href="#cl-order">Why that order</a></p></dd>
 
       <dt id="hdist">HDIST</dt>
       <dd><p>5 bits in a dynamic block's header: how many distance code lengths follow, minus 1. <a href="#dyn-walk-step-2">In the bit walk</a></p></dd>
