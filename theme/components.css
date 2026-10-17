@@ -272,7 +272,10 @@
   display: grid;
   grid-template-columns: max-content 1fr;
   gap: var(--space-2) var(--space-5);
-  margin: 0;
+  /* Not margin: 0. The top margin belongs to the article flow, which a later layer would otherwise
+     zero: a box straight after a heading then covered its descenders. */
+  margin-inline: 0;
+  margin-bottom: 0;
   padding: var(--space-4) var(--space-5);
   border: 1px solid var(--border);
   border-radius: var(--radius);
