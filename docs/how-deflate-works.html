@@ -624,8 +624,27 @@
       <p>zlib wrote 119 bits; the parse in the <a href="#window">window figure</a> needs 103. DEFLATE fixes how to <em>decode</em>, not how to encode: any token stream that rebuilds the input is valid. zlib's hash chains use position 0 as their "no match" marker, so zlib never copies from the very first byte of a stream. Both of its copies here would have started there, so each starts one byte later, after an extra literal <code>a</code>: 16 bits lost. On real files, zlib's smarter match choices win by far more. Other builds choose differently again: Chromium's fork of zlib, in Chrome and in Node's official binaries, writes 17 bytes for this string.</p>
     </aside>
 
+    <h2 id="fixed-limits">Where the fixed code falls short</h2>
+    <p>The fixed code is fair to every byte, and that is its weakness: it can't know which bytes are common. For the 35-byte opening string that didn't matter, and zlib was right to use it. But take a longer text, a 381-byte paragraph of English about DEFLATE (one of the playground's examples, <a href="#try-it">further down</a>). zlib compresses it with codes fitted to its own counts, built with the same algorithm as <a href="#huffman">the abracadabra tree</a>:</p>
+    <div class="table-wrap" id="fitted-codes" data-linkable>
+      <table>
+        <caption>Some literals in zlib's block for the paragraph: 233 literals, using 38 different bytes.</caption>
+        <thead><tr><th>Byte</th><th class="num">Times</th><th class="num">Fixed code</th><th class="num">Fitted code</th></tr></thead>
+        <tbody>
+          <tr><td>space</td><td class="num">32</td><td class="num">8 bits</td><td class="num">3 bits</td></tr>
+          <tr><td><code>e</code></td><td class="num">20</td><td class="num">8 bits</td><td class="num">4 bits</td></tr>
+          <tr><td><code>i</code></td><td class="num">16</td><td class="num">8 bits</td><td class="num">4 bits</td></tr>
+          <tr><td><code>s</code>, <code>t</code></td><td class="num">15 each</td><td class="num">8 bits</td><td class="num">4 bits</td></tr>
+          <tr><td><code>o</code></td><td class="num">14</td><td class="num">8 bits</td><td class="num">4 bits</td></tr>
+          <tr><td><code>k</code>, <code>u</code>, <code>v</code>, <code>x</code></td><td class="num">1 each</td><td class="num">8 bits</td><td class="num">8 bits</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The common bytes drop to 3 or 4 bits, and the rare ones lose nothing. Across all 233 literals the fixed code spends 1,864 bits and the fitted code 1,108, about 4.8 bits a literal instead of 8. With the lengths and distances counted too, the data takes 2,375 bits with the fixed code and 1,521 with the fitted one.</p>
+    <p>The fitted code isn't free: the decoder has to be told what it is, and for this block that costs 352 bits. Even so, the block comes to 1,876 bits instead of 2,378, about a fifth smaller. That is the case for dynamic codes. What remains is to send a code cheaply, and the next sections build that up, starting with what exactly has to be sent.</p>
+
     <h2 id="canonical">Send lengths, not trees</h2>
-    <p>The fixed code is the same for every block, so it can't fit the data: <code>a</code> costs 8 bits even though it is almost half the text. A dynamic block fits a code to its own counts instead, which means the decoder must be told the code. Sending the tree would cost bits, and as the <a href="#huffman">tie-break question</a> showed, many trees are equally good. DEFLATE fixes one rule for turning code <em>lengths</em> into codes, called the <em>canonical Huffman code</em>, so a block only has to send one small number per symbol.</p>
+    <p>A dynamic block, then, fits a code to its own counts, and the decoder must be told that code. Sending the tree would cost bits, and as the <a href="#huffman">tie-break question</a> showed, many trees are equally good. DEFLATE fixes one rule for turning code <em>lengths</em> into codes, called the <em>canonical Huffman code</em>, so a block only has to send one small number per symbol.</p>
     <figure class="diagram" id="canonical-codes">
       <svg viewBox="-16 -24 432 300" role="img" aria-label="Canonical codes: the letters sorted by code length, then alphabetically, receive codes 0, 100, 101, 110 and 111 by counting up">
         <text class="label" x="22" y="-6" text-anchor="middle">letter</text>

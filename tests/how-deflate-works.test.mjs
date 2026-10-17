@@ -475,9 +475,40 @@ test("the four steps to sending a dynamic code cost what the page says", () => {
 test("the page finishes the fixed scheme before building up to the dynamic one", () => {
   const order = [...PAGE.matchAll(/<h2 id="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(order, ["question", "two-ideas", "lz77", "huffman", "joining", "join-example", "two-alphabets",
-    "block-types", "one-block",                                   // the fixed code, then its bit walk
+    "block-types", "one-block", "fixed-limits",                   // the fixed code, its bit walk, and where it falls short
     "canonical", "dynamic-header", "dynamic-runs", "dynamic-block", // the build-up to a dynamic block, then its walk
     "choosing", "not-symbols", "try-it", "serial", "edge-cases", "terms", "further-reading"]);
+});
+
+test("where the fixed code falls short: the paragraph's fitted codes and totals", () => {
+  const tr = trace(Buffer.from(REFERENCE.paragraph, "hex")), b = tr.blocks[0];
+  const lengths = []; for (const f of tr.fields.filter((x) => x.kind === "clsym")) for (let k = 0; k < f.count; k++) lengths.push(f.value);
+  const fixedLen = (sym) => (sym < 144 ? 8 : sym < 256 ? 9 : sym < 280 ? 7 : 8);
+  const data = tr.fields.filter((f) => ["literal", "length", "distance", "end"].includes(f.kind));
+  const lits = data.filter((f) => f.kind === "literal");
+  const counts = new Map(); for (const f of lits) counts.set(f.value, (counts.get(f.value) || 0) + 1);
+  const extra = (f) => (f.extraBits || "").length;
+  const fitted = data.reduce((s, f) => s + f.bits.length + extra(f), 0);
+  const fixed = data.reduce((s, f) => s + (f.kind === "distance" ? 5 : fixedLen(f.value)) + extra(f), 0);
+  const litFitted = lits.reduce((s, f) => s + f.bits.length, 0);
+  assert.deepEqual([lits.length, counts.size, lits.length * 8, litFitted, fixed, fitted, b.headerBits, 3 + fixed, 3 + b.headerBits + fitted],
+    [233, 38, 1864, 1108, 2375, 1521, 352, 2378, 1876]);
+  assert.ok(lits.every((f) => fixedLen(f.value) === 8), "every literal here costs 8 bits in the fixed code");
+  const table = text(PAGE.match(/<div class="table-wrap" id="fitted-codes"[\s\S]*?<\/table>/)[0]);
+  for (const [ch, times, bits] of [[" ", 32, 3], ["e", 20, 4], ["i", 16, 4], ["s", 15, 4], ["t", 15, 4], ["o", 14, 4], ["k", 1, 8], ["u", 1, 8], ["v", 1, 8], ["x", 1, 8]]) {
+    const v = ch.charCodeAt(0);
+    assert.equal(counts.get(v), times, `${ch} count`);
+    assert.equal(lengths[v], bits, `${ch} fitted length`);
+  }
+  assert.match(table, /space\s*32\s*8 bits\s*3 bits/);
+  assert.match(table, /k, u, v, x\s*1 each\s*8 bits\s*8 bits/);
+  const prose = text(PAGE.match(/<h2 id="fixed-limits">[\s\S]*?<h2 id="canonical">/)[0]);
+  assert.match(prose, /233 literals, using 38 different bytes/);
+  assert.match(prose, /the fixed code spends 1,864 bits and the fitted code 1,108, about 4\.8 bits a literal/);
+  assert.equal((litFitted / lits.length).toFixed(1), "4.8");
+  assert.match(prose, /the data takes 2,375 bits with the fixed code and 1,521 with the fitted one/);
+  assert.match(prose, /for this block that costs 352 bits\. Even so, the block comes to 1,876 bits instead of 2,378, about a fifth smaller/);
+  assert.equal(Math.round((1 - 1876 / 2378) * 100), 21);
 });
 
 test("the BTYPE table matches what zlib accepts", () => {
