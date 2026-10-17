@@ -338,7 +338,7 @@ test("the dynamic bit walk is every bit of the encoder's dynamic block, in read 
   // "Isn't sending all those zeros wasteful?": the literal/length list's zeros and used lengths.
   const lit = fields.filter((f) => f.kind === "clsym" && f.at < f.hlit);
   const zeros = lit.filter((f) => f.value === 0), used = lit.filter((f) => f.value > 0);
-  const bitsOf = (list) => list.reduce((sum, f) => sum + f.bits.length + f.extraBits.length, 0);
+  const bitsOf = (list) => list.reduce((sum, f) => sum + f.bits.length + (f.extraBits || "").length, 0);
   assert.equal(zeros.reduce((sum, f) => sum + f.count, 0), 262);
   assert.deepEqual([zeros.filter((f) => f.count > 1).length, zeros.filter((f) => f.count === 1).length], [6, 1]);
   assert.deepEqual([bitsOf(zeros), bitsOf(used), used.length], [56, 21, 9]);
@@ -346,7 +346,15 @@ test("the dynamic bit walk is every bit of the encoder's dynamic block, in read 
   const note = text(PAGE.match(/<details class="disclosure" id="zero-lengths"[\s\S]*?<\/details>/)[0]);
   assert.match(note, /271 symbols in 77 bits: its 262 zeros take 56 bits, as 6 runs and one lone zero, and the 9 used lengths take 21/);
   assert.match(note, /117 bits/);
-  assert.match(note, /56 of its 159 bits/);
+  // Every bit that says "unused": the code-length code's zeros (3 bits each), and the zero runs of both lists.
+  const cl = fields.filter((f) => f.kind === "cllen"), dist = fields.filter((f) => f.kind === "clsym" && f.at >= f.hlit);
+  const clZero = cl.filter((f) => f.value === 0), distZero = dist.filter((f) => f.value === 0);
+  assert.deepEqual([clZero.length, cl.length, bitsOf(clZero)], [11, 18, 33]);
+  assert.equal(bitsOf(distZero), 6);
+  assert.equal(bitsOf(clZero) + bitsOf(zeros) + bitsOf(distZero), 95);
+  assert.equal(t.blocks[0].headerBits, 159);
+  assert.match(note, /saying "unused" is most of the header: 95 of its 159 bits\. Besides those 56, 6 bits mark d0–d4 as unused, and 33 go on the code-length code's own list, where 11 of the 18 lengths are 0 at 3 bits each/);
+  assert.match(text(PAGE.match(/<bh-cw-step lines="6-23">[\s\S]*?<\/bh-cw-step>/)[0]), /11 of these 18 lengths are 0, and each costs the full 3 bits: 33 bits/);
 
   // The hex, and where the bits go.
   assert.ok(PAGE.includes(`<code>${Array.from(stream, (b) => b.toString(16).padStart(2, "0")).join(" ")}</code>`));
