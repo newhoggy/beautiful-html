@@ -346,23 +346,35 @@
     <p>These are not the tree's codes, but they have the same lengths, so they cost the same 23 bits. Counting up keeps the code prefix-free: every 3-bit code starts with 1, and the only 1-bit code is 0.</p>
 
     <h2 id="joining">How the two ideas join</h2>
-    <p>Huffman coding never sees bytes or tokens. It works on <em>symbols</em> from a fixed alphabet: it counts how often each symbol occurs and gives the common ones short codes. So DEFLATE first maps everything LZ77 produces onto symbols from two alphabets. <strong>These symbols are the input to Huffman coding</strong>, and each alphabet gets its own code.</p>
-    <div class="table-wrap wide" id="alphabets" data-linkable>
-      <table>
-        <caption>How LZ77's output maps onto DEFLATE's two alphabets. Where a symbol covers a range, plain extra bits follow it to pick the exact value; they are not Huffman-coded.</caption>
-        <thead><tr><th>LZ77 gives</th><th>Symbol</th><th>Alphabet</th><th class="num">Extra bits</th><th>In the example below</th></tr></thead>
-        <tbody>
-          <tr><td>a literal byte, <span class="range">0–255</span></td><td><span class="range">0–255,</span> the byte's own value</td><td>literal/length</td><td class="num">0</td><td><code>a</code> (byte 97) → <code>97</code></td></tr>
-          <tr><td>the end of the block</td><td>256</td><td>literal/length</td><td class="num">0</td><td><code>256</code>, once at the end</td></tr>
-          <tr><td>a length, <span class="range">3–10</span></td><td><span class="range">257–264,</span> one each</td><td>literal/length</td><td class="num">0</td><td>length 4 → <code>258</code></td></tr>
-          <tr><td>a length, <span class="range">11–257</span></td><td><span class="range">265–284,</span> each covering <span class="range">2–32</span> lengths</td><td>literal/length</td><td class="num"><span class="range">1–5</span></td><td>length 23 → <code>270</code> (<span class="range">23–26</span>) + 2 bits</td></tr>
-          <tr><td>a length of 258</td><td>285</td><td>literal/length</td><td class="num">0</td><td></td></tr>
-          <tr><td>a distance, <span class="range">1–4</span></td><td><span class="range">d0–d3,</span> one each</td><td>distance</td><td class="num">0</td><td></td></tr>
-          <tr><td>a distance, <span class="range">5–32,768</span></td><td><span class="range">d4–d29,</span> each covering <span class="range">2–8,192</span> distances</td><td>distance</td><td class="num"><span class="range">1–13</span></td><td>distance 7 → <code>d5</code> (<span class="range">7–8</span>) + 1 bit; 12 → <code>d6</code> (<span class="range">9–12</span>) + 2 bits</td></tr>
-        </tbody>
-      </table>
+    <p>Huffman coding never sees bytes or tokens. It codes <em>symbols</em> from a fixed alphabet: it counts how often each symbol occurs and gives the common ones short codes. So the join is a choice of alphabet for everything LZ77 can produce, and those symbols are the input to Huffman coding.</p>
+    <p>The obvious choice is one symbol for every possible value. <strong>That is not what DEFLATE does</strong>, and the difference is the source of most confusion about the format:</p>
+    <div class="compare wide" id="alphabet-choice" data-linkable>
+      <div class="option">
+        <h3>The obvious alphabet</h3>
+        <p>One symbol per value, one Huffman code:</p>
+        <ul>
+          <li><code>b0</code>–<code>b255</code>: each byte</li>
+          <li><code>eob</code>: the end of the block</li>
+          <li><code>w3</code>–<code>w258</code>: each length</li>
+          <li><code>d1</code>–<code>d32768</code>: each distance</li>
+        </ul>
+        <ul class="cons"><li>33,281 symbols. A dynamic block describes its code with one length per symbol, so its table would have 33,281 entries to send, and every decoder would need tables that size.</li></ul>
+      </div>
+      <div class="option chosen">
+        <h3>DEFLATE's two alphabets</h3>
+        <p>Bytes and the end of block keep their own symbols. Lengths and distances get <strong>ranges</strong>, and distances get <strong>an alphabet of their own</strong>:</p>
+        <ul>
+          <li><strong>Literal/length</strong>, 286 symbols: <code>0</code>–<code>255</code> each byte, <code>256</code> the end of the block, <code>257</code>–<code>285</code> 29 ranges of lengths</li>
+          <li><strong>Distance</strong>, 30 symbols: <code>d0</code>–<code>d29</code>, 30 ranges of distances</li>
+        </ul>
+        <ul class="pros"><li>316 symbols in two Huffman codes, so the tables are small to send and to decode with.</li></ul>
+      </div>
     </div>
-    <p>So a literal costs one symbol, and a back-reference costs two: a length from the first alphabet, then a distance from the second. The literal/length alphabet has 286 symbols and the distance alphabet 30; those are the two sets of counts a Huffman code is built from.</p>
+    <p>The two changes, one at a time:</p>
+    <ol class="steps">
+      <li><strong>A length or distance is a range symbol plus extra bits.</strong> Length 23 is not a symbol of its own. It is symbol 270, which means "a length from 23 to 26", followed by 2 plain extra bits, <code>00</code>, that pick 23. The extra bits are written as they are, not Huffman-coded. Short lengths (3–10) and distances (1–4) still get exact symbols, because they are the most common.</li>
+      <li><strong>Distances are coded separately.</strong> The bytes, the end of block and the length ranges share the first alphabet, so one code tells the decoder whether a literal or a copy comes next. A distance always follows a length, so the decoder always knows to read it with the second code.</li>
+    </ol>
 
     <h2 id="join-example">The join, token by token</h2>
     <p>Here is the mapping applied to the ten tokens from the <a href="#window">window figure</a>, and then the codes that turn the symbols into bits.</p>
@@ -424,14 +436,24 @@
       <bh-step><p><strong>Huffman codes turn symbols into bits.</strong> Each symbol is replaced by its code from its own alphabet's table. This block uses the fixed tables: 8 bits per literal, 7 for symbols 256–279, 5 per distance code. Extra bits go out as they are, uncoded. With the 3 header bits that is 103 bits, the number in the first figure.</p></bh-step>
     </bh-stepper>
 
-    <h2 id="two-alphabets">Why two alphabets and extra bits</h2>
-    <p>Each choice in that translation buys something:</p>
-    <dl class="kv">
-      <dt>One alphabet for literals and lengths</dt><dd>The decoder reads one code and learns both what comes next and, for a literal, which byte. A separate literal-or-copy flag would cost a bit on every token; inside one alphabet, whichever kind is common simply gets the shorter codes.</dd>
-      <dt>A second alphabet for distances</dt><dd>A distance only ever follows a length, so the decoder always knows which table to use, and distances get a code fitted to their own skew: recent copies are common.</dd>
-      <dt>Buckets and extra bits</dt><dd>There are 256 possible lengths and 32,768 distances, far too many symbols for a small table that is cheap to send. So one symbol stands for a range, and raw extra bits pick the value inside it. Small lengths and distances are common, so they get exact symbols; large ones share.</dd>
-    </dl>
-    <p>The decoder's inner loop is the same translation run backwards. Its two tables are the two alphabets:</p>
+    <h2 id="two-alphabets">Every range, and the decoder's loop</h2>
+    <p>The full mapping, for when you need the exact ranges:</p>
+    <div class="table-wrap wide" id="alphabets" data-linkable>
+      <table>
+        <caption>How LZ77's output maps onto DEFLATE's two alphabets. Where a symbol covers a range, plain extra bits follow it to pick the exact value; they are not Huffman-coded.</caption>
+        <thead><tr><th>LZ77 gives</th><th>Symbol</th><th>Alphabet</th><th class="num">Extra bits</th><th>In the example</th></tr></thead>
+        <tbody>
+          <tr><td>a literal byte, <span class="range">0–255</span></td><td><span class="range">0–255,</span> the byte's own value</td><td>literal/length</td><td class="num">0</td><td><code>a</code> (byte 97) → <code>97</code></td></tr>
+          <tr><td>the end of the block</td><td>256</td><td>literal/length</td><td class="num">0</td><td><code>256</code>, once at the end</td></tr>
+          <tr><td>a length, <span class="range">3–10</span></td><td><span class="range">257–264,</span> one each</td><td>literal/length</td><td class="num">0</td><td>length 4 → <code>258</code></td></tr>
+          <tr><td>a length, <span class="range">11–257</span></td><td><span class="range">265–284,</span> each covering <span class="range">2–32</span> lengths</td><td>literal/length</td><td class="num"><span class="range">1–5</span></td><td>length 23 → <code>270</code> (<span class="range">23–26</span>) + 2 bits</td></tr>
+          <tr><td>a length of 258</td><td>285</td><td>literal/length</td><td class="num">0</td><td></td></tr>
+          <tr><td>a distance, <span class="range">1–4</span></td><td><span class="range">d0–d3,</span> one each</td><td>distance</td><td class="num">0</td><td></td></tr>
+          <tr><td>a distance, <span class="range">5–32,768</span></td><td><span class="range">d4–d29,</span> each covering <span class="range">2–8,192</span> distances</td><td>distance</td><td class="num"><span class="range">1–13</span></td><td>distance 7 → <code>d5</code> (<span class="range">7–8</span>) + 1 bit; 12 → <code>d6</code> (<span class="range">9–12</span>) + 2 bits</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The decoder's inner loop runs the join backwards. Its two tables are the two alphabets:</p>
     <pre data-title="inflate one Huffman block"><code class="language-python">while True:
     sym = read_code(lit_len_table)    # literal, length or end
     if sym &lt; 256:
