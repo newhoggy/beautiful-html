@@ -603,8 +603,35 @@ test("the Huffman and canonical-code figures agree with the algorithm", () => {
   const lengths = Deflate.codeLengths(counts, 15);
   const total = [..."abracadabra"].reduce((n, ch) => n + lengths[ch.charCodeAt(0)], 0);
   assert.equal(total, 23, "any optimal tie-break costs 23 bits");
-  const canon = Deflate.canonicalCodes([1, 3, 3, 3, 3]); // a, b, c, d, r
-  assert.deepEqual(canon.map((c, i) => c.toString(2).padStart([1, 3, 3, 3, 3][i], "0")), ["0", "100", "101", "110", "111"]);
+});
+
+test("the canonical ladder builds the example's real codes from its lengths", () => {
+  const stream = Deflate.encode(utf8(EXAMPLE)).streams.dynamic, tr = trace(Buffer.from(stream));
+  const counts = new Map();
+  for (const f of tr.fields) if (["literal", "length", "end"].includes(f.kind)) counts.set(f.value, (counts.get(f.value) || 0) + 1);
+  const lengths = Deflate.codeLengths(Array.from({ length: 286 }, (_, s) => counts.get(s) || 0), 15);
+  const codes = Deflate.canonicalCodes(lengths);
+  const bin = (s) => codes[s].toString(2).padStart(lengths[s], "0");
+  const ROWS = { a: 97, r: 114, end: 256, l258: 258, l270: 270, sp: 32, b: 98, c: 99, d: 100 };
+  const fig = PAGE.match(/<figure class="diagram" id="canonical-codes">[\s\S]*?<\/figure>/)[0];
+  // Rows in canonical order: by length, then by symbol number.
+  const order = [...fig.matchAll(/data-id="sym-([a-z0-9]+)"/g)].map((m) => ROWS[m[1]]);
+  assert.deepEqual(order, [...order].sort((x, y) => lengths[x] - lengths[y] || x - y));
+  for (const [id, sym] of Object.entries(ROWS)) {
+    assert.match(fig, new RegExp(`data-id="code-${id}"><rect [^>]*/><text[^>]*>${bin(sym)}<`), id);
+    assert.match(fig, new RegExp(`data-id="len-${id}"[^>]*>${lengths[sym]} bits<`), id);
+  }
+  // The dynamic walk's data uses exactly these codes.
+  for (const f of tr.fields.filter((x) => x.kind === "literal" || x.kind === "length" || x.kind === "end")) assert.equal(f.bits, bin(f.value));
+  // And the tree's own path codes, read off the drawn edges, match its labels.
+  const tree = PAGE.match(/<figure class="diagram wide" id="example-tree">[\s\S]*?<\/figure>/)[0];
+  const parent = new Map([...tree.matchAll(/data-id="e-(x-n\d+)-(x-[a-z0-9]+)"/g)].map((m) => [m[2], m[1]]));
+  const kids = new Map(); for (const [c, p] of parent) kids.set(p, [...(kids.get(p) || []), c]);
+  const path = (id) => (parent.has(id) ? path(parent.get(id)) + kids.get(parent.get(id)).indexOf(id) : "");
+  const treeCodes = {};
+  for (const m of tree.matchAll(/data-id="(x-[a-z0-9]+)-code"[^>]*>([01]+)</g)) { assert.equal(m[2], path(m[1]), m[1]); treeCodes[m[1]] = m[2]; }
+  assert.deepEqual(treeCodes, { "x-sp": "1100", "x-b": "1101", "x-c": "1110", "x-d": "1111", "x-r": "000", "x-end": "001", "x-258": "010", "x-270": "011", "x-a": "10" });
+  for (const m of tree.matchAll(/data-id="bit-(x-n\d+)-(x-[a-z0-9]+)"[^>]*>([01])</g)) assert.equal(+m[3], kids.get(m[1]).indexOf(m[2]));
 });
 
 test("the page has no audio, video or external media", () => {

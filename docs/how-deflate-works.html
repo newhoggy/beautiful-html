@@ -49,6 +49,7 @@
     #join .node.bits text { font-weight: 500; }
     #send-steps .node text, #send-steps .send-code { font-family: var(--font-mono); }
     #example-tree .leaf text:not(.sub) { font-size: 16px; }
+    #example-tree .ex-bit { fill: var(--c6); }
     #send-steps .send-code { font-size: 12px; fill: var(--text); }
     #send-steps .send-trim > rect { fill: none; stroke-dasharray: 3 3; }
     #send-steps .send-zero > rect, #send-steps .send-run > rect { fill: color-mix(in oklab, var(--text-muted) 10%, var(--surface)); }
@@ -655,7 +656,7 @@
     <h2 id="example-code">The example's own code</h2>
     <p>Fitting a code pays for the paragraph. To follow one all the way through, here is the code fitted to the 35-byte example. Huffman coding never sees the raw letters: it counts the symbols that LZ77's output maps to (<a href="#joining">the join</a>). After LZ77 the example is 10 tokens plus the end-of-block symbol: 11 symbols, 9 of them different. <code>a</code> appears 3 times, as a literal; every other symbol appears once.</p>
     <figure class="diagram wide" id="example-tree">
-      <svg viewBox="-16 -26 772 414" role="img" aria-label="Huffman's tree for the example's symbols after LZ77: a, used 3 times, gets a 2-bit code; r, end-of-block, 258 and 270 get 3 bits; space, b, c and d get 4">
+      <svg viewBox="-16 -26 772 444" role="img" aria-label="Huffman's tree for the example's symbols after LZ77: a, used 3 times, gets a 2-bit code; r, end-of-block, 258 and 270 get 3 bits; space, b, c and d get 4">
         <text class="label strong ex-total" x="740" y="-8" text-anchor="end">34 bits</text>
         <text class="label ex-total-note" x="740" y="12" text-anchor="end">with these codes</text>
         <path class="edge no-arrow" data-id="e-x-n1-x-sp" d="M460 265 L420 308"/>
@@ -674,6 +675,22 @@
         <path class="edge no-arrow" data-id="e-x-n7-x-n5" d="M450 105 L540 155"/>
         <path class="edge no-arrow" data-id="e-x-n8-x-n6" d="M305 25 L160 75"/>
         <path class="edge no-arrow" data-id="e-x-n8-x-n7" d="M305 25 L450 75"/>
+        <text class="label strong ex-bit" data-id="bit-x-n1-x-sp" x="426" y="280.5" text-anchor="middle">0</text>
+        <text class="label strong ex-bit" data-id="bit-x-n1-x-b" x="494" y="280.5" text-anchor="middle">1</text>
+        <text class="label strong ex-bit" data-id="bit-x-n2-x-c" x="586" y="280.5" text-anchor="middle">0</text>
+        <text class="label strong ex-bit" data-id="bit-x-n2-x-d" x="654" y="280.5" text-anchor="middle">1</text>
+        <text class="label strong ex-bit" data-id="bit-x-n3-x-r" x="46" y="200.5" text-anchor="middle">0</text>
+        <text class="label strong ex-bit" data-id="bit-x-n3-x-end" x="114" y="200.5" text-anchor="middle">1</text>
+        <text class="label strong ex-bit" data-id="bit-x-n4-x-258" x="206" y="200.5" text-anchor="middle">0</text>
+        <text class="label strong ex-bit" data-id="bit-x-n4-x-270" x="274" y="200.5" text-anchor="middle">1</text>
+        <text class="label strong ex-bit" data-id="bit-x-n5-x-n1" x="486" y="204" text-anchor="middle">0</text>
+        <text class="label strong ex-bit" data-id="bit-x-n5-x-n2" x="594" y="204" text-anchor="middle">1</text>
+        <text class="label strong ex-bit" data-id="bit-x-n6-x-n3" x="106" y="124" text-anchor="middle">0</text>
+        <text class="label strong ex-bit" data-id="bit-x-n6-x-n4" x="214" y="124" text-anchor="middle">1</text>
+        <text class="label strong ex-bit" data-id="bit-x-n7-x-a" x="391" y="120.5" text-anchor="middle">0</text>
+        <text class="label strong ex-bit" data-id="bit-x-n7-x-n5" x="509" y="124" text-anchor="middle">1</text>
+        <text class="label strong ex-bit" data-id="bit-x-n8-x-n6" x="218.5" y="44" text-anchor="middle">0</text>
+        <text class="label strong ex-bit" data-id="bit-x-n8-x-n7" x="391.5" y="44" text-anchor="middle">1</text>
         <g class="node c6 inner" data-id="x-n1"><rect x="436" y="235" width="48" height="30" rx="15"/><text x="460" y="250">2</text></g>
         <g class="node c6 inner" data-id="x-n2"><rect x="596" y="235" width="48" height="30" rx="15"/><text x="620" y="250">2</text></g>
         <g class="node c6 inner" data-id="x-n3"><rect x="56" y="155" width="48" height="30" rx="15"/><text x="80" y="170">2</text></g>
@@ -684,22 +701,31 @@
         <g class="node c6 inner" data-id="x-n8"><rect x="281" y="-5" width="48" height="30" rx="15"/><text x="305" y="10">11</text></g>
         <g class="node c2 leaf" data-id="x-sp"><rect x="392" y="308" width="56" height="44" rx="8"/><text x="420" y="323">␣</text><text class="sub" x="420" y="341">×1</text></g>
         <text class="label strong ex-len" data-id="x-sp-len" x="420" y="366" text-anchor="middle">4 bits</text>
+        <text class="mono ex-code" data-id="x-sp-code" x="420" y="384" text-anchor="middle">1100</text>
         <g class="node c2 leaf" data-id="x-b"><rect x="472" y="308" width="56" height="44" rx="8"/><text x="500" y="323">b</text><text class="sub" x="500" y="341">×1</text></g>
         <text class="label strong ex-len" data-id="x-b-len" x="500" y="366" text-anchor="middle">4 bits</text>
+        <text class="mono ex-code" data-id="x-b-code" x="500" y="384" text-anchor="middle">1101</text>
         <g class="node c2 leaf" data-id="x-c"><rect x="552" y="308" width="56" height="44" rx="8"/><text x="580" y="323">c</text><text class="sub" x="580" y="341">×1</text></g>
         <text class="label strong ex-len" data-id="x-c-len" x="580" y="366" text-anchor="middle">4 bits</text>
+        <text class="mono ex-code" data-id="x-c-code" x="580" y="384" text-anchor="middle">1110</text>
         <g class="node c2 leaf" data-id="x-d"><rect x="632" y="308" width="56" height="44" rx="8"/><text x="660" y="323">d</text><text class="sub" x="660" y="341">×1</text></g>
         <text class="label strong ex-len" data-id="x-d-len" x="660" y="366" text-anchor="middle">4 bits</text>
+        <text class="mono ex-code" data-id="x-d-code" x="660" y="384" text-anchor="middle">1111</text>
         <g class="node c2 leaf" data-id="x-r"><rect x="12" y="228" width="56" height="44" rx="8"/><text x="40" y="243">r</text><text class="sub" x="40" y="261">×1</text></g>
         <text class="label strong ex-len" data-id="x-r-len" x="40" y="286" text-anchor="middle">3 bits</text>
+        <text class="mono ex-code" data-id="x-r-code" x="40" y="304" text-anchor="middle">000</text>
         <g class="node c2 leaf" data-id="x-end"><rect x="92" y="228" width="56" height="44" rx="8"/><text x="120" y="243">end</text><text class="sub" x="120" y="261">×1</text></g>
         <text class="label strong ex-len" data-id="x-end-len" x="120" y="286" text-anchor="middle">3 bits</text>
+        <text class="mono ex-code" data-id="x-end-code" x="120" y="304" text-anchor="middle">001</text>
         <g class="node c2 leaf" data-id="x-258"><rect x="172" y="228" width="56" height="44" rx="8"/><text x="200" y="243">258</text><text class="sub" x="200" y="261">×1</text></g>
         <text class="label strong ex-len" data-id="x-258-len" x="200" y="286" text-anchor="middle">3 bits</text>
+        <text class="mono ex-code" data-id="x-258-code" x="200" y="304" text-anchor="middle">010</text>
         <g class="node c2 leaf" data-id="x-270"><rect x="252" y="228" width="56" height="44" rx="8"/><text x="280" y="243">270</text><text class="sub" x="280" y="261">×1</text></g>
         <text class="label strong ex-len" data-id="x-270-len" x="280" y="286" text-anchor="middle">3 bits</text>
+        <text class="mono ex-code" data-id="x-270-code" x="280" y="304" text-anchor="middle">011</text>
         <g class="node c2 leaf" data-id="x-a"><rect x="332" y="148" width="56" height="44" rx="8"/><text x="360" y="163">a</text><text class="sub" x="360" y="181">×3</text></g>
         <text class="label strong ex-len" data-id="x-a-len" x="360" y="206" text-anchor="middle">2 bits</text>
+        <text class="mono ex-code" data-id="x-a-code" x="360" y="224" text-anchor="middle">10</text>
       </svg>
       <figcaption>Notice that this is not the <a href="#huffman">letters' tree</a> from earlier. LZ77 has already replaced most of the <code>a</code>s with copies, so <code>a</code> is 3 of 11 symbols here, not 5 of 11, and gets 2 bits instead of 1.</figcaption>
     </figure>
@@ -710,48 +736,65 @@
       <bh-step highlight="x-n7 x-a x-n5 e-x-n7-x-a e-x-n7-x-n5"><p><strong>Now <code>a</code> is one of the two rarest.</strong> With 3 it is lighter than either 4, so it joins one of them to make 7.</p></bh-step>
       <bh-step highlight="x-n8 x-n6 x-n7 e-x-n8-x-n6 e-x-n8-x-n7"><p><strong>The last join</strong> makes the root, 11: every symbol.</p></bh-step>
       <bh-step><p><strong>Read the lengths.</strong> A symbol's code length is its depth: <code>a</code> gets 2 bits; <code>r</code>, end, 258 and 270 get 3; ␣, <code>b</code>, <code>c</code> and <code>d</code> get 4. The 11 symbols now cost 34 bits instead of 85.</p></bh-step>
+      <bh-step><p><strong>Read the codes.</strong> Label each left branch 0 and each right branch 1. A symbol's code is the path from the root to it: <code>a</code> is <code>10</code>, <code>r</code> is <code>000</code>, ␣ is <code>1100</code>. No code is the start of another, because every symbol is a leaf.</p></bh-step>
     </bh-stepper>
-    <p>The distance code is simpler: d5 and d6 are used once each, so each gets 1 bit. These lengths are the whole of the example's code: 9 for literals and lengths, 2 for distances. The next section shows why the lengths are all a decoder needs, and the sections after it how a block sends them.</p>
+    <p>The distance code is simpler: d5 and d6 are used once each, so each gets 1 bit. Reading codes off the tree works, but it isn't what a DEFLATE block does: sending the tree, or even these codes, would cost more than it needs to. The next section turns the same lengths into the codes the example's block actually uses, and the sections after it show how a block sends those lengths.</p>
 
     <h2 id="canonical">Send lengths, not trees</h2>
     <p>A dynamic block, then, fits a code to its own counts, and the decoder must be told that code. Sending the tree would cost bits, and as the <a href="#huffman">tie-break question</a> showed, many trees are equally good. DEFLATE fixes one rule for turning code <em>lengths</em> into codes, called the <em>canonical Huffman code</em>, so a block only has to send one small number per symbol.</p>
     <figure class="diagram" id="canonical-codes">
-      <svg viewBox="-16 -24 432 300" role="img" aria-label="Canonical codes: the letters sorted by code length, then alphabetically, receive codes 0, 100, 101, 110 and 111 by counting up">
-        <text class="label" x="22" y="-6" text-anchor="middle">letter</text>
+      <svg viewBox="-16 -24 440 508" role="img" aria-label="Canonical codes for the example: its nine symbols sorted by code length, then by symbol number, receive codes 00, 010 to 101 and 1100 to 1111 by counting up">
+        <text class="label" x="24" y="-6" text-anchor="middle">symbol</text>
         <text class="label" x="64" y="-6">length</text>
         <text class="label" x="198" y="-6" text-anchor="middle">code</text>
-        <g class="node c2" data-id="sym-a"><rect x="0" y="6" width="44" height="36" rx="8"/><text x="22" y="24">a</text></g>
-        <text class="label strong" data-id="len-a" x="64" y="24">1 bit</text>
-        <g class="node c6" data-id="code-a"><rect x="150" y="6" width="96" height="36" rx="8"/><text x="198" y="24">0</text></g>
-        <text class="label" data-id="why-a" x="262" y="24">first code: 0</text>
-        <g class="node c2" data-id="sym-b"><rect x="0" y="58" width="44" height="36" rx="8"/><text x="22" y="76">b</text></g>
-        <text class="label strong" data-id="len-b" x="64" y="76">3 bits</text>
-        <g class="node c6" data-id="code-b"><rect x="150" y="58" width="96" height="36" rx="8"/><text x="198" y="76">100</text></g>
-        <text class="label" data-id="why-b" x="262" y="76">(0 + 1) ≪ 2 = 100</text>
-        <g class="node c2" data-id="sym-c"><rect x="0" y="110" width="44" height="36" rx="8"/><text x="22" y="128">c</text></g>
-        <text class="label strong" data-id="len-c" x="64" y="128">3 bits</text>
-        <g class="node c6" data-id="code-c"><rect x="150" y="110" width="96" height="36" rx="8"/><text x="198" y="128">101</text></g>
-        <text class="label" data-id="why-c" x="262" y="128">100 + 1 = 101</text>
-        <g class="node c2" data-id="sym-d"><rect x="0" y="162" width="44" height="36" rx="8"/><text x="22" y="180">d</text></g>
-        <text class="label strong" data-id="len-d" x="64" y="180">3 bits</text>
-        <g class="node c6" data-id="code-d"><rect x="150" y="162" width="96" height="36" rx="8"/><text x="198" y="180">110</text></g>
-        <text class="label" data-id="why-d" x="262" y="180">101 + 1 = 110</text>
-        <g class="node c2" data-id="sym-r"><rect x="0" y="214" width="44" height="36" rx="8"/><text x="22" y="232">r</text></g>
-        <text class="label strong" data-id="len-r" x="64" y="232">3 bits</text>
-        <g class="node c6" data-id="code-r"><rect x="150" y="214" width="96" height="36" rx="8"/><text x="198" y="232">111</text></g>
-        <text class="label" data-id="why-r" x="262" y="232">110 + 1 = 111</text>
+        <g class="node c2" data-id="sym-a"><rect x="0" y="6" width="48" height="36" rx="8"/><text x="24" y="24">a</text></g>
+        <text class="label strong" data-id="len-a" x="64" y="24">2 bits</text>
+        <g class="node c6" data-id="code-a"><rect x="150" y="6" width="96" height="36" rx="8"/><text x="198" y="24">00</text></g>
+        <text class="label" data-id="why-a" x="262" y="24">first code: 00</text>
+        <g class="node c2" data-id="sym-r"><rect x="0" y="58" width="48" height="36" rx="8"/><text x="24" y="76">r</text></g>
+        <text class="label strong" data-id="len-r" x="64" y="76">3 bits</text>
+        <g class="node c6" data-id="code-r"><rect x="150" y="58" width="96" height="36" rx="8"/><text x="198" y="76">010</text></g>
+        <text class="label" data-id="why-r" x="262" y="76">(00 + 1) ≪ 1 = 010</text>
+        <g class="node c2" data-id="sym-end"><rect x="0" y="110" width="48" height="36" rx="8"/><text x="24" y="128">end</text></g>
+        <text class="label strong" data-id="len-end" x="64" y="128">3 bits</text>
+        <g class="node c6" data-id="code-end"><rect x="150" y="110" width="96" height="36" rx="8"/><text x="198" y="128">011</text></g>
+        <text class="label" data-id="why-end" x="262" y="128">010 + 1 = 011</text>
+        <g class="node c2" data-id="sym-l258"><rect x="0" y="162" width="48" height="36" rx="8"/><text x="24" y="180">258</text></g>
+        <text class="label strong" data-id="len-l258" x="64" y="180">3 bits</text>
+        <g class="node c6" data-id="code-l258"><rect x="150" y="162" width="96" height="36" rx="8"/><text x="198" y="180">100</text></g>
+        <text class="label" data-id="why-l258" x="262" y="180">011 + 1 = 100</text>
+        <g class="node c2" data-id="sym-l270"><rect x="0" y="214" width="48" height="36" rx="8"/><text x="24" y="232">270</text></g>
+        <text class="label strong" data-id="len-l270" x="64" y="232">3 bits</text>
+        <g class="node c6" data-id="code-l270"><rect x="150" y="214" width="96" height="36" rx="8"/><text x="198" y="232">101</text></g>
+        <text class="label" data-id="why-l270" x="262" y="232">100 + 1 = 101</text>
+        <g class="node c2" data-id="sym-sp"><rect x="0" y="266" width="48" height="36" rx="8"/><text x="24" y="284">␣</text></g>
+        <text class="label strong" data-id="len-sp" x="64" y="284">4 bits</text>
+        <g class="node c6" data-id="code-sp"><rect x="150" y="266" width="96" height="36" rx="8"/><text x="198" y="284">1100</text></g>
+        <text class="label" data-id="why-sp" x="262" y="284">(101 + 1) ≪ 1 = 1100</text>
+        <g class="node c2" data-id="sym-b"><rect x="0" y="318" width="48" height="36" rx="8"/><text x="24" y="336">b</text></g>
+        <text class="label strong" data-id="len-b" x="64" y="336">4 bits</text>
+        <g class="node c6" data-id="code-b"><rect x="150" y="318" width="96" height="36" rx="8"/><text x="198" y="336">1101</text></g>
+        <text class="label" data-id="why-b" x="262" y="336">1100 + 1 = 1101</text>
+        <g class="node c2" data-id="sym-c"><rect x="0" y="370" width="48" height="36" rx="8"/><text x="24" y="388">c</text></g>
+        <text class="label strong" data-id="len-c" x="64" y="388">4 bits</text>
+        <g class="node c6" data-id="code-c"><rect x="150" y="370" width="96" height="36" rx="8"/><text x="198" y="388">1110</text></g>
+        <text class="label" data-id="why-c" x="262" y="388">1101 + 1 = 1110</text>
+        <g class="node c2" data-id="sym-d"><rect x="0" y="422" width="48" height="36" rx="8"/><text x="24" y="440">d</text></g>
+        <text class="label strong" data-id="len-d" x="64" y="440">4 bits</text>
+        <g class="node c6" data-id="code-d"><rect x="150" y="422" width="96" height="36" rx="8"/><text x="198" y="440">1111</text></g>
+        <text class="label" data-id="why-d" x="262" y="440">1110 + 1 = 1111</text>
       </svg>
-      <figcaption>Notice that the codes come from the order alone. Once the letters are sorted by length and then alphabetically, each code is the previous one plus one, and gains a 0 on the right for each bit it grows longer.</figcaption>
+      <figcaption>Notice that the codes come from the order alone. Once the symbols are sorted by length and then by symbol number, each code is the previous one plus one, and gains a 0 on the right for each bit it grows longer.</figcaption>
     </figure>
     <bh-stepper for="canonical-codes">
-      <bh-step><p><strong>Start from the tree.</strong> It gave a the code 0 and the others 100, 101, 110 and 111, in the order of its leaves.</p></bh-step>
-      <bh-step highlight="len-a len-b len-c len-d len-r"><p><strong>Throw the codes away.</strong> Keep only each letter's length. This is all a DEFLATE block sends.</p></bh-step>
-      <bh-step highlight="sym-a sym-b sym-c sym-d sym-r len-a len-b len-c len-d len-r"><p><strong>Sort</strong> by length, and alphabetically within a length.</p></bh-step>
-      <bh-step highlight="sym-a len-a code-a why-a"><p><strong>The first code is all zeros.</strong> a gets <code>0</code>.</p></bh-step>
-      <bh-step highlight="sym-b len-b code-b why-b"><p><strong>Count up, then shift.</strong> Add one (1), then append a 0 for each bit of extra length: b gets <code>100</code>.</p></bh-step>
-      <bh-step highlight="sym-c sym-d sym-r len-c len-d len-r code-c code-d code-r why-c why-d why-r"><p><strong>Count up within a length.</strong> c, d and r get <code>101</code>, <code>110</code> and <code>111</code>. The decoder runs the same rules on the same lengths, so it gets the same codes without ever seeing a tree.</p></bh-step>
+      <bh-step><p><strong>Start from the tree's codes,</strong> in the order of its leaves: <code>r</code> <code>000</code>, end <code>001</code>, 258 <code>010</code>, 270 <code>011</code>, <code>a</code> <code>10</code>, then ␣, <code>b</code>, <code>c</code> and <code>d</code> <code>1100</code> to <code>1111</code>.</p></bh-step>
+      <bh-step highlight="len-a len-r len-end len-l258 len-l270 len-sp len-b len-c len-d"><p><strong>Throw the codes away.</strong> Keep only each symbol's length. This is all a DEFLATE block sends.</p></bh-step>
+      <bh-step highlight="sym-a sym-r sym-end sym-l258 sym-l270 sym-sp sym-b sym-c sym-d len-a len-r len-end len-l258 len-l270 len-sp len-b len-c len-d"><p><strong>Sort</strong> by length, and by symbol number within a length: <code>a</code> (97); then <code>r</code> (114), end (256), 258 and 270; then ␣ (32), <code>b</code>, <code>c</code> and <code>d</code>.</p></bh-step>
+      <bh-step highlight="sym-a len-a code-a why-a"><p><strong>The first code is all zeros,</strong> as long as the shortest length: <code>a</code> gets <code>00</code>.</p></bh-step>
+      <bh-step highlight="sym-r sym-end sym-l258 sym-l270 len-r len-end len-l258 len-l270 code-r code-end code-l258 code-l270 why-r why-end why-l258 why-l270"><p><strong>Count up, then shift.</strong> Add one to the last code (<code>01</code>), then append a 0 for the extra bit of length: <code>r</code> gets <code>010</code>. Within a length, count up: end <code>011</code>, 258 <code>100</code>, 270 <code>101</code>.</p></bh-step>
+      <bh-step highlight="sym-sp sym-b sym-c sym-d len-sp len-b len-c len-d code-sp code-b code-c code-d why-sp why-b why-c why-d"><p><strong>Again for 4 bits.</strong> <code>101</code> + 1 is <code>110</code>, and one more bit makes ␣ <code>1100</code>; then <code>b</code> <code>1101</code>, <code>c</code> <code>1110</code>, <code>d</code> <code>1111</code>. The decoder runs the same rules on the same lengths, so it gets the same codes without ever seeing a tree.</p></bh-step>
     </bh-stepper>
-    <p>These are not the tree's codes, but they have the same lengths, so they cost the same 23 bits. Counting up keeps the code prefix-free: every 3-bit code starts with 1, and the only 1-bit code is 0.</p>
+    <p>These are not the tree's codes: <code>a</code> was <code>10</code> and is now <code>00</code>, and <code>r</code> was <code>000</code> and is now <code>010</code>. But every symbol keeps its length, so the 11 symbols still cost 34 bits. Counting up keeps the code prefix-free: only <code>a</code>'s code starts <code>00</code>, and only the 4-bit codes start <code>11</code>. The distance code works the same way: d5 and d6, 1 bit each, get <code>0</code> and <code>1</code>. These are the codes the example's dynamic block uses, in the <a href="#dynamic-block">bit walk</a> further on.</p>
 
     <h2 id="dynamic-header">Sending a dynamic code</h2>
     <p>A dynamic block must tell the decoder its codes before its data. Thanks to <a href="#canonical">canonical codes</a>, it only needs to send each symbol's code length: 286 literal/length symbols and 30 distance symbols, 316 lengths in all, each from 0 to 15. The question is how to send them cheaply, and it matters: every bit spent on the code comes out of the saving. For the paragraph, the fitted code saved 854 bits on the data, and sending it cost 352 of them. Here are four tries, each fixing the biggest waste in the one before, measured on two blocks: the worked example written as a dynamic block (the one <a href="#dynamic-block">walked through below</a>), and zlib's real block for the 381-byte paragraph.</p>
@@ -1654,11 +1697,12 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // ---- Canonical codes: lengths in, sort, count up ------------------------------------------
+  // ---- Canonical codes: the example's lengths in, sort, count up ------------------------------
   {
-    const TREE_ORDER = ["a", "c", "d", "b", "r"], SORTED = ["a", "b", "c", "d", "r"];
-    const TREE_CODE = { a: "0", c: "100", d: "101", b: "110", r: "111" }, CANON = { a: "0", b: "100", c: "101", d: "110", r: "111" };
-    const SHOWN = { a: 3, b: 4, c: 5, d: 5, r: 5 };
+    const TREE_ORDER = ["r", "end", "l258", "l270", "a", "sp", "b", "c", "d"], SORTED = ["a", "r", "end", "l258", "l270", "sp", "b", "c", "d"];
+    const TREE_CODE = { r: "000", end: "001", l258: "010", l270: "011", a: "10", sp: "1100", b: "1101", c: "1110", d: "1111" };
+    const CANON = { a: "00", r: "010", end: "011", l258: "100", l270: "101", sp: "1100", b: "1101", c: "1110", d: "1111" };
+    const SHOWN = { a: 3, r: 4, end: 4, l258: 4, l270: 4, sp: 5, b: 5, c: 5, d: 5 };
     const ladderState = (k) => {
       const s = {};
       for (const l of SORTED) {
@@ -1671,7 +1715,7 @@ document.addEventListener("DOMContentLoaded", () => {
     scene("canonical-codes", ladderState(5), [0, 1, 2, 3, 4, 5].map(ladderState), (part, s) => {
       for (const l of SORTED) {
         const { y } = s[l];
-        box(part(`sym-${l}`), 0, y - 18, 44, 36);
+        box(part(`sym-${l}`), 0, y - 18, 48, 36);
         part(`len-${l}`).setAttribute("y", y);
         const code = part(`code-${l}`);
         box(code, 150, y - 18, 96, 36, s[l].text);
@@ -1805,7 +1849,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ---- The example's own code: Huffman's tree over its LZ77 symbols ---------------------------
   {
-    const EXTREE = {"leaves":[{"id":"x-sp","x":420,"y":330,"x0":40,"y0":330},{"id":"x-b","x":500,"y":330,"x0":118,"y0":330},{"id":"x-c","x":580,"y":330,"x0":196,"y0":330},{"id":"x-d","x":660,"y":330,"x0":274,"y0":330},{"id":"x-r","x":40,"y":250,"x0":352,"y0":330},{"id":"x-end","x":120,"y":250,"x0":430,"y0":330},{"id":"x-258","x":200,"y":250,"x0":508,"y0":330},{"id":"x-270","x":280,"y":250,"x0":586,"y0":330},{"id":"x-a","x":360,"y":170,"x0":664,"y0":330}],"inner":[{"id":"x-n1","w":2,"x":460,"y":250,"kids":["x-sp","x-b"],"step":1},{"id":"x-n2","w":2,"x":620,"y":250,"kids":["x-c","x-d"],"step":1},{"id":"x-n3","w":2,"x":80,"y":170,"kids":["x-r","x-end"],"step":1},{"id":"x-n4","w":2,"x":240,"y":170,"kids":["x-258","x-270"],"step":1},{"id":"x-n5","w":4,"x":540,"y":170,"kids":["x-n1","x-n2"],"step":2},{"id":"x-n6","w":4,"x":160,"y":90,"kids":["x-n3","x-n4"],"step":2},{"id":"x-n7","w":7,"x":450,"y":90,"kids":["x-a","x-n5"],"step":3},{"id":"x-n8","w":11,"x":305,"y":10,"kids":["x-n6","x-n7"],"step":4}]};
+    const EXTREE = {"leaves":[{"id":"x-sp","x":420,"y":330,"x0":40,"y0":330,"code":"1100"},{"id":"x-b","x":500,"y":330,"x0":118,"y0":330,"code":"1101"},{"id":"x-c","x":580,"y":330,"x0":196,"y0":330,"code":"1110"},{"id":"x-d","x":660,"y":330,"x0":274,"y0":330,"code":"1111"},{"id":"x-r","x":40,"y":250,"x0":352,"y0":330,"code":"000"},{"id":"x-end","x":120,"y":250,"x0":430,"y0":330,"code":"001"},{"id":"x-258","x":200,"y":250,"x0":508,"y0":330,"code":"010"},{"id":"x-270","x":280,"y":250,"x0":586,"y0":330,"code":"011"},{"id":"x-a","x":360,"y":170,"x0":664,"y0":330,"code":"10"}],"inner":[{"id":"x-n1","w":2,"x":460,"y":250,"kids":["x-sp","x-b"],"step":1},{"id":"x-n2","w":2,"x":620,"y":250,"kids":["x-c","x-d"],"step":1},{"id":"x-n3","w":2,"x":80,"y":170,"kids":["x-r","x-end"],"step":1},{"id":"x-n4","w":2,"x":240,"y":170,"kids":["x-258","x-270"],"step":1},{"id":"x-n5","w":4,"x":540,"y":170,"kids":["x-n1","x-n2"],"step":2},{"id":"x-n6","w":4,"x":160,"y":90,"kids":["x-n3","x-n4"],"step":2},{"id":"x-n7","w":7,"x":450,"y":90,"kids":["x-a","x-n5"],"step":3},{"id":"x-n8","w":11,"x":305,"y":10,"kids":["x-n6","x-n7"],"step":4}]};
     const byId = Object.fromEntries([...EXTREE.leaves, ...EXTREE.inner].map((n) => [n.id, n]));
     const half = (id) => (byId[id].kids ? 15 : 22);
     const exState = (k) => {
@@ -1813,13 +1857,14 @@ document.addEventListener("DOMContentLoaded", () => {
       for (const l of EXTREE.leaves) s[l.id] = k === 0 ? { x: l.x0, y: l.y0 } : { x: l.x, y: l.y };
       for (const n of EXTREE.inner) s[n.id] = { op: k >= n.step ? 1 : 0, n: k >= n.step ? n.w : 0 };
       s.lens = { op: k >= 5 ? 1 : 0 };
+      s.codes = { op: k >= 6 ? 1 : 0 };
       s.total = { n: k >= 5 ? 34 : 85, note: k >= 5 ? "with these codes" : "with the fixed code" };
       return s;
     };
     const fig = document.getElementById("example-tree");
     const total = fig && fig.querySelector(".ex-total"), note = fig && fig.querySelector(".ex-total-note");
     const pos = (s, id) => (byId[id].kids ? byId[id] : s[id]);
-    scene("example-tree", exState(5), [0, 1, 2, 3, 4, 5].map(exState), (part, s) => {
+    scene("example-tree", exState(6), [0, 1, 2, 3, 4, 5, 6].map(exState), (part, s) => {
       for (const l of EXTREE.leaves) {
         const g = part(l.id), [r, t, sub] = g.children, { x, y } = s[l.id];
         r.setAttribute("x", x - 28); r.setAttribute("y", y - 22);
@@ -1828,6 +1873,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const len = part(l.id + "-len");
         len.setAttribute("x", x); len.setAttribute("y", y + 36);
         fade(len, s.lens.op);
+        const code = part(l.id + "-code");
+        code.setAttribute("x", x); code.setAttribute("y", y + 54);
+        fade(code, s.codes.op);
       }
       for (const n of EXTREE.inner) {
         const g = part(n.id);
@@ -1837,6 +1885,10 @@ document.addEventListener("DOMContentLoaded", () => {
           const path = part(`e-${n.id}-${kid}`), c = pos(s, kid);
           path.setAttribute("d", `M${n.x} ${n.y + half(n.id)} L${c.x} ${c.y - half(kid)}`);
           draw(path, s[n.id].op);
+          const bit = part(`bit-${n.id}-${kid}`), y1 = n.y + half(n.id), y2 = c.y - half(kid);
+          bit.setAttribute("x", (n.x + c.x) / 2 + (n.kids.indexOf(kid) ? 14 : -14));
+          bit.setAttribute("y", (y1 + y2) / 2 - 6);
+          fade(bit, s.codes.op);
         }
       }
       total.textContent = `${Math.round(s.total.n)} bits`;
