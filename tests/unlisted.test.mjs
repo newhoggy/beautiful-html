@@ -8,6 +8,9 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+// Unlisted pages the repo itself already has: the fixtures add their own on top of these.
+const REPO_UNLISTED = (() => { const w = {}; vm.runInNewContext(fs.readFileSync(path.join(source, "theme/unlisted-slugs.js"), "utf8"), { window: w }); return new Set(w.BH_UNLISTED_SLUGS); })();
+const added = (list) => list.filter((p) => !REPO_UNLISTED.has(typeof p === "string" ? p : p.href));
 const script = fs.readFileSync(path.join(source, "theme/unlisted.js"), "utf8");
 const KEY = "A".repeat(43);
 
@@ -198,10 +201,10 @@ test("new --unlisted writes the marker; index keeps the page out of every defaul
   }
   const data = {}; vm.runInNewContext(f.read("theme/unlisted-pages.js"), { window: data });
   assert.equal(data.BH_UNLISTED.v, 1);
-  assert.deepEqual(plain(data.BH_UNLISTED.pages.map((p) => [p.slug, p.href, p.title, p.kind])), [["quiet-demo", "docs/quiet-demo.html", TITLE, "explainer"]]);
-  assert.equal(data.BH_UNLISTED.search[0].href, "docs/quiet-demo.html");
+  assert.deepEqual(plain(added(data.BH_UNLISTED.pages).map((p) => [p.slug, p.href, p.title, p.kind])), [["quiet-demo", "docs/quiet-demo.html", TITLE, "explainer"]]);
+  assert.equal(added(data.BH_UNLISTED.search)[0].href, "docs/quiet-demo.html");
   const slugs = {}; vm.runInNewContext(f.read("theme/unlisted-slugs.js"), { window: slugs });
-  assert.deepEqual(plain(slugs.BH_UNLISTED_SLUGS), ["docs/quiet-demo.html"]);
+  assert.deepEqual(plain(added(slugs.BH_UNLISTED_SLUGS)), ["docs/quiet-demo.html"]);
   assert.ok(!f.read("theme/unlisted-slugs.js").includes(TITLE), "the slug list carries paths only");
 
   const before = Object.fromEntries(generated.concat("docs/quiet-demo.html").map((rel) => [rel, f.read(rel)]));
@@ -246,7 +249,7 @@ test("the client's card is the markup index writes for a listed page", (t) => {
   // The record the browser receives.
   assert.equal(f.bh("index").status, 0);
   const data = {}; vm.runInNewContext(f.read("theme/unlisted-pages.js"), { window: data });
-  const [record] = data.BH_UNLISTED.pages;
+  const [record] = added(data.BH_UNLISTED.pages);
   // What index writes for the same page when it is listed (the marker is the only difference).
   f.edit("docs/quiet-demo.html", unlistedMarker, "");
   assert.equal(f.bh("index").status, 0);

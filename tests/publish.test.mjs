@@ -29,6 +29,9 @@ function data(stage, file, global) {
 }
 const example = "docs/token-bucket-rate-limiting.html";
 const post = "docs/announcing-patchcov.html";
+// Unlisted pages the repo itself already has: the fixtures add their own on top of these.
+const REPO_UNLISTED = new Set(data(ROOT, "unlisted-slugs.js", "BH_UNLISTED_SLUGS"));
+const added = (list) => list.filter((p) => !REPO_UNLISTED.has(typeof p === "string" ? p : p.href));
 
 test("published artifact omits examples, keeps posts and local source, and serves 404", async (t) => {
   const f = fixture(t);
@@ -169,12 +172,12 @@ test("published artifact keeps unlisted pages and their cards, and leaves them o
     assert.ok(!fs.readFileSync(path.join(f.stage, file), "utf8").includes("Quiet words"), `${file} must not carry its title`);
   }
   const unlisted = data(f.stage, "unlisted-pages.js", "BH_UNLISTED");
-  assert.deepEqual([...unlisted.pages.map((p) => p.href)], [quiet]);
+  assert.deepEqual([...added(unlisted.pages).map((p) => p.href)], [quiet]);
   assert.ok(unlisted.search.some((p) => p.href === quiet));
   assert.deepEqual([...unlisted.backlinks[quiet].map((b) => b.href.split("#")[0])], [post]);
-  assert.deepEqual([...data(f.stage, "unlisted-slugs.js", "BH_UNLISTED_SLUGS")], [quiet]);
+  assert.deepEqual([...added(data(f.stage, "unlisted-slugs.js", "BH_UNLISTED_SLUGS"))], [quiet]);
   // Review threads on the unlisted page ship in their own file; the removed example's do not.
-  assert.deepEqual(Object.keys(data(f.stage, "unlisted-reviews.js", "BH_REVIEWS")), [quiet]);
+  assert.deepEqual(added(Object.keys(data(f.stage, "unlisted-reviews.js", "BH_REVIEWS"))), [quiet]);
   assert.ok(!fs.readFileSync(path.join(f.stage, "theme/reviews.js"), "utf8").includes("quiet-"));
   for (const file of ["unlisted-pages.js", "unlisted-slugs.js", "unlisted-reviews.js"]) assert.ok(!fs.readFileSync(path.join(f.stage, "theme", file), "utf8").includes("quiet-example"));
   // The published post keeps its link to the unlisted page in the HTML; the browser makes it inert.
