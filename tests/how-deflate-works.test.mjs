@@ -356,6 +356,35 @@ test("the dynamic bit walk is every bit of the encoder's dynamic block, in read 
   assert.match(note, /saying "unused" is most of the header: 95 of its 159 bits\. Besides those 56, 6 bits mark d0–d4 as unused, and 33 go on the code-length code's own list, where 11 of the 18 lengths are 0 at 3 bits each/);
   assert.match(text(PAGE.match(/<bh-cw-step lines="6-23">[\s\S]*?<\/bh-cw-step>/)[0]), /11 of these 18 lengths are 0, and each costs the full 3 bits: 33 bits/);
 
+  // The two levels: which symbols each alphabet uses, their code lengths, and the walk lines.
+  const litUsed = lit.filter((f) => f.value > 0), distUsed = dist.filter((f) => f.value > 0), clUsed = cl.filter((f) => f.value > 0);
+  assert.deepEqual(litUsed.map((f) => f.at).sort((x, y) => x - y), [32, 97, 98, 99, 100, 114, 256, 258, 270]);
+  assert.deepEqual([...new Set(litUsed.map((f) => f.value))].sort(), [2, 3, 4]);
+  assert.deepEqual(distUsed.map((f) => [f.at - f.hlit, f.value]), [[5, 1], [6, 1]]);
+  assert.deepEqual(clUsed.map((f) => f.symbol).sort((x, y) => x - y), [0, 1, 2, 3, 4, 17, 18]);
+  assert.deepEqual([Math.min(...clUsed.map((f) => f.value)), Math.max(...clUsed.map((f) => f.value))], [2, 5]);
+  const levels = text(PAGE.match(/<div class="table-wrap wide" id="dynamic-levels"[\s\S]*?<\/table>/)[0]);
+  assert.match(levels, /literal\/length\s*9: a, b, r, c, d, ␣, 256, 258, 270\s*2, 3 or 4 bits\s*24–39\s*43–55/);
+  assert.match(levels, /distance\s*2: d5, d6\s*1 bit each\s*40–42\s*51, 54/);
+  assert.match(levels, /code-length \(CL\)\s*7: 1, 2, 3, 4 \(the lengths above\), 0, 17, 18 \(for zeros\)\s*2 to 5 bits\s*6–23\s*24–42/);
+  // Those line ranges really hold those parts of the walk.
+  assert.ok(walk.slice(5, 23).every((l) => l.includes("CL symbol")));
+  assert.ok(walk.slice(23, 39).every((l) => !/^[01 +]+\s+d/.test(l.slice(13))) && walk[39].includes("d0–d4"));
+  assert.match(walk[50], /distance d5/);
+  assert.match(walk[53], /distance d6/);
+
+  // The fixed order: 16, 17, 18, then 0, then outward from 8, then 15. For the paragraph zlib cuts the last three.
+  const ORDER = fields.filter((f) => f.kind === "cllen").map((f) => f.symbol).concat(15);
+  assert.deepEqual(ORDER, [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
+  const outward = [8]; for (let k = 1; k <= 7; k++) outward.push(8 - k, 8 + k);
+  assert.deepEqual(ORDER.slice(4, 18), outward.slice(0, 14));
+  const para = trace(Buffer.from(REFERENCE.paragraph, "hex"));
+  assert.equal(para.blocks[0].hclen, 16);
+  assert.deepEqual(ORDER.slice(16), [14, 1, 15]);
+  const paraLengths = para.fields.filter((f) => f.kind === "clsym" && f.symbol >= 1 && f.symbol <= 15).map((f) => f.symbol);
+  assert.deepEqual([Math.min(...paraLengths), Math.max(...paraLengths)], [2, 8]);
+  assert.match(PAGE, /For the paragraph, zlib's codes use lengths 2 to 8, so <code>HCLEN<\/code> is 16 and the last three, 14, 1 and 15, are never sent\./);
+
   // The hex, and where the bits go.
   assert.ok(PAGE.includes(`<code>${Array.from(stream, (b) => b.toString(16).padStart(2, "0")).join(" ")}</code>`));
   const n = (kinds) => fields.filter((f) => kinds.includes(f.kind)).reduce((sum, f) => sum + f.bits.length + (f.extraBits || "").length, 0);
