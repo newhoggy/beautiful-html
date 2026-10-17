@@ -358,48 +358,8 @@
     </bh-stepper>
     <details class="predict">
       <summary>At the second join, three nodes tied at weight 2. Join a different pair and you get a different tree. Does the total change?</summary>
-      <p><strong>No: it is still 23 bits.</strong> Join c+d with b instead, and the code lengths become a 1, r 2, b 3, c 4 and d 4. The tree is different, but 5×1 + 2×2 + 2×3 + 1×4 + 1×4 = 23 as well. Huffman's algorithm gives <em>an</em> optimal code, not <em>the</em> optimal code. That ambiguity is exactly what DEFLATE removes next.</p>
+      <p><strong>No: it is still 23 bits.</strong> Join c+d with b instead, and the code lengths become a 1, r 2, b 3, c 4 and d 4. The tree is different, but 5×1 + 2×2 + 2×3 + 1×4 + 1×4 = 23 as well. Huffman's algorithm gives <em>an</em> optimal code, not <em>the</em> optimal code. That ambiguity is what DEFLATE removes when a block sends its own code, <a href="#canonical">further on</a>.</p>
     </details>
-
-    <h2 id="canonical">Send lengths, not trees</h2>
-    <p>The decoder needs the same codes as the encoder. Sending the tree would cost bits, and as the question above shows, many trees are equally good. DEFLATE fixes one rule for turning code <em>lengths</em> into codes, called the <em>canonical Huffman code</em>, so a block only has to send one small number per symbol.</p>
-    <figure class="diagram" id="canonical-codes">
-      <svg viewBox="-16 -24 432 300" role="img" aria-label="Canonical codes: the letters sorted by code length, then alphabetically, receive codes 0, 100, 101, 110 and 111 by counting up">
-        <text class="label" x="22" y="-6" text-anchor="middle">letter</text>
-        <text class="label" x="64" y="-6">length</text>
-        <text class="label" x="198" y="-6" text-anchor="middle">code</text>
-        <g class="node c2" data-id="sym-a"><rect x="0" y="6" width="44" height="36" rx="8"/><text x="22" y="24">a</text></g>
-        <text class="label strong" data-id="len-a" x="64" y="24">1 bit</text>
-        <g class="node c6" data-id="code-a"><rect x="150" y="6" width="96" height="36" rx="8"/><text x="198" y="24">0</text></g>
-        <text class="label" data-id="why-a" x="262" y="24">first code: 0</text>
-        <g class="node c2" data-id="sym-b"><rect x="0" y="58" width="44" height="36" rx="8"/><text x="22" y="76">b</text></g>
-        <text class="label strong" data-id="len-b" x="64" y="76">3 bits</text>
-        <g class="node c6" data-id="code-b"><rect x="150" y="58" width="96" height="36" rx="8"/><text x="198" y="76">100</text></g>
-        <text class="label" data-id="why-b" x="262" y="76">(0 + 1) ≪ 2 = 100</text>
-        <g class="node c2" data-id="sym-c"><rect x="0" y="110" width="44" height="36" rx="8"/><text x="22" y="128">c</text></g>
-        <text class="label strong" data-id="len-c" x="64" y="128">3 bits</text>
-        <g class="node c6" data-id="code-c"><rect x="150" y="110" width="96" height="36" rx="8"/><text x="198" y="128">101</text></g>
-        <text class="label" data-id="why-c" x="262" y="128">100 + 1 = 101</text>
-        <g class="node c2" data-id="sym-d"><rect x="0" y="162" width="44" height="36" rx="8"/><text x="22" y="180">d</text></g>
-        <text class="label strong" data-id="len-d" x="64" y="180">3 bits</text>
-        <g class="node c6" data-id="code-d"><rect x="150" y="162" width="96" height="36" rx="8"/><text x="198" y="180">110</text></g>
-        <text class="label" data-id="why-d" x="262" y="180">101 + 1 = 110</text>
-        <g class="node c2" data-id="sym-r"><rect x="0" y="214" width="44" height="36" rx="8"/><text x="22" y="232">r</text></g>
-        <text class="label strong" data-id="len-r" x="64" y="232">3 bits</text>
-        <g class="node c6" data-id="code-r"><rect x="150" y="214" width="96" height="36" rx="8"/><text x="198" y="232">111</text></g>
-        <text class="label" data-id="why-r" x="262" y="232">110 + 1 = 111</text>
-      </svg>
-      <figcaption>Notice that the codes come from the order alone. Once the letters are sorted by length and then alphabetically, each code is the previous one plus one, and gains a 0 on the right for each bit it grows longer.</figcaption>
-    </figure>
-    <bh-stepper for="canonical-codes">
-      <bh-step><p><strong>Start from the tree.</strong> It gave a the code 0 and the others 100, 101, 110 and 111, in the order of its leaves.</p></bh-step>
-      <bh-step highlight="len-a len-b len-c len-d len-r"><p><strong>Throw the codes away.</strong> Keep only each letter's length. This is all a DEFLATE block sends.</p></bh-step>
-      <bh-step highlight="sym-a sym-b sym-c sym-d sym-r len-a len-b len-c len-d len-r"><p><strong>Sort</strong> by length, and alphabetically within a length.</p></bh-step>
-      <bh-step highlight="sym-a len-a code-a why-a"><p><strong>The first code is all zeros.</strong> a gets <code>0</code>.</p></bh-step>
-      <bh-step highlight="sym-b len-b code-b why-b"><p><strong>Count up, then shift.</strong> Add one (1), then append a 0 for each bit of extra length: b gets <code>100</code>.</p></bh-step>
-      <bh-step highlight="sym-c sym-d sym-r len-c len-d len-r code-c code-d code-r why-c why-d why-r"><p><strong>Count up within a length.</strong> c, d and r get <code>101</code>, <code>110</code> and <code>111</code>. The decoder runs the same rules on the same lengths, so it gets the same codes without ever seeing a tree.</p></bh-step>
-    </bh-stepper>
-    <p>These are not the tree's codes, but they have the same lengths, so they cost the same 23 bits. Counting up keeps the code prefix-free: every 3-bit code starts with 1, and the only 1-bit code is 0.</p>
 
     <h2 id="joining">How the two ideas join</h2>
     <p>The two stages meet once per block, always in this order:</p>
@@ -548,7 +508,7 @@
         for _ in range(length):       # byte by byte: may overlap
             out.append(out[-distance])</code></pre>
 
-    <h2 id="block-types">Three kinds of block</h2>
+    <h2 id="block-types">Blocks, and the fixed code</h2>
     <p>A stream is a series of blocks. Each block starts with 3 header bits: <code>BFINAL</code> (1 if this is the last block) and the 2-bit <code>BTYPE</code>, which says where the codes come from. Two bits allow four values, and only three are used:</p>
     <div class="table-wrap" id="btype" data-linkable>
       <table>
@@ -562,27 +522,7 @@
         </tbody>
       </table>
     </div>
-    <div class="compare wide">
-      <div class="option">
-        <h3>Stored (00)</h3>
-        <p>No compression: up to 65,535 raw bytes after a 4-byte length and its complement.</p>
-        <ul class="pros"><li>Caps the cost of incompressible data at 5 bytes per 64 KiB</li></ul>
-        <ul class="cons"><li>No saving at all</li></ul>
-      </div>
-      <div class="option">
-        <h3>Fixed Huffman (01)</h3>
-        <p>Codes set by the RFC: 8 or 9 bits for a literal, 7 or 8 for a length, 5 for a distance.</p>
-        <ul class="pros"><li>No table to send</li><li>Wins on short inputs</li></ul>
-        <ul class="cons"><li>Ignores this data's skew</li></ul>
-      </div>
-      <div class="option chosen">
-        <h3>Dynamic Huffman (10)</h3>
-        <p>Codes built for this block's own counts, sent as code lengths at the start of the block.</p>
-        <ul class="pros"><li>Removes the skew too</li><li>Usually wins once a block holds more than a few dozen bytes of text</li></ul>
-        <ul class="cons"><li>The table costs tens of bytes</li></ul>
-      </div>
-    </div>
-    <p>Any input can be written as any of the three, and every one is valid: a decoder accepts whichever it gets. Which one wins is a sum, not a rule. The encoder works out the exact size of each kind for every block (zlib ends a block after about 16,000 symbols) and writes the smallest. Tiny blocks come out fixed because a code table costs more than it saves: for the paragraph in the chart, zlib 1.2.12 switches from fixed to dynamic once the text is 74 bytes long.</p>
+    <p>The rest of this half of the page uses the fixed codes (<code>BTYPE</code> 01): a table of codes set once by the RFC, so a block sends no table at all. Every literal from 0 to 143, which covers all of ASCII, gets 8 bits, and 144–255 get 9. End-of-block and the length symbols get 7 or 8, and every distance symbol gets 5. The join figure above used these codes, and so did zlib for the opening string; the next section reads its block bit by bit. Dynamic codes, which a block fits to its own data, come after that.</p>
     <details class="disclosure" id="fixed-lengths" data-linkable>
       <summary>Go deeper: why are the fixed codes 7–9 bits long?</summary>
       <p>A prefix code has a budget. A code of <em>L</em> bits uses up 2<sup>−<em>L</em></sup> of all possible bit patterns, since nothing else may start with it, and the shares can't add up to more than 1. The fixed code must cover 288 symbols without knowing which are common, and spread evenly that is about log<sub>2</sub> 288 ≈ 8.2 bits each. The RFC spends the budget exactly:</p>
@@ -600,175 +540,6 @@
       </div>
       <p>The 7-bit codes for end-of-block and common lengths are paid for by making the upper half of the byte values, rare in text, cost 9 bits. Only a code fitted to the data can make a common symbol short, by making rare ones longer: that is what a dynamic block's code does.</p>
     </details>
-    <figure class="frame wide" id="block-sizes">
-      <bh-chart type="bar" unit="%" y-label="Size as % of the input">
-        <table>
-          <thead><tr><th>Input</th><th>Stored</th><th>Fixed</th><th>Dynamic</th><th>zlib -9</th></tr></thead>
-          <tbody>
-            <tr><td>abracadabra ×3 (35 B)</td><td>114.3</td><td>37.1</td><td>74.3</td><td>42.9</td></tr>
-            <tr><td>A paragraph (381 B)</td><td>101.3</td><td>78.2</td><td>62.2</td><td>61.7</td></tr>
-            <tr><td>Random bytes (1 KiB)</td><td>100.5</td><td>105.6</td><td>105.2</td><td>100.5</td></tr>
-          </tbody>
-        </table>
-      </bh-chart>
-      <figcaption>Each input has a different winner. The short string can't pay for a table; the paragraph can; random bytes can't be compressed at all, so storing them is cheapest. The first three columns are the same tokens written as each block type; zlib picks per block.</figcaption>
-    </figure>
-
-    <h2 id="dynamic-header">Sending a dynamic code</h2>
-    <p>A dynamic block must tell the decoder its codes before its data. Thanks to <a href="#canonical">canonical codes</a>, it only needs to send each symbol's code length: 286 literal/length symbols and 30 distance symbols, 316 lengths in all, each from 0 to 15. The question is how to send them cheaply. Here are four tries, each fixing the biggest waste in the one before, measured on two blocks: the worked example written as a dynamic block (the one <a href="#dynamic-block">walked through below</a>), and zlib's real block for the 381-byte paragraph.</p>
-    <h3 id="step-naive">1. Every length, 4 bits each</h3>
-    <p>Write all 316 lengths as plain 4-bit numbers, in symbol order. That is 1,264 bits, 158 bytes, in every dynamic block whatever it holds. The example's data is only 41 bits, so its code table would cost 30 times as much as the data it describes. Even the paragraph's data, 1,521 bits, would nearly double.</p>
-    <h3 id="step-counts">2. Say how many</h3>
-    <p>Any one block uses few of the symbols. So send two counts first, <code>HLIT</code> and <code>HDIST</code> (plain 5-bit numbers), and stop each list after its highest used symbol; the rest count as 0. It barely helps: 1,122 bits for the example and 1,158 for the paragraph. The unused symbols are mostly in the middle of the alphabet, the byte values a text never contains, not at the end. The counts stay in the final scheme anyway: with no separators, they are how the decoder knows where each list ends.</p>
-
-    <h2 id="dynamic-runs">Runs, and a code for the runs</h2>
-    <h3 id="step-runs">3. Replace runs with one symbol</h3>
-    <p>Write the lengths with a small alphabet of 19 symbols instead: 0–15 for a length, 16 to repeat the previous length, and 17 and 18 for runs of zeros, each followed by plain extra bits that give the count. For now, write each of these symbols as a plain 5-bit number. A whole stretch of unused byte values becomes one symbol: the example's 262 unused literal/length symbols take just 7. The header drops to 146 bits for the example and 443 for the paragraph.</p>
-    <div class="table-wrap" id="cl-alphabet" data-linkable>
-      <table>
-        <caption>The code-length alphabet. Fixed by the format: the same in every dynamic block. Each range follows from its extra bits: 2 bits give 4 counts, 3 give 8, 7 give 128.</caption>
-        <thead><tr><th>Symbol</th><th>Means</th><th class="num">Extra bits</th><th>Count</th></tr></thead>
-        <tbody>
-          <tr><td>0–15</td><td>a code length of 0 to 15</td><td class="num">0</td><td></td></tr>
-          <tr><td>16</td><td>repeat the previous length</td><td class="num">2</td><td>3–6 times</td></tr>
-          <tr><td>17</td><td>a run of zeros</td><td class="num">3</td><td>3–10</td></tr>
-          <tr><td>18</td><td>a run of zeros</td><td class="num">7</td><td>11–138</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p>Runs start at 3 because a run of 1 or 2 is cheaper written out. Zeros get two run symbols, a short one and a long one, because they are by far the most common length.</p>
-    <h3 id="step-coded">4. Huffman-code the run symbols</h3>
-    <p>Some of these 19 symbols are far more common than others, so DEFLATE gives them a Huffman code too: the <em>code-length code</em>, a Huffman code whose job is to send the other two codes. Its own 19 lengths go first, as plain 3-bit numbers. A dynamic block is therefore a stack of three layers, each written with the one below it:</p>
-    <div class="table-wrap" id="code-layers" data-linkable>
-      <table>
-        <caption>The three layers of a dynamic block, from the top. A decoder reads them from the bottom up.</caption>
-        <thead><tr><th>Layer</th><th>Written with</th><th>Size</th></tr></thead>
-        <tbody>
-          <tr><td>the data</td><td>the literal/length and distance codes</td><td>the whole block</td></tr>
-          <tr><td>those two codes' lengths</td><td>the code-length code</td><td>up to 316 lengths</td></tr>
-          <tr><td>the code-length code's lengths</td><td>plain 3-bit numbers</td><td>at most 19 × 3 = 57 bits</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p>It stops at three layers because the bottom one is so small: 57 bits at most, too little for yet another code to repay its own description. This is DEFLATE's actual scheme, and it costs 159 bits for the example and 352 for the paragraph. For the paragraph, coding the run symbols saved another 91 bits. For the tiny example it cost 13 more: describing the small code took more than it saved on just 19 run symbols. DEFLATE has no way to stop at step 3, which is one more reason tiny blocks are written with the fixed codes.</p>
-    <figure class="frame wide" id="header-steps">
-      <bh-chart type="bar" unit="bits" y-label="Bits to send the codes">
-        <table>
-          <thead><tr><th>Step</th><th>The example</th><th>The paragraph</th></tr></thead>
-          <tbody>
-            <tr><td>1. 4 bits each</td><td>1264</td><td>1264</td></tr>
-            <tr><td>2. Say how many</td><td>1122</td><td>1158</td></tr>
-            <tr><td>3. Runs</td><td>146</td><td>443</td></tr>
-            <tr><td>4. Code the runs</td><td>159</td><td>352</td></tr>
-          </tbody>
-        </table>
-      </bh-chart>
-      <figcaption>Runs make the big difference. Coding the run symbols pays off for the paragraph but not for the 35-byte example, whose header ends up bigger than its data either way.</figcaption>
-    </figure>
-    <p>What changes from block to block is only <em>which</em> of the 19 symbols a block uses, and the code each one gets: in the worked example below, symbol 18 is <code>10</code> and 16 isn't used at all, but 18 still means 11–138 zeros with 7 extra bits. For the 381-byte paragraph in the chart, zlib's whole header (<code>HLIT</code> = 270, <code>HDIST</code> = 17, <code>HCLEN</code> = 16, then the lengths) is 352 bits, about 44 bytes. That is the price of the table, and the paragraph is long enough to repay it.</p>
-    <p>The code-length code's 19 lengths are sent in a fixed order, 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15, and <code>HCLEN</code> (4 bits) says how many are sent; any not sent count as 0.</p>
-    <details class="disclosure" id="cl-order" data-linkable>
-      <summary>Go deeper: why that order?</summary>
-      <p>The order is a bet on which code lengths a block will use, most likely first, so that <code>HCLEN</code> can cut off the unlikely ones. The RFC lists it without a reason, but it reads in four parts:</p>
-      <ul>
-        <li><strong>16, 17, 18</strong>: the repeat and zero-run symbols, which nearly every dynamic block uses to skip the byte values it never sees.</li>
-        <li><strong>0</strong>: every block has unused symbols.</li>
-        <li><strong>8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1</strong>: outward from 8, because with 286 symbols most codes come out around 7–9 bits, and very short or very long codes are rare.</li>
-        <li><strong>15</strong> last, the rarest of all.</li>
-      </ul>
-      <p>For the paragraph, zlib's codes use lengths 2 to 8, so <code>HCLEN</code> is 16 and the last three, 14, 1 and 15, are never sent.</p>
-    </details>
-
-    <h2 id="not-symbols">Everything in the stream that isn't a symbol</h2>
-    <p>A DEFLATE stream is mostly Huffman codes, but not entirely. Bits are written in two ways, and a decoder must know which kind comes next:</p>
-    <ul>
-      <li><strong>A Huffman code</strong> is read one bit at a time, most significant bit first, because the decoder walks down the code tree as each bit arrives.</li>
-      <li><strong>Everything else is a plain number</strong> of a fixed, known width, read lowest bit first. Each byte of the stream fills from its lowest bit up, so a plain number's bits arrive in the order they are packed.</li>
-    </ul>
-    <p>In other words, DEFLATE is little-endian throughout, at the level of bits and of bytes (a stored block's 16-bit <code>LEN</code> comes low byte first), except that Huffman codes are stored bit-reversed. Write a byte the usual way, most significant bit on the left, and its plain fields read as ordinary binary, stacked from the right. Here is the first byte of the <a href="#dynamic-block">dynamic block</a> below:</p>
-    <pre data-title="the dynamic block's first byte, 0x75: most significant bit on the left, fields read right to left"><code>0 1 1 1 0 | 1 0   | 1
-HLIT      | BTYPE | BFINAL
-= 14      | = 2   | = 1</code></pre>
-    <p>A Huffman code reads correctly in arrival order instead, so in this byte view it would look reversed. Decoders such as zlib reverse each code once, when they build their lookup tables, so that one little-endian bit reader can handle everything.</p>
-    <div class="table-wrap wide" id="plain-fields" data-linkable>
-      <table>
-        <caption>Every plain field in a DEFLATE stream. None of these is Huffman-coded: the decoder knows each one's width from what came before it.</caption>
-        <thead><tr><th>Field</th><th class="num">Bits</th><th>Where</th><th>Holds</th></tr></thead>
-        <tbody>
-          <tr><td><code>BFINAL</code></td><td class="num">1</td><td>start of every block</td><td>1 if this is the last block</td></tr>
-          <tr><td><code>BTYPE</code></td><td class="num">2</td><td>after <code>BFINAL</code></td><td>the block type (<a href="#btype">values</a>)</td></tr>
-          <tr><td>length extra bits</td><td class="num">0–5</td><td>after a length symbol</td><td>which length within the symbol's range: 270 means lengths 23–26, and its 2 extra bits, 0–3, add the offset (<a href="#alphabet-lab">try one</a>)</td></tr>
-          <tr><td>distance extra bits</td><td class="num">0–13</td><td>after a distance symbol</td><td>which distance within the symbol's range: d6 means distances 9–12, and its 2 extra bits add the offset, so <code>11</code> = 3 gives 12</td></tr>
-          <tr><td><code>HLIT</code></td><td class="num">5</td><td>dynamic block, after <code>BTYPE</code></td><td>the number of literal/length code lengths, minus 257: 257–288 is 32 values</td></tr>
-          <tr><td><code>HDIST</code></td><td class="num">5</td><td>after <code>HLIT</code></td><td>the number of distance code lengths, minus 1: 1–32 is 32 values</td></tr>
-          <tr><td><code>HCLEN</code></td><td class="num">4</td><td>after <code>HDIST</code></td><td>the number of code-length-code lengths, minus 4: 4–19 is 16 values</td></tr>
-          <tr><td>code-length-code lengths</td><td class="num">3 each</td><td>after <code>HCLEN</code>, 4–19 of them</td><td>the lengths of the code that compresses the code lengths, in the fixed order; that code's lengths are at most 7</td></tr>
-          <tr><td>run extra bits</td><td class="num">2, 3 or 7</td><td>after code-length symbol 16, 17 or 18</td><td>the run's count, minus 3, 3 or 11</td></tr>
-          <tr><td>alignment</td><td class="num">0–7</td><td>stored block, after <code>BTYPE</code></td><td>nothing: skipped to reach the next byte boundary</td></tr>
-          <tr><td><code>LEN</code>, <code>NLEN</code></td><td class="num">16 each</td><td>stored block, after the alignment</td><td>the number of bytes, then its ones' complement as a check</td></tr>
-          <tr><td>stored bytes</td><td class="num">8 each</td><td>stored block, after <code>NLEN</code></td><td>the data itself, byte for byte</td></tr>
-          <tr><td>final padding</td><td class="num">0–7</td><td>after the last block</td><td>nothing: fills the last byte</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p>Everything else in the stream is a Huffman code: the literal/length and distance symbols, and, inside a dynamic block's header, the code-length symbols. The worked example's 119 bits show both kinds side by side in <a href="#one-block">the bit walk</a>.</p>
-    <p>Nothing in the stream says how long a field is. The decoder always knows what comes next and how big it is, in one of three ways:</p>
-    <ul>
-      <li><strong>A width fixed by the RFC</strong>, chosen to fit the field's range: <code>BFINAL</code>, <code>BTYPE</code>, <code>HLIT</code>, <code>HDIST</code>, <code>HCLEN</code>, the 3-bit code-length-code lengths, and a stored block's <code>LEN</code> and <code>NLEN</code>. After <code>BTYPE</code> = 2, the next 5 bits are <code>HLIT</code> because the format says so.</li>
-      <li><strong>A width set by the symbol just decoded</strong>: the extra bits. Symbol 270 is always followed by 2 extra bits, d6 by 2, run symbol 18 by 7.</li>
-      <li><strong>No width at all</strong>: Huffman codes end themselves. The decoder reads one bit at a time until the bits so far match a code, and since no code is the start of another, it can never stop in the wrong place.</li>
-    </ul>
-    <p>That is why the stream needs no separators or length prefixes, and also why it must be read strictly in order: where <code>HDIST</code> starts depends on having read <code>HLIT</code>, and one corrupted bit misaligns everything after it.</p>
-
-    <h2 id="try-it">Try it</h2>
-    <p>Type anything, or pick an example. The tokens are what LZ77 found; the numbers show each saving on its own and both together. Every count is the size of a real DEFLATE stream that this page's encoder writes, not an estimate.</p>
-    <bh-playground class="wide" id="deflate-lab">
-      <div>
-        <label class="control" for="lab-text"><span>Text to compress <output id="lab-size">35 bytes</output></span></label>
-        <textarea id="lab-text" maxlength="4096" spellcheck="false" autocomplete="off">abracadabra abracadabra abracadabra</textarea>
-        <div class="lab-presets" role="group" aria-label="Examples">
-          <button class="btn" type="button" data-preset="abracadabra abracadabra abracadabra">abracadabra ×3</button>
-          <button class="btn" type="button" data-preset="DEFLATE is the compression format inside gzip, zlib, PNG and ZIP. It finds repeated strings and replaces each repeat with a short pointer back to an earlier copy of the same bytes. Then it gives the symbols that remain short codes if they are common and long codes if they are rare. The decoder undoes both steps, one symbol at a time, and gets back exactly the bytes that went in.">A paragraph</button>
-          <button class="btn" type="button" data-preset="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa">One letter ×300</button>
-          <button class="btn" type="button" data-preset="Sphinx of black quartz, judge my vow">No repeats</button>
-        </div>
-      </div>
-      <div class="metrics">
-        <div class="metric"><span class="value" id="lab-raw">280</span><span class="label">bits as plain bytes</span></div>
-        <div class="metric"><span class="value" id="lab-huff">223</span><span class="label">bits with Huffman alone</span></div>
-        <div class="metric"><span class="value" id="lab-lz">103</span><span class="label">bits with LZ77 alone (fixed codes)</span></div>
-        <div class="metric"><span class="value" id="lab-both">203</span><span class="label">bits with both, incl. a <span id="lab-header">159</span>-bit table</span></div>
-        <div class="metric"><span class="value" id="lab-out">13</span><span class="label">bytes out, as a <span id="lab-type">fixed</span> block</span></div>
-      </div>
-      <div class="lab-write">
-        <div class="lab-kinds" role="group" aria-label="Write the block as">
-          <span class="lab-label">Write it as</span>
-          <button class="chip" type="button" data-write="best" aria-pressed="true">the smallest</button>
-          <button class="chip" type="button" data-write="stored" aria-pressed="false">stored</button>
-          <button class="chip" type="button" data-write="fixed" aria-pressed="false">fixed</button>
-          <button class="chip" type="button" data-write="dynamic" aria-pressed="false">dynamic</button>
-        </div>
-        <p class="lab-stream"><strong id="lab-stream-size">13 bytes</strong> (<span id="lab-stream-bits">103</span> bits) as a <span id="lab-stream-type">fixed</span> block: <code id="lab-hex">4b 4c 2a 4a 4c 4e 4c 01 51 0a 38 d8 00</code></p>
-        <p class="muted" id="lab-check" aria-live="polite" data-vr-mask hidden></p>
-      </div>
-      <p class="readout" id="lab-summary">LZ77 replaced 27 of 35 bytes with 2 back-references, leaving 8 literals. Codes built for this text would need a 159-bit table, more than they save, so the fixed codes win.</p>
-      <p class="muted" id="lab-browser-line" data-vr-mask hidden>For comparison, your browser's own DEFLATE (<code>CompressionStream</code>) wrote <output id="lab-browser">…</output> bytes.</p>
-      <ul class="legend"><li><span class="swatch c2"></span>literal byte</li><li><span class="swatch c1"></span>back-reference (length, distance)</li></ul>
-      <p class="muted" id="lab-pick" aria-live="polite" hidden>Click a back-reference to see the bytes it copies.</p>
-      <div class="lab-tokens" id="lab-tokens" aria-label="Token stream"><span class="tok-lit">a</span><span class="tok-lit">b</span><span class="tok-lit">r</span><span class="tok-lit">a</span><span class="tok-lit">c</span><span class="tok-lit">a</span><span class="tok-lit">d</span><span class="tok-ref" title="copy 4 bytes from 7 back: “abra”">(4,7)</span><span class="tok-lit">␣</span><span class="tok-ref" title="copy 23 bytes from 12 back: “abracadabra abracadabra”">(23,12)</span></div>
-      <div class="lab-bytes" id="lab-bytes" aria-label="The input, byte by byte" hidden></div>
-      <details class="disclosure">
-        <summary>The token stream as a table</summary>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th class="num">#</th><th>Token</th><th>Stands for</th><th class="num">At byte</th></tr></thead>
-            <tbody id="lab-table"><tr><td class="num">1</td><td>a</td><td>a</td><td class="num">0</td></tr><tr><td class="num">2</td><td>b</td><td>b</td><td class="num">1</td></tr><tr><td class="num">3</td><td>r</td><td>r</td><td class="num">2</td></tr><tr><td class="num">4</td><td>a</td><td>a</td><td class="num">3</td></tr><tr><td class="num">5</td><td>c</td><td>c</td><td class="num">4</td></tr><tr><td class="num">6</td><td>a</td><td>a</td><td class="num">5</td></tr><tr><td class="num">7</td><td>d</td><td>d</td><td class="num">6</td></tr><tr><td class="num">8</td><td>(4,7)</td><td>abra</td><td class="num">7</td></tr><tr><td class="num">9</td><td>␣</td><td>␣</td><td class="num">11</td></tr><tr><td class="num">10</td><td>(23,12)</td><td>abracadabra abracadabra</td><td class="num">12</td></tr></tbody>
-          </table>
-        </div>
-      </details>
-    </bh-playground>
-    <p>Click any back-reference to see which earlier bytes it copies, and use <strong>Write it as</strong> to see the same tokens as each kind of block: the smallest is what an encoder would send, but every one decodes. The paragraph shows both savings clearly: LZ77 finds the repeated words, and the skew of English letters pays for a dynamic table. One letter ×300 is almost all repetition. "No repeats" has nothing for LZ77 and too little text to pay for a table, so it comes out slightly larger than it went in.</p>
-
     <h2 id="one-block">One real block, bit by bit</h2>
     <p>These are the bits <em>after</em> Huffman coding: each literal, length and distance appears as its code from the fixed table, not as a raw byte or number. Here is what the reference zlib (version 1.2.12) actually wrote at level 9 for the opening string: the 15 bytes <code>4b 4c 2a 4a 4c 4e 4c 49 04 52 0a 89 d8 d9 00</code>, read the way a decoder reads them. Bits are taken from each byte lowest first. Huffman codes are read one bit at a time, most significant first; header fields and extra bits are plain numbers, lowest bit first.</p>
     <bh-codewalk class="wide" id="bit-walk">
@@ -852,6 +623,111 @@ HLIT      | BTYPE | BFINAL
       <p class="callout-title">Why is zlib's version bigger than the figure's?</p>
       <p>zlib wrote 119 bits; the parse in the <a href="#window">window figure</a> needs 103. DEFLATE fixes how to <em>decode</em>, not how to encode: any token stream that rebuilds the input is valid. zlib's hash chains use position 0 as their "no match" marker, so zlib never copies from the very first byte of a stream. Both of its copies here would have started there, so each starts one byte later, after an extra literal <code>a</code>: 16 bits lost. On real files, zlib's smarter match choices win by far more. Other builds choose differently again: Chromium's fork of zlib, in Chrome and in Node's official binaries, writes 17 bytes for this string.</p>
     </aside>
+
+    <h2 id="canonical">Send lengths, not trees</h2>
+    <p>The fixed code is the same for every block, so it can't fit the data: <code>a</code> costs 8 bits even though it is almost half the text. A dynamic block fits a code to its own counts instead, which means the decoder must be told the code. Sending the tree would cost bits, and as the <a href="#huffman">tie-break question</a> showed, many trees are equally good. DEFLATE fixes one rule for turning code <em>lengths</em> into codes, called the <em>canonical Huffman code</em>, so a block only has to send one small number per symbol.</p>
+    <figure class="diagram" id="canonical-codes">
+      <svg viewBox="-16 -24 432 300" role="img" aria-label="Canonical codes: the letters sorted by code length, then alphabetically, receive codes 0, 100, 101, 110 and 111 by counting up">
+        <text class="label" x="22" y="-6" text-anchor="middle">letter</text>
+        <text class="label" x="64" y="-6">length</text>
+        <text class="label" x="198" y="-6" text-anchor="middle">code</text>
+        <g class="node c2" data-id="sym-a"><rect x="0" y="6" width="44" height="36" rx="8"/><text x="22" y="24">a</text></g>
+        <text class="label strong" data-id="len-a" x="64" y="24">1 bit</text>
+        <g class="node c6" data-id="code-a"><rect x="150" y="6" width="96" height="36" rx="8"/><text x="198" y="24">0</text></g>
+        <text class="label" data-id="why-a" x="262" y="24">first code: 0</text>
+        <g class="node c2" data-id="sym-b"><rect x="0" y="58" width="44" height="36" rx="8"/><text x="22" y="76">b</text></g>
+        <text class="label strong" data-id="len-b" x="64" y="76">3 bits</text>
+        <g class="node c6" data-id="code-b"><rect x="150" y="58" width="96" height="36" rx="8"/><text x="198" y="76">100</text></g>
+        <text class="label" data-id="why-b" x="262" y="76">(0 + 1) ≪ 2 = 100</text>
+        <g class="node c2" data-id="sym-c"><rect x="0" y="110" width="44" height="36" rx="8"/><text x="22" y="128">c</text></g>
+        <text class="label strong" data-id="len-c" x="64" y="128">3 bits</text>
+        <g class="node c6" data-id="code-c"><rect x="150" y="110" width="96" height="36" rx="8"/><text x="198" y="128">101</text></g>
+        <text class="label" data-id="why-c" x="262" y="128">100 + 1 = 101</text>
+        <g class="node c2" data-id="sym-d"><rect x="0" y="162" width="44" height="36" rx="8"/><text x="22" y="180">d</text></g>
+        <text class="label strong" data-id="len-d" x="64" y="180">3 bits</text>
+        <g class="node c6" data-id="code-d"><rect x="150" y="162" width="96" height="36" rx="8"/><text x="198" y="180">110</text></g>
+        <text class="label" data-id="why-d" x="262" y="180">101 + 1 = 110</text>
+        <g class="node c2" data-id="sym-r"><rect x="0" y="214" width="44" height="36" rx="8"/><text x="22" y="232">r</text></g>
+        <text class="label strong" data-id="len-r" x="64" y="232">3 bits</text>
+        <g class="node c6" data-id="code-r"><rect x="150" y="214" width="96" height="36" rx="8"/><text x="198" y="232">111</text></g>
+        <text class="label" data-id="why-r" x="262" y="232">110 + 1 = 111</text>
+      </svg>
+      <figcaption>Notice that the codes come from the order alone. Once the letters are sorted by length and then alphabetically, each code is the previous one plus one, and gains a 0 on the right for each bit it grows longer.</figcaption>
+    </figure>
+    <bh-stepper for="canonical-codes">
+      <bh-step><p><strong>Start from the tree.</strong> It gave a the code 0 and the others 100, 101, 110 and 111, in the order of its leaves.</p></bh-step>
+      <bh-step highlight="len-a len-b len-c len-d len-r"><p><strong>Throw the codes away.</strong> Keep only each letter's length. This is all a DEFLATE block sends.</p></bh-step>
+      <bh-step highlight="sym-a sym-b sym-c sym-d sym-r len-a len-b len-c len-d len-r"><p><strong>Sort</strong> by length, and alphabetically within a length.</p></bh-step>
+      <bh-step highlight="sym-a len-a code-a why-a"><p><strong>The first code is all zeros.</strong> a gets <code>0</code>.</p></bh-step>
+      <bh-step highlight="sym-b len-b code-b why-b"><p><strong>Count up, then shift.</strong> Add one (1), then append a 0 for each bit of extra length: b gets <code>100</code>.</p></bh-step>
+      <bh-step highlight="sym-c sym-d sym-r len-c len-d len-r code-c code-d code-r why-c why-d why-r"><p><strong>Count up within a length.</strong> c, d and r get <code>101</code>, <code>110</code> and <code>111</code>. The decoder runs the same rules on the same lengths, so it gets the same codes without ever seeing a tree.</p></bh-step>
+    </bh-stepper>
+    <p>These are not the tree's codes, but they have the same lengths, so they cost the same 23 bits. Counting up keeps the code prefix-free: every 3-bit code starts with 1, and the only 1-bit code is 0.</p>
+
+    <h2 id="dynamic-header">Sending a dynamic code</h2>
+    <p>A dynamic block must tell the decoder its codes before its data. Thanks to <a href="#canonical">canonical codes</a>, it only needs to send each symbol's code length: 286 literal/length symbols and 30 distance symbols, 316 lengths in all, each from 0 to 15. The question is how to send them cheaply. Here are four tries, each fixing the biggest waste in the one before, measured on two blocks: the worked example written as a dynamic block (the one <a href="#dynamic-block">walked through below</a>), and zlib's real block for the 381-byte paragraph.</p>
+    <h3 id="step-naive">1. Every length, 4 bits each</h3>
+    <p>Write all 316 lengths as plain 4-bit numbers, in symbol order. That is 1,264 bits, 158 bytes, in every dynamic block whatever it holds. The example's data is only 41 bits, so its code table would cost 30 times as much as the data it describes. Even the paragraph's data, 1,521 bits, would nearly double.</p>
+    <h3 id="step-counts">2. Say how many</h3>
+    <p>Any one block uses few of the symbols. So send two counts first, <code>HLIT</code> and <code>HDIST</code> (plain 5-bit numbers), and stop each list after its highest used symbol; the rest count as 0. It barely helps: 1,122 bits for the example and 1,158 for the paragraph. The unused symbols are mostly in the middle of the alphabet, the byte values a text never contains, not at the end. The counts stay in the final scheme anyway: with no separators, they are how the decoder knows where each list ends.</p>
+
+    <h2 id="dynamic-runs">Runs, and a code for the runs</h2>
+    <h3 id="step-runs">3. Replace runs with one symbol</h3>
+    <p>Write the lengths with a small alphabet of 19 symbols instead: 0–15 for a length, 16 to repeat the previous length, and 17 and 18 for runs of zeros, each followed by plain extra bits that give the count. For now, write each of these symbols as a plain 5-bit number. A whole stretch of unused byte values becomes one symbol: the example's 262 unused literal/length symbols take just 7. The header drops to 146 bits for the example and 443 for the paragraph.</p>
+    <div class="table-wrap" id="cl-alphabet" data-linkable>
+      <table>
+        <caption>The code-length alphabet. Fixed by the format: the same in every dynamic block. Each range follows from its extra bits: 2 bits give 4 counts, 3 give 8, 7 give 128.</caption>
+        <thead><tr><th>Symbol</th><th>Means</th><th class="num">Extra bits</th><th>Count</th></tr></thead>
+        <tbody>
+          <tr><td>0–15</td><td>a code length of 0 to 15</td><td class="num">0</td><td></td></tr>
+          <tr><td>16</td><td>repeat the previous length</td><td class="num">2</td><td>3–6 times</td></tr>
+          <tr><td>17</td><td>a run of zeros</td><td class="num">3</td><td>3–10</td></tr>
+          <tr><td>18</td><td>a run of zeros</td><td class="num">7</td><td>11–138</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Runs start at 3 because a run of 1 or 2 is cheaper written out. Zeros get two run symbols, a short one and a long one, because they are by far the most common length.</p>
+    <h3 id="step-coded">4. Huffman-code the run symbols</h3>
+    <p>Some of these 19 symbols are far more common than others, so DEFLATE gives them a Huffman code too: the <em>code-length code</em>, a Huffman code whose job is to send the other two codes. Its own 19 lengths go first, as plain 3-bit numbers. A dynamic block is therefore a stack of three layers, each written with the one below it:</p>
+    <div class="table-wrap" id="code-layers" data-linkable>
+      <table>
+        <caption>The three layers of a dynamic block, from the top. A decoder reads them from the bottom up.</caption>
+        <thead><tr><th>Layer</th><th>Written with</th><th>Size</th></tr></thead>
+        <tbody>
+          <tr><td>the data</td><td>the literal/length and distance codes</td><td>the whole block</td></tr>
+          <tr><td>those two codes' lengths</td><td>the code-length code</td><td>up to 316 lengths</td></tr>
+          <tr><td>the code-length code's lengths</td><td>plain 3-bit numbers</td><td>at most 19 × 3 = 57 bits</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>It stops at three layers because the bottom one is so small: 57 bits at most, too little for yet another code to repay its own description. This is DEFLATE's actual scheme, and it costs 159 bits for the example and 352 for the paragraph. For the paragraph, coding the run symbols saved another 91 bits. For the tiny example it cost 13 more: describing the small code took more than it saved on just 19 run symbols. DEFLATE has no way to stop at step 3, which is one more reason tiny blocks are written with the fixed codes.</p>
+    <figure class="frame wide" id="header-steps">
+      <bh-chart type="bar" unit="bits" y-label="Bits to send the codes">
+        <table>
+          <thead><tr><th>Step</th><th>The example</th><th>The paragraph</th></tr></thead>
+          <tbody>
+            <tr><td>1. 4 bits each</td><td>1264</td><td>1264</td></tr>
+            <tr><td>2. Say how many</td><td>1122</td><td>1158</td></tr>
+            <tr><td>3. Runs</td><td>146</td><td>443</td></tr>
+            <tr><td>4. Code the runs</td><td>159</td><td>352</td></tr>
+          </tbody>
+        </table>
+      </bh-chart>
+      <figcaption>Runs make the big difference. Coding the run symbols pays off for the paragraph but not for the 35-byte example, whose header ends up bigger than its data either way.</figcaption>
+    </figure>
+    <p>What changes from block to block is only <em>which</em> of the 19 symbols a block uses, and the code each one gets: in the worked example below, symbol 18 is <code>10</code> and 16 isn't used at all, but 18 still means 11–138 zeros with 7 extra bits. For the 381-byte paragraph, zlib's whole header (<code>HLIT</code> = 270, <code>HDIST</code> = 17, <code>HCLEN</code> = 16, then the lengths) is 352 bits, about 44 bytes. That is the price of the table, and the paragraph is long enough to repay it.</p>
+    <p>The code-length code's 19 lengths are sent in a fixed order, 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15, and <code>HCLEN</code> (4 bits) says how many are sent; any not sent count as 0.</p>
+    <details class="disclosure" id="cl-order" data-linkable>
+      <summary>Go deeper: why that order?</summary>
+      <p>The order is a bet on which code lengths a block will use, most likely first, so that <code>HCLEN</code> can cut off the unlikely ones. The RFC lists it without a reason, but it reads in four parts:</p>
+      <ul>
+        <li><strong>16, 17, 18</strong>: the repeat and zero-run symbols, which nearly every dynamic block uses to skip the byte values it never sees.</li>
+        <li><strong>0</strong>: every block has unused symbols.</li>
+        <li><strong>8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1</strong>: outward from 8, because with 286 symbols most codes come out around 7–9 bits, and very short or very long codes are rare.</li>
+        <li><strong>15</strong> last, the rarest of all.</li>
+      </ul>
+      <p>For the paragraph, zlib's codes use lengths 2 to 8, so <code>HCLEN</code> is 16 and the last three, 14, 1 and 15, are never sent.</p>
+    </details>
 
     <h2 id="dynamic-block">The same tokens as a dynamic block</h2>
     <p>zlib wrote a fixed block for the opening string. To see every part of a <em>dynamic</em> Huffman block, here are the same tokens written as one by this page's encoder: it is the "dynamic" choice under <a href="#try-it">Write it as</a>. <em>Dynamic</em> means the codes are built for this one block, from its own counts, and sent at its start. They don't change while the block is read. The 26 bytes are <code>75 c6 31 15 00 00 08 42 c1 2a 56 fb 6a 02 fa 0f 3c 02 30 dd b1 e2 f8 30 e5 06</code>. This encoder's parse uses the copies from the <a href="#window">window figure</a>, (4, 7) and (23, 12), rather than zlib's (3, 7) and (22, 12).</p>
@@ -953,6 +829,133 @@ HLIT      | BTYPE | BFINAL
       <p>In a block this small, though, saying "unused" is most of the header: 95 of its 159 bits. Besides those 56, 6 bits mark d0–d4 as unused, and 33 go on the code-length code's own list, where 11 of the 18 lengths are 0 at 3 bits each, because that list has no code to compress it. These costs barely grow with the block, which is why tiny blocks stay fixed: in a full-size block of text the whole table is typically under 1% of the output. DEFLATE's real inefficiency is that every dynamic block sends a complete new table, even when the last block's code would do; later formats can reuse it, as Zstandard does with its "treeless" literals blocks (<a href="https://www.rfc-editor.org/rfc/rfc8878#section-3.1.1.3.1.1">RFC 8878 §3.1.1.3.1.1</a>).</p>
     </details>
 
+    <h2 id="choosing">Choosing a block type</h2>
+    <p>With both kinds of code seen, here are the three block types side by side.</p>
+    <div class="compare wide">
+      <div class="option">
+        <h3>Stored (00)</h3>
+        <p>No compression: up to 65,535 raw bytes after a 4-byte length and its complement.</p>
+        <ul class="pros"><li>Caps the cost of incompressible data at 5 bytes per 64 KiB</li></ul>
+        <ul class="cons"><li>No saving at all</li></ul>
+      </div>
+      <div class="option">
+        <h3>Fixed Huffman (01)</h3>
+        <p>Codes set by the RFC: 8 or 9 bits for a literal, 7 or 8 for a length, 5 for a distance.</p>
+        <ul class="pros"><li>No table to send</li><li>Wins on short inputs</li></ul>
+        <ul class="cons"><li>Ignores this data's skew</li></ul>
+      </div>
+      <div class="option chosen">
+        <h3>Dynamic Huffman (10)</h3>
+        <p>Codes built for this block's own counts, sent as code lengths at the start of the block.</p>
+        <ul class="pros"><li>Removes the skew too</li><li>Usually wins once a block holds more than a few dozen bytes of text</li></ul>
+        <ul class="cons"><li>The table costs tens of bytes</li></ul>
+      </div>
+    </div>
+    <p>Any input can be written as any of the three, and every one is valid: a decoder accepts whichever it gets. Which one wins is a sum, not a rule. The encoder works out the exact size of each kind for every block (zlib ends a block after about 16,000 symbols) and writes the smallest. Tiny blocks come out fixed because a code table costs more than it saves: for the paragraph in the chart, zlib 1.2.12 switches from fixed to dynamic once the text is 74 bytes long.</p>
+    <figure class="frame wide" id="block-sizes">
+      <bh-chart type="bar" unit="%" y-label="Size as % of the input">
+        <table>
+          <thead><tr><th>Input</th><th>Stored</th><th>Fixed</th><th>Dynamic</th><th>zlib -9</th></tr></thead>
+          <tbody>
+            <tr><td>abracadabra ×3 (35 B)</td><td>114.3</td><td>37.1</td><td>74.3</td><td>42.9</td></tr>
+            <tr><td>A paragraph (381 B)</td><td>101.3</td><td>78.2</td><td>62.2</td><td>61.7</td></tr>
+            <tr><td>Random bytes (1 KiB)</td><td>100.5</td><td>105.6</td><td>105.2</td><td>100.5</td></tr>
+          </tbody>
+        </table>
+      </bh-chart>
+      <figcaption>Each input has a different winner. The short string can't pay for a table; the paragraph can; random bytes can't be compressed at all, so storing them is cheapest. The first three columns are the same tokens written as each block type; zlib picks per block.</figcaption>
+    </figure>
+
+    <h2 id="not-symbols">Everything in the stream that isn't a symbol</h2>
+    <p>A DEFLATE stream is mostly Huffman codes, but not entirely. Bits are written in two ways, and a decoder must know which kind comes next:</p>
+    <ul>
+      <li><strong>A Huffman code</strong> is read one bit at a time, most significant bit first, because the decoder walks down the code tree as each bit arrives.</li>
+      <li><strong>Everything else is a plain number</strong> of a fixed, known width, read lowest bit first. Each byte of the stream fills from its lowest bit up, so a plain number's bits arrive in the order they are packed.</li>
+    </ul>
+    <p>In other words, DEFLATE is little-endian throughout, at the level of bits and of bytes (a stored block's 16-bit <code>LEN</code> comes low byte first), except that Huffman codes are stored bit-reversed. Write a byte the usual way, most significant bit on the left, and its plain fields read as ordinary binary, stacked from the right. Here is the first byte of the <a href="#dynamic-block">dynamic block</a> above:</p>
+    <pre data-title="the dynamic block's first byte, 0x75: most significant bit on the left, fields read right to left"><code>0 1 1 1 0 | 1 0   | 1
+HLIT      | BTYPE | BFINAL
+= 14      | = 2   | = 1</code></pre>
+    <p>A Huffman code reads correctly in arrival order instead, so in this byte view it would look reversed. Decoders such as zlib reverse each code once, when they build their lookup tables, so that one little-endian bit reader can handle everything.</p>
+    <div class="table-wrap wide" id="plain-fields" data-linkable>
+      <table>
+        <caption>Every plain field in a DEFLATE stream. None of these is Huffman-coded: the decoder knows each one's width from what came before it.</caption>
+        <thead><tr><th>Field</th><th class="num">Bits</th><th>Where</th><th>Holds</th></tr></thead>
+        <tbody>
+          <tr><td><code>BFINAL</code></td><td class="num">1</td><td>start of every block</td><td>1 if this is the last block</td></tr>
+          <tr><td><code>BTYPE</code></td><td class="num">2</td><td>after <code>BFINAL</code></td><td>the block type (<a href="#btype">values</a>)</td></tr>
+          <tr><td>length extra bits</td><td class="num">0–5</td><td>after a length symbol</td><td>which length within the symbol's range: 270 means lengths 23–26, and its 2 extra bits, 0–3, add the offset (<a href="#alphabet-lab">try one</a>)</td></tr>
+          <tr><td>distance extra bits</td><td class="num">0–13</td><td>after a distance symbol</td><td>which distance within the symbol's range: d6 means distances 9–12, and its 2 extra bits add the offset, so <code>11</code> = 3 gives 12</td></tr>
+          <tr><td><code>HLIT</code></td><td class="num">5</td><td>dynamic block, after <code>BTYPE</code></td><td>the number of literal/length code lengths, minus 257: 257–288 is 32 values</td></tr>
+          <tr><td><code>HDIST</code></td><td class="num">5</td><td>after <code>HLIT</code></td><td>the number of distance code lengths, minus 1: 1–32 is 32 values</td></tr>
+          <tr><td><code>HCLEN</code></td><td class="num">4</td><td>after <code>HDIST</code></td><td>the number of code-length-code lengths, minus 4: 4–19 is 16 values</td></tr>
+          <tr><td>code-length-code lengths</td><td class="num">3 each</td><td>after <code>HCLEN</code>, 4–19 of them</td><td>the lengths of the code that compresses the code lengths, in the fixed order; that code's lengths are at most 7</td></tr>
+          <tr><td>run extra bits</td><td class="num">2, 3 or 7</td><td>after code-length symbol 16, 17 or 18</td><td>the run's count, minus 3, 3 or 11</td></tr>
+          <tr><td>alignment</td><td class="num">0–7</td><td>stored block, after <code>BTYPE</code></td><td>nothing: skipped to reach the next byte boundary</td></tr>
+          <tr><td><code>LEN</code>, <code>NLEN</code></td><td class="num">16 each</td><td>stored block, after the alignment</td><td>the number of bytes, then its ones' complement as a check</td></tr>
+          <tr><td>stored bytes</td><td class="num">8 each</td><td>stored block, after <code>NLEN</code></td><td>the data itself, byte for byte</td></tr>
+          <tr><td>final padding</td><td class="num">0–7</td><td>after the last block</td><td>nothing: fills the last byte</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Everything else in the stream is a Huffman code: the literal/length and distance symbols, and, inside a dynamic block's header, the code-length symbols. The worked example's 119 bits show both kinds side by side in <a href="#one-block">the bit walk</a>.</p>
+    <p>Nothing in the stream says how long a field is. The decoder always knows what comes next and how big it is, in one of three ways:</p>
+    <ul>
+      <li><strong>A width fixed by the RFC</strong>, chosen to fit the field's range: <code>BFINAL</code>, <code>BTYPE</code>, <code>HLIT</code>, <code>HDIST</code>, <code>HCLEN</code>, the 3-bit code-length-code lengths, and a stored block's <code>LEN</code> and <code>NLEN</code>. After <code>BTYPE</code> = 2, the next 5 bits are <code>HLIT</code> because the format says so.</li>
+      <li><strong>A width set by the symbol just decoded</strong>: the extra bits. Symbol 270 is always followed by 2 extra bits, d6 by 2, run symbol 18 by 7.</li>
+      <li><strong>No width at all</strong>: Huffman codes end themselves. The decoder reads one bit at a time until the bits so far match a code, and since no code is the start of another, it can never stop in the wrong place.</li>
+    </ul>
+    <p>That is why the stream needs no separators or length prefixes, and also why it must be read strictly in order: where <code>HDIST</code> starts depends on having read <code>HLIT</code>, and one corrupted bit misaligns everything after it.</p>
+
+    <h2 id="try-it">Try it</h2>
+    <p>Type anything, or pick an example. The tokens are what LZ77 found; the numbers show each saving on its own and both together. Every count is the size of a real DEFLATE stream that this page's encoder writes, not an estimate.</p>
+    <bh-playground class="wide" id="deflate-lab">
+      <div>
+        <label class="control" for="lab-text"><span>Text to compress <output id="lab-size">35 bytes</output></span></label>
+        <textarea id="lab-text" maxlength="4096" spellcheck="false" autocomplete="off">abracadabra abracadabra abracadabra</textarea>
+        <div class="lab-presets" role="group" aria-label="Examples">
+          <button class="btn" type="button" data-preset="abracadabra abracadabra abracadabra">abracadabra ×3</button>
+          <button class="btn" type="button" data-preset="DEFLATE is the compression format inside gzip, zlib, PNG and ZIP. It finds repeated strings and replaces each repeat with a short pointer back to an earlier copy of the same bytes. Then it gives the symbols that remain short codes if they are common and long codes if they are rare. The decoder undoes both steps, one symbol at a time, and gets back exactly the bytes that went in.">A paragraph</button>
+          <button class="btn" type="button" data-preset="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa">One letter ×300</button>
+          <button class="btn" type="button" data-preset="Sphinx of black quartz, judge my vow">No repeats</button>
+        </div>
+      </div>
+      <div class="metrics">
+        <div class="metric"><span class="value" id="lab-raw">280</span><span class="label">bits as plain bytes</span></div>
+        <div class="metric"><span class="value" id="lab-huff">223</span><span class="label">bits with Huffman alone</span></div>
+        <div class="metric"><span class="value" id="lab-lz">103</span><span class="label">bits with LZ77 alone (fixed codes)</span></div>
+        <div class="metric"><span class="value" id="lab-both">203</span><span class="label">bits with both, incl. a <span id="lab-header">159</span>-bit table</span></div>
+        <div class="metric"><span class="value" id="lab-out">13</span><span class="label">bytes out, as a <span id="lab-type">fixed</span> block</span></div>
+      </div>
+      <div class="lab-write">
+        <div class="lab-kinds" role="group" aria-label="Write the block as">
+          <span class="lab-label">Write it as</span>
+          <button class="chip" type="button" data-write="best" aria-pressed="true">the smallest</button>
+          <button class="chip" type="button" data-write="stored" aria-pressed="false">stored</button>
+          <button class="chip" type="button" data-write="fixed" aria-pressed="false">fixed</button>
+          <button class="chip" type="button" data-write="dynamic" aria-pressed="false">dynamic</button>
+        </div>
+        <p class="lab-stream"><strong id="lab-stream-size">13 bytes</strong> (<span id="lab-stream-bits">103</span> bits) as a <span id="lab-stream-type">fixed</span> block: <code id="lab-hex">4b 4c 2a 4a 4c 4e 4c 01 51 0a 38 d8 00</code></p>
+        <p class="muted" id="lab-check" aria-live="polite" data-vr-mask hidden></p>
+      </div>
+      <p class="readout" id="lab-summary">LZ77 replaced 27 of 35 bytes with 2 back-references, leaving 8 literals. Codes built for this text would need a 159-bit table, more than they save, so the fixed codes win.</p>
+      <p class="muted" id="lab-browser-line" data-vr-mask hidden>For comparison, your browser's own DEFLATE (<code>CompressionStream</code>) wrote <output id="lab-browser">…</output> bytes.</p>
+      <ul class="legend"><li><span class="swatch c2"></span>literal byte</li><li><span class="swatch c1"></span>back-reference (length, distance)</li></ul>
+      <p class="muted" id="lab-pick" aria-live="polite" hidden>Click a back-reference to see the bytes it copies.</p>
+      <div class="lab-tokens" id="lab-tokens" aria-label="Token stream"><span class="tok-lit">a</span><span class="tok-lit">b</span><span class="tok-lit">r</span><span class="tok-lit">a</span><span class="tok-lit">c</span><span class="tok-lit">a</span><span class="tok-lit">d</span><span class="tok-ref" title="copy 4 bytes from 7 back: “abra”">(4,7)</span><span class="tok-lit">␣</span><span class="tok-ref" title="copy 23 bytes from 12 back: “abracadabra abracadabra”">(23,12)</span></div>
+      <div class="lab-bytes" id="lab-bytes" aria-label="The input, byte by byte" hidden></div>
+      <details class="disclosure">
+        <summary>The token stream as a table</summary>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th class="num">#</th><th>Token</th><th>Stands for</th><th class="num">At byte</th></tr></thead>
+            <tbody id="lab-table"><tr><td class="num">1</td><td>a</td><td>a</td><td class="num">0</td></tr><tr><td class="num">2</td><td>b</td><td>b</td><td class="num">1</td></tr><tr><td class="num">3</td><td>r</td><td>r</td><td class="num">2</td></tr><tr><td class="num">4</td><td>a</td><td>a</td><td class="num">3</td></tr><tr><td class="num">5</td><td>c</td><td>c</td><td class="num">4</td></tr><tr><td class="num">6</td><td>a</td><td>a</td><td class="num">5</td></tr><tr><td class="num">7</td><td>d</td><td>d</td><td class="num">6</td></tr><tr><td class="num">8</td><td>(4,7)</td><td>abra</td><td class="num">7</td></tr><tr><td class="num">9</td><td>␣</td><td>␣</td><td class="num">11</td></tr><tr><td class="num">10</td><td>(23,12)</td><td>abracadabra abracadabra</td><td class="num">12</td></tr></tbody>
+          </table>
+        </div>
+      </details>
+    </bh-playground>
+    <p>Click any back-reference to see which earlier bytes it copies, and use <strong>Write it as</strong> to see the same tokens as each kind of block: the smallest is what an encoder would send, but every one decodes. The paragraph shows both savings clearly: LZ77 finds the repeated words, and the skew of English letters pays for a dynamic table. One letter ×300 is almost all repetition. "No repeats" has nothing for LZ77 and too little text to pay for a table, so it comes out slightly larger than it went in.</p>
+
     <h2 id="serial">Why decoding is serial</h2>
     <p>The output is dense: there are no separators and no index. A code's length is known only once it has been decoded, so the decoder cannot find where symbol <em>n</em> + 1 starts without decoding symbol <em>n</em>. Back-references add a second chain: a copy reads bytes that earlier tokens wrote.</p>
     <p>That is why a gzip file is decompressed by one core, front to back, however many cores the machine has. Getting around it, for example to decode on a GPU, means finding where blocks start without decoding what comes before, and resolving copies whose sources aren't decoded yet. A later series here takes that on; nothing on this page depends on it.</p>
@@ -973,7 +976,7 @@ HLIT      | BTYPE | BFINAL
       <dd><p>The fixed set of symbols a Huffman code is built over. DEFLATE uses three: literal/length, distance and code-length. <a href="#joining">How the two ideas join</a></p></dd>
 
       <dt id="bfinal">BFINAL</dt>
-      <dd><p>The first bit of every block: 1 if it is the last block of the stream. <a href="#block-types">Three kinds of block</a></p></dd>
+      <dd><p>The first bit of every block: 1 if it is the last block of the stream. <a href="#block-types">Blocks, and the fixed code</a></p></dd>
 
       <dt id="btype-field">BTYPE</dt>
       <dd><p>The 2 bits after <code>BFINAL</code> that give the block type: 00 stored, 01 fixed Huffman codes, 10 dynamic Huffman codes. 11 is invalid. Like every plain number, they arrive lowest bit first. <a href="#btype">The values</a></p></dd>
@@ -1018,7 +1021,7 @@ HLIT      | BTYPE | BFINAL
       <dd><p>A code in which no codeword is the start of another, so codes can be read back to back without separators. Every Huffman code is a prefix code. <a href="#huffman">Huffman</a></p></dd>
 
       <dt id="stored-block" data-aliases="stored blocks">Stored block</dt>
-      <dd><p>A block of up to 65,535 raw bytes (<code>BTYPE</code> 00), after a byte-aligned length and its complement. Encoders use it when compressing would make the data bigger. <a href="#block-types">Three kinds of block</a></p></dd>
+      <dd><p>A block of up to 65,535 raw bytes (<code>BTYPE</code> 00), after a byte-aligned length and its complement. Encoders use it when compressing would make the data bigger. <a href="#choosing">Choosing a block type</a></p></dd>
 
       <dt id="symbol" data-aliases="symbols">Symbol</dt>
       <dd><p>One element of an alphabet: what Huffman coding counts and gives a code. DEFLATE maps LZ77's tokens onto symbols, so Huffman coding never sees the raw bytes. <a href="#joining">How the two ideas join</a></p></dd>

@@ -472,6 +472,14 @@ test("the four steps to sending a dynamic code cost what the page says", () => {
   assert.match(prose, /the example's 262 unused literal\/length symbols take just 7/);
 });
 
+test("the page finishes the fixed scheme before building up to the dynamic one", () => {
+  const order = [...PAGE.matchAll(/<h2 id="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(order, ["question", "two-ideas", "lz77", "huffman", "joining", "join-example", "two-alphabets",
+    "block-types", "one-block",                                   // the fixed code, then its bit walk
+    "canonical", "dynamic-header", "dynamic-runs", "dynamic-block", // the build-up to a dynamic block, then its walk
+    "choosing", "not-symbols", "try-it", "serial", "edge-cases", "terms", "further-reading"]);
+});
+
 test("the BTYPE table matches what zlib accepts", () => {
   // First byte: BFINAL in bit 0, BTYPE in bits 1–2 (read low bit first).
   assert.equal(zlib.inflateRawSync(Buffer.from([0b001, 0x00, 0x00, 0xff, 0xff])).length, 0, "00: an empty stored block");
