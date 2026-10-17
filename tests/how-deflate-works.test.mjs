@@ -585,6 +585,13 @@ test("the example's tree is the encoder's Huffman code for its LZ77 symbols", ()
   assert.match(PAGE, /The 11 symbols now cost 34 bits instead of 85/);
 });
 
+test("both Huffman trees read the codes, then the lengths, then lay them out as a table", () => {
+  const steps = (fig) => [...PAGE.match(new RegExp(`<bh-stepper for="${fig}">[\\s\\S]*?</bh-stepper>`))[0].matchAll(/<p><strong>([^<]*)/g)].map((m) => m[1].trim());
+  for (const fig of ["huffman-tree", "example-tree"]) assert.deepEqual(steps(fig).slice(-3), ["Read the codes.", "Count the bits.", "As a table."], fig);
+  // Static (no-JavaScript) pictures show the tree with both codes and lengths.
+  for (const id of ["a", "b", "r", "c", "d"]) assert.match(PAGE, new RegExp(`data-id="len-${id}"[^>]*>[13] bits?<`));
+});
+
 test("the BTYPE table matches what zlib accepts", () => {
   // First byte: BFINAL in bit 0, BTYPE in bits 1–2 (read low bit first).
   assert.equal(zlib.inflateRawSync(Buffer.from([0b001, 0x00, 0x00, 0xff, 0xff])).length, 0, "00: an empty stored block");
