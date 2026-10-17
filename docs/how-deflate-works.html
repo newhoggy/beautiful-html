@@ -114,8 +114,8 @@
     <p class="lead">How do you make <code>abracadabra abracadabra abracadabra</code> smaller without losing a single letter?</p>
     <p>Stored as plain bytes it takes 35 bytes, or 280 bits. Two things about it are wasteful. The same 11 letters appear three times, and the letter <em>a</em> makes up almost half of the text while <em>c</em> and <em>d</em> appear once per word. A good compressor should exploit both.</p>
     <details class="predict">
-      <summary>Guess before you read on: how many bytes does <code>gzip -9</code> produce for these 35 bytes?</summary>
-      <p><strong>33 bytes.</strong> That looks like almost no saving, but 18 of those bytes are gzip's own wrapper: a 10-byte header, then a CRC-32 and the original length (8 bytes) at the end. The DEFLATE stream inside is <strong>15 bytes</strong>, 43% of the input. By the end of this page you will have taken it apart bit by bit, and seen an encoder that does it in 13.</p>
+      <summary>Guess before you read on: compressed as a gzip file by zlib at its best setting (level 9), how many bytes do these 35 take?</summary>
+      <p><strong>33 bytes.</strong> That looks like almost no saving, but 18 of those bytes are the gzip wrapper: a 10-byte header, then a CRC-32 and the original length (8 bytes) at the end. The DEFLATE stream inside is <strong>15 bytes</strong>, 43% of the input. By the end of this page you will have taken it apart bit by bit, and seen an encoder that does it in 13.</p>
     </details>
 
     <h2 id="two-ideas">Two ideas, stacked</h2>
@@ -139,7 +139,7 @@
           <g class="node c1 tok"><rect x="491" y="108" width="76" height="32" rx="5"/><text x="529" y="124">(23,12)</text></g>
         </g>
         <text class="label" x="626" y="124">10 tokens</text>
-        <path class="edge" data-id="e-huffman" d="M360 140 V189"/>
+        <path class="edge c6" data-id="e-huffman" d="M360 140 V189"/>
         <text class="label strong" x="374" y="170">Huffman codes turn tokens into bits</text>
         <g class="node c5" data-id="bits"><rect x="110" y="200" width="500" height="48" rx="10"/><text x="360" y="216">13 bytes</text><text class="sub" x="360" y="236">103 bits, 37% of the input</text></g>
       </svg>
@@ -390,8 +390,8 @@
         <div class="lab-presets" role="group" aria-label="Examples">
           <button class="btn" type="button" data-preset="abracadabra abracadabra abracadabra">abracadabra ×3</button>
           <button class="btn" type="button" data-preset="DEFLATE is the compression format inside gzip, zlib, PNG and ZIP. It finds repeated strings and replaces each repeat with a short pointer back to an earlier copy of the same bytes. Then it gives the symbols that remain short codes if they are common and long codes if they are rare. The decoder undoes both steps, one symbol at a time, and gets back exactly the bytes that went in.">A paragraph</button>
-          <button class="btn" type="button" data-preset="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa">One letter ×300</button>
-          <button class="btn" type="button" data-preset="the quick brown fox jumps over the lazy dog">No repeats</button>
+          <button class="btn" type="button" data-preset="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa">One letter ×300</button>
+          <button class="btn" type="button" data-preset="Sphinx of black quartz, judge my vow">No repeats</button>
         </div>
       </div>
       <div class="metrics">
@@ -415,10 +415,10 @@
         </div>
       </details>
     </bh-playground>
-    <p>The paragraph shows both savings clearly: LZ77 finds the repeated words, and the skew of English letters pays for a dynamic table. One letter ×300 is almost all repetition. "No repeats" has nothing for LZ77 and too little text to pay for a table, so it stays near 8 bits a letter.</p>
+    <p>The paragraph shows both savings clearly: LZ77 finds the repeated words, and the skew of English letters pays for a dynamic table. One letter ×300 is almost all repetition. "No repeats" has nothing for LZ77 and too little text to pay for a table, so it comes out slightly larger than it went in.</p>
 
     <h2 id="one-block">One real block, bit by bit</h2>
-    <p>Here is what <code>gzip -9</code> actually wrote for the opening string: the 15 bytes <code>4b 4c 2a 4a 4c 4e 4c 49 04 52 0a 89 d8 d9 00</code>, read the way a decoder reads them. Bits are taken from each byte lowest first. Huffman codes are read one bit at a time, most significant first; header fields and extra bits are plain numbers, lowest bit first.</p>
+    <p>Here is what zlib at level 9 actually wrote for the opening string: the 15 bytes <code>4b 4c 2a 4a 4c 4e 4c 49 04 52 0a 89 d8 d9 00</code>, read the way a decoder reads them. Bits are taken from each byte lowest first. Huffman codes are read one bit at a time, most significant first; header fields and extra bits are plain numbers, lowest bit first.</p>
     <bh-codewalk class="wide" id="bit-walk">
 <pre data-title="abracadabra ×3, as zlib -9 wrote it"><code>1         BFINAL = 1: last block
 10        BTYPE = 01: fixed codes
@@ -822,7 +822,7 @@ document.addEventListener("DOMContentLoaded", () => {
     s.arc1 = { d: k >= 2 ? 1 : 0 };
     s.arc2 = { d: k >= 5 ? 1 : 0 };
     s.cursor = { x: pos * 20 + 10, op: hideCursor ? 0 : 1 };
-    s.zone = { w: pos ? pos * 20 + 4 : 0 };
+    s.zone = { w: pos ? pos * 20 + 8 : 0 }; // 4 units of margin either side of the cells
     s.count = { n: TOK.filter((_, i) => k >= EMIT[i]).length };
     return s;
   };
@@ -932,7 +932,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const lab = document.getElementById("deflate-lab");
   if (!lab) return;
   const $ = (id) => document.getElementById(id);
-  const input = $("lab-text"), utf8 = new TextEncoder(), text = new TextDecoder();
+  const input = $("lab-text"), utf8 = new TextEncoder();
   const nf = (n) => n.toLocaleString("en");
   const shown = (b) => (b === 32 ? "␣" : b === 10 ? "⏎" : b > 32 && b < 127 ? String.fromCharCode(b) : `\\x${b.toString(16).padStart(2, "0")}`);
   const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls; if (txt !== undefined) n.textContent = txt; return n; };
@@ -959,7 +959,8 @@ document.addEventListener("DOMContentLoaded", () => {
     r.tokens.slice(0, MAX).forEach((t, i) => {
       const lit = t.lit !== undefined;
       const span = el("span", lit ? "tok-lit" : "tok-ref", lit ? shown(t.lit) : `(${t.len},${t.dist})`);
-      const stands = lit ? shown(t.lit) : text.decode(data.subarray(t.at, t.at + t.len));
+      // Byte by byte, as literals are shown: a copy can start or end inside a UTF-8 character.
+      const stands = Array.from(data.subarray(t.at, t.at + (lit ? 1 : t.len)), shown).join("");
       if (!lit) span.title = `copy ${t.len} bytes from ${t.dist} back: “${stands}”`;
       chips.append(span);
       if (i < 200) {

@@ -19,7 +19,7 @@ window.BH_GLOSSARY = [
       "backreference",
       "backreferences"
     ],
-    "html": "<p>In LZ77 compression, an instruction to copy <em>L</em> bytes starting <em>D</em> bytes back in the output already produced, instead of storing them again. DEFLATE allows distances up to 32,768 bytes.</p>\n        <p><a href=\"docs/how-deflate-works.html#lz77\">How DEFLATE works: LZ77</a></p>",
+    "html": "<p>In LZ77 compression, an instruction to copy <em>L</em> bytes starting <em>D</em> bytes back in the output already produced, instead of storing them again. DEFLATE allows distances up to 32,768 bytes.</p>\n        <p><a href=\"docs/how-deflate-works.html#lz77\">Step by step</a></p>",
     "href": "docs/glossary.html#back-reference"
   },
   {
@@ -66,7 +66,7 @@ window.BH_GLOSSARY = [
       "canonical code",
       "canonical codes"
     ],
-    "html": "<p>A <a href=\"docs/glossary.html#huffman-code\">Huffman code</a> rebuilt from code lengths alone: symbols are sorted by length, then by value, and each gets the previous code plus one, shifted left when the length grows. A <a href=\"docs/glossary.html#deflate\">DEFLATE</a> block sends only the lengths.</p>\n        <p><a href=\"docs/how-deflate-works.html#canonical\">How DEFLATE works: send lengths, not trees</a></p>",
+    "html": "<p>A <a href=\"docs/glossary.html#huffman-code\">Huffman code</a> rebuilt from code lengths alone: symbols are sorted by length, then by value, and each gets the previous code plus one, shifted left when the length grows. A <a href=\"docs/glossary.html#deflate\">DEFLATE</a> block sends only the lengths.</p>\n        <p><a href=\"docs/how-deflate-works.html#canonical\">Step by step</a></p>",
     "href": "docs/glossary.html#canonical-huffman-code"
   },
   {
@@ -97,7 +97,7 @@ window.BH_GLOSSARY = [
     "id": "deflate",
     "term": "DEFLATE",
     "aliases": [],
-    "html": "<p>The compression format inside ZIP, gzip and PNG: <a href=\"docs/glossary.html#lz77\">LZ77</a> back-references plus <a href=\"docs/glossary.html#huffman-code\">Huffman coding</a>, organised in blocks. Its bit stream has no index, so decoding is serial.</p>\n        <p><a href=\"docs/how-deflate-works.html\">How DEFLATE works</a> · <a href=\"https://www.rfc-editor.org/rfc/rfc1951\">RFC 1951</a></p>",
+    "html": "<p>The compression format inside ZIP, gzip and PNG: <a href=\"docs/glossary.html#lz77\">LZ77</a> back-references plus <a href=\"docs/glossary.html#huffman-code\">Huffman coding</a>, organised in blocks. Its bit stream has no index, so decoding is serial.</p>\n        <p><a href=\"docs/how-deflate-works.html\">Step by step</a> · <a href=\"https://www.rfc-editor.org/rfc/rfc1951\">RFC 1951</a></p>",
     "href": "docs/glossary.html#deflate"
   },
   {
@@ -128,7 +128,7 @@ window.BH_GLOSSARY = [
       "end-of-block symbol",
       "end-of-block code"
     ],
-    "html": "<p>Symbol 256 of <a href=\"docs/glossary.html#deflate\">DEFLATE</a>'s literal/length alphabet. It closes every Huffman-coded block, so it needs a code of its own even though it appears once.</p>\n        <p><a href=\"docs/how-deflate-works.html#joining\">How DEFLATE works: how the two ideas join</a></p>",
+    "html": "<p>Symbol 256 of <a href=\"docs/glossary.html#deflate\">DEFLATE</a>'s literal/length alphabet. It closes every Huffman-coded block, so it needs a code of its own even though it appears once.</p>\n        <p><a href=\"docs/how-deflate-works.html#joining\">Step by step</a></p>",
     "href": "docs/glossary.html#end-of-block"
   },
   {
@@ -149,7 +149,7 @@ window.BH_GLOSSARY = [
       "Huffman table",
       "Huffman tables"
     ],
-    "html": "<p>A variable-length binary code that gives frequent symbols short bit patterns and rare ones long patterns. No code is a prefix of another, so a decoder can read them back to back without separators.</p>\n        <p><a href=\"docs/how-deflate-works.html#huffman\">How DEFLATE works: Huffman</a> · <a href=\"https://en.wikipedia.org/wiki/Huffman_coding\">Huffman coding (Wikipedia)</a></p>",
+    "html": "<p>A variable-length binary code that gives frequent symbols short bit patterns and rare ones long patterns. No code is a prefix of another, so a decoder can read them back to back without separators.</p>\n        <p><a href=\"docs/how-deflate-works.html#huffman\">Step by step</a> · <a href=\"https://en.wikipedia.org/wiki/Huffman_coding\">Huffman coding (Wikipedia)</a></p>",
     "href": "docs/glossary.html#huffman-code"
   },
   {
@@ -191,7 +191,7 @@ window.BH_GLOSSARY = [
     "id": "lz77",
     "term": "LZ77",
     "aliases": [],
-    "html": "<p>The compression idea, from Lempel and Ziv in 1977, of replacing repeated data with <a href=\"docs/glossary.html#back-reference\">back-references</a> to an earlier occurrence.</p>\n        <p><a href=\"docs/how-deflate-works.html#lz77\">How DEFLATE works: LZ77</a> · <a href=\"https://en.wikipedia.org/wiki/LZ77_and_LZ78\">LZ77 and LZ78 (Wikipedia)</a></p>",
+    "html": "<p>The compression idea, from Lempel and Ziv in 1977, of replacing repeated data with <a href=\"docs/glossary.html#back-reference\">back-references</a> to an earlier occurrence.</p>\n        <p><a href=\"docs/how-deflate-works.html#lz77\">Step by step</a> · <a href=\"https://en.wikipedia.org/wiki/LZ77_and_LZ78\">LZ77 and LZ78 (Wikipedia)</a></p>",
     "href": "docs/glossary.html#lz77"
   },
   {
@@ -319,7 +319,7 @@ window.BH_GLOSSARY = [
     "aliases": [
       "sliding windows"
     ],
-    "html": "<p>In <a href=\"docs/glossary.html#lz77\">LZ77</a>, the most recent bytes already processed, which <a href=\"docs/glossary.html#back-reference\">back-references</a> may copy from. It moves forward with the input; <a href=\"docs/glossary.html#deflate\">DEFLATE</a>'s is 32,768 bytes.</p>\n        <p><a href=\"docs/how-deflate-works.html#lz77\">How DEFLATE works: LZ77</a></p>",
+    "html": "<p>In <a href=\"docs/glossary.html#lz77\">LZ77</a>, the most recent bytes already processed, which <a href=\"docs/glossary.html#back-reference\">back-references</a> may copy from. It moves forward with the input; <a href=\"docs/glossary.html#deflate\">DEFLATE</a>'s is 32,768 bytes.</p>\n        <p><a href=\"docs/how-deflate-works.html#lz77\">Step by step</a></p>",
     "href": "docs/glossary.html#sliding-window"
   },
   {

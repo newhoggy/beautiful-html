@@ -176,6 +176,11 @@ test("published artifact keeps unlisted pages and their cards, and leaves them o
   assert.ok(unlisted.search.some((p) => p.href === quiet));
   assert.deepEqual([...unlisted.backlinks[quiet].map((b) => b.href.split("#")[0])], [post]);
   assert.deepEqual([...added(data(f.stage, "unlisted-slugs.js", "BH_UNLISTED_SLUGS"))], [quiet]);
+  // …and the repo's own unlisted pages are still published and still listed as unlisted.
+  for (const href of REPO_UNLISTED) {
+    assert.ok(fs.existsSync(path.join(f.stage, href)), `${href} is published`);
+    assert.ok(data(f.stage, "unlisted-slugs.js", "BH_UNLISTED_SLUGS").includes(href), `${href} stays unlisted`);
+  }
   // Review threads on the unlisted page ship in their own file; the removed example's do not.
   assert.deepEqual(added(Object.keys(data(f.stage, "unlisted-reviews.js", "BH_REVIEWS"))), [quiet]);
   assert.ok(!fs.readFileSync(path.join(f.stage, "theme/reviews.js"), "utf8").includes("quiet-"));

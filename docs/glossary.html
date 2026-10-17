@@ -59,7 +59,7 @@
 
       <dt id="back-reference" data-aliases="back-references, backreference, backreferences">Back-reference</dt>
       <dd><p>In LZ77 compression, an instruction to copy <em>L</em> bytes starting <em>D</em> bytes back in the output already produced, instead of storing them again. DEFLATE allows distances up to 32,768 bytes.</p>
-        <p><a href="how-deflate-works.html#lz77">How DEFLATE works: LZ77</a></p></dd>
+        <p><a href="how-deflate-works.html#lz77">Step by step</a></p></dd>
 
       <dt id="backoff" data-aliases="exponential backoff">Backoff</dt>
       <dd><p>Waiting longer after each failed attempt before retrying, usually doubling the delay each time. Without <a href="#jitter">jitter</a>, clients that failed together retry together.</p></dd>
@@ -75,7 +75,7 @@
 
       <dt id="canonical-huffman-code" data-aliases="canonical Huffman codes, canonical code, canonical codes">Canonical Huffman code</dt>
       <dd><p>A <a href="#huffman-code">Huffman code</a> rebuilt from code lengths alone: symbols are sorted by length, then by value, and each gets the previous code plus one, shifted left when the length grows. A <a href="#deflate">DEFLATE</a> block sends only the lengths.</p>
-        <p><a href="how-deflate-works.html#canonical">How DEFLATE works: send lengths, not trees</a></p></dd>
+        <p><a href="how-deflate-works.html#canonical">Step by step</a></p></dd>
 
       <dt id="compute-kernel" data-aliases="compute kernels, kernel, kernels, compute shader, compute shaders">Compute kernel</dt>
       <dd><p>A function that runs on the GPU once per thread of a <a href="#dispatch">dispatch</a>. Each thread reads its own index to decide which part of the work it does.</p></dd>
@@ -86,7 +86,7 @@
 
       <dt id="deflate">DEFLATE</dt>
       <dd><p>The compression format inside ZIP, gzip and PNG: <a href="#lz77">LZ77</a> back-references plus <a href="#huffman-code">Huffman coding</a>, organised in blocks. Its bit stream has no index, so decoding is serial.</p>
-        <p><a href="how-deflate-works.html">How DEFLATE works</a> · <a href="https://www.rfc-editor.org/rfc/rfc1951">RFC 1951</a></p></dd>
+        <p><a href="how-deflate-works.html">Step by step</a> · <a href="https://www.rfc-editor.org/rfc/rfc1951">RFC 1951</a></p></dd>
 
       <dt id="dispatch" data-aliases="dispatches">Dispatch</dt>
       <dd><p>One launch of a <a href="#compute-kernel">compute kernel</a> over a grid of threads, divided into <a href="#threadgroup">threadgroups</a>. Dispatches in one command buffer run in order, which is the safe way to order work between threadgroups.</p></dd>
@@ -96,7 +96,7 @@
 
       <dt id="end-of-block" data-aliases="end of block, end-of-block symbol, end-of-block code">End-of-block</dt>
       <dd><p>Symbol 256 of <a href="#deflate">DEFLATE</a>'s literal/length alphabet. It closes every Huffman-coded block, so it needs a code of its own even though it appears once.</p>
-        <p><a href="how-deflate-works.html#joining">How DEFLATE works: how the two ideas join</a></p></dd>
+        <p><a href="how-deflate-works.html#joining">Step by step</a></p></dd>
 
       <dt id="gcra" data-aliases="generic cell rate algorithm">GCRA</dt>
       <dd><p>The generic cell rate algorithm. It is equivalent to a token bucket, but stores one timestamp per key: the theoretical arrival time of the next conforming request.</p>
@@ -104,7 +104,7 @@
 
       <dt id="huffman-code" data-aliases="Huffman codes, Huffman coding, Huffman table, Huffman tables">Huffman code</dt>
       <dd><p>A variable-length binary code that gives frequent symbols short bit patterns and rare ones long patterns. No code is a prefix of another, so a decoder can read them back to back without separators.</p>
-        <p><a href="how-deflate-works.html#huffman">How DEFLATE works: Huffman</a> · <a href="https://en.wikipedia.org/wiki/Huffman_coding">Huffman coding (Wikipedia)</a></p></dd>
+        <p><a href="how-deflate-works.html#huffman">Step by step</a> · <a href="https://en.wikipedia.org/wiki/Huffman_coding">Huffman coding (Wikipedia)</a></p></dd>
 
       <dt id="jitter">Jitter</dt>
       <dd><p>Randomness added to retry or polling delays, so many clients that start together don't keep acting in lock-step and overload a recovering service.</p></dd>
@@ -120,7 +120,7 @@
 
       <dt id="lz77">LZ77</dt>
       <dd><p>The compression idea, from Lempel and Ziv in 1977, of replacing repeated data with <a href="#back-reference">back-references</a> to an earlier occurrence.</p>
-        <p><a href="how-deflate-works.html#lz77">How DEFLATE works: LZ77</a> · <a href="https://en.wikipedia.org/wiki/LZ77_and_LZ78">LZ77 and LZ78 (Wikipedia)</a></p></dd>
+        <p><a href="how-deflate-works.html#lz77">Step by step</a> · <a href="https://en.wikipedia.org/wiki/LZ77_and_LZ78">LZ77 and LZ78 (Wikipedia)</a></p></dd>
 
       <dt id="marker" data-aliases="markers">Marker</dt>
       <dd><p>In rapidgzip-style decoding, a 16-bit placeholder meaning "the byte <em>n</em> positions before this chunk started". It lets a decoder start mid-stream without the history, and is replaced by the real byte once the previous chunk is decoded.</p></dd>
@@ -163,7 +163,7 @@
 
       <dt id="sliding-window" data-aliases="sliding windows">Sliding window</dt>
       <dd><p>In <a href="#lz77">LZ77</a>, the most recent bytes already processed, which <a href="#back-reference">back-references</a> may copy from. It moves forward with the input; <a href="#deflate">DEFLATE</a>'s is 32,768 bytes.</p>
-        <p><a href="how-deflate-works.html#lz77">How DEFLATE works: LZ77</a></p></dd>
+        <p><a href="how-deflate-works.html#lz77">Step by step</a></p></dd>
 
       <dt id="slo" data-aliases="SLOs, service level objective, service level objectives">SLO</dt>
       <dd><p>A service level objective: a reliability target, such as 99.9% of requests succeeding over 30 days. It is set below 100% on purpose, leaving an error budget.</p></dd>
