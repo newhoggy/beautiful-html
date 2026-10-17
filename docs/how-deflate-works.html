@@ -52,6 +52,35 @@
     #join .node.sym text:not(.sub), #join .node.tok text { font-family: var(--font-mono); }
     @media (max-width: 640px) { #join > svg { min-width: 900px; } }
     #alphabets .range { white-space: nowrap; }
+    /* The alphabet explorer: a value in, its symbol out, lit in a picture of both alphabets. */
+    #alphabet-lab .al-pick { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-5); align-items: end; }
+    #alphabet-lab .al-kinds { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+    #alphabet-lab .al-label { font-size: var(--step--1); color: var(--text-muted); }
+    #alphabet-lab .al-value { flex: 1 1 14rem; }
+    #alphabet-lab .al-answers { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); gap: var(--space-3); }
+    #alphabet-lab .al-answer { margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+    #alphabet-lab .al-answer > * { margin: 0; }
+    #alphabet-lab .al-real { border: 2px solid var(--c1); }
+    #alphabet-lab .al-head { font-size: var(--step--1); font-weight: 600; color: var(--text-muted); }
+    #alphabet-lab .al-sym { margin-block: var(--space-1); font-size: var(--step-1); }
+    #alphabet-lab .al-answer:not(.al-real) .al-sym code { text-decoration: line-through; text-decoration-thickness: 2px; }
+    #alphabet-lab .al-why { font-size: var(--step--1); color: var(--text-muted); }
+    #alphabet-lab .al-title { margin: var(--space-3) 0 var(--space-1); font-size: var(--step--1); }
+    #alphabet-lab .al-scroll { overflow-x: auto; position: relative; padding-bottom: 14px; }
+    #alphabet-lab .al-strip { display: flex; gap: 2px; min-width: 760px; font-family: var(--font-mono); font-size: 11px; }
+    #alphabet-lab .al-box { position: relative; flex: 1 1 0; min-width: 0; padding: 6px 0; border: 1.5px solid var(--tone); border-radius: 3px; background: color-mix(in oklab, var(--tone) 11%, var(--surface)); color: var(--text); text-align: center; white-space: nowrap; overflow: visible; }
+    #alphabet-lab .al-bytes { --tone: var(--c2); flex-grow: 7; }
+    #alphabet-lab .al-end { --tone: var(--text-muted); flex-grow: 1.4; }
+    #alphabet-lab .al-len { --tone: var(--c1); }
+    #alphabet-lab .al-dist { --tone: var(--c1); border-radius: 999px; }
+    #alphabet-lab .al-box[aria-current="true"] { background: var(--tone); color: var(--surface); font-weight: 700; }
+    #alphabet-lab .al-box[aria-current="true"]::after { content: "▲"; position: absolute; left: 50%; bottom: -15px; transform: translateX(-50%); color: var(--text); font-size: 10px; }
+    #alphabet-lab .al-cells-title { margin: var(--space-3) 0 var(--space-1); font-size: var(--step--1); }
+    #alphabet-lab .al-cells { display: flex; flex-wrap: wrap; gap: 4px; font-family: var(--font-mono); font-size: var(--step--1); }
+    #alphabet-lab .al-cells > span { display: inline-flex; flex-direction: column; align-items: center; min-width: 3.2em; padding: 2px 6px; border: 1.5px solid var(--border-strong); border-radius: 4px; }
+    #alphabet-lab .al-cells small { font-size: 10px; color: var(--text-muted); }
+    #alphabet-lab .al-cells > span[aria-current="true"] { border-color: var(--c1); background: color-mix(in oklab, var(--c1) 18%, var(--surface)); font-weight: 700; }
+    #alphabet-lab .al-cells .al-gap { border-style: dashed; color: var(--text-muted); }
 
     /* The playground: text in, tokens and bit counts out. */
     #deflate-lab textarea {
@@ -347,29 +376,46 @@
 
     <h2 id="joining">How the two ideas join</h2>
     <p>Huffman coding never sees bytes or tokens. It codes <em>symbols</em> from a fixed alphabet: it counts how often each symbol occurs and gives the common ones short codes. So the join is a choice of alphabet for everything LZ77 can produce, and those symbols are the input to Huffman coding.</p>
-    <p>The obvious choice is one symbol for every possible value. <strong>That is not what DEFLATE does</strong>, and the difference is the source of most confusion about the format:</p>
-    <div class="compare wide" id="alphabet-choice" data-linkable>
-      <div class="option">
-        <h3>The obvious alphabet</h3>
-        <p>One symbol per value, one Huffman code:</p>
-        <ul>
-          <li><code>b0</code>–<code>b255</code>: each byte</li>
-          <li><code>eob</code>: the end of the block</li>
-          <li><code>w3</code>–<code>w258</code>: each length</li>
-          <li><code>d1</code>–<code>d32768</code>: each distance</li>
-        </ul>
-        <ul class="cons"><li>33,281 symbols. A dynamic block describes its code with one length per symbol, so its table would have 33,281 entries to send, and every decoder would need tables that size.</li></ul>
+    <p>The obvious alphabet would give every possible value its own symbol: <code>b0</code>–<code>b255</code> for the bytes, <code>eob</code>, <code>w3</code>–<code>w258</code> for the lengths and <code>d1</code>–<code>d32768</code> for the distances, 33,281 symbols in one code. <strong>DEFLATE does not do that.</strong> Its alphabets are drawn below, all 316 symbols. Pick something LZ77 can produce and see which symbol it becomes.</p>
+    <bh-playground class="wide" id="alphabet-lab">
+      <div class="al-pick">
+        <div class="al-kinds" role="group" aria-label="What LZ77 gives">
+          <span class="al-label">LZ77 gives</span>
+          <button class="chip" type="button" data-kind="byte" aria-pressed="false">a byte</button>
+          <button class="chip" type="button" data-kind="end" aria-pressed="false">end of block</button>
+          <button class="chip" type="button" data-kind="length" aria-pressed="true">a length</button>
+          <button class="chip" type="button" data-kind="distance" aria-pressed="false">a distance</button>
+        </div>
+        <label class="control al-value"><span>Value <output id="al-value">23</output></span>
+          <input type="range" id="al-range" min="3" max="258" value="23" aria-describedby="al-note"></label>
       </div>
-      <div class="option chosen">
-        <h3>DEFLATE's two alphabets</h3>
-        <p>Bytes and the end of block keep their own symbols. Lengths and distances get <strong>ranges</strong>, and distances get <strong>an alphabet of their own</strong>:</p>
-        <ul>
-          <li><strong>Literal/length</strong>, 286 symbols: <code>0</code>–<code>255</code> each byte, <code>256</code> the end of the block, <code>257</code>–<code>285</code> 29 ranges of lengths</li>
-          <li><strong>Distance</strong>, 30 symbols: <code>d0</code>–<code>d29</code>, 30 ranges of distances</li>
-        </ul>
-        <ul class="pros"><li>316 symbols in two Huffman codes, so the tables are small to send and to decode with.</li></ul>
+      <div class="al-answers">
+        <div class="al-answer">
+          <p class="al-head">Not DEFLATE: one symbol per value</p>
+          <p class="al-sym"><code id="al-naive">w23</code></p>
+          <p class="al-why" id="al-naive-note">one of 33,281 symbols</p>
+        </div>
+        <div class="al-answer al-real">
+          <p class="al-head">DEFLATE</p>
+          <p class="al-sym"><code id="al-symbol">270</code><span id="al-extra-wrap"> + extra bits <code id="al-extra">0</code></span></p>
+          <p class="al-why" id="al-note">Symbol 270 of the literal/length alphabet stands for lengths 23&#8288;–&#8288;26. 2 extra bits after it give the offset: 23 + 0 = 23.</p>
+        </div>
       </div>
-    </div>
+      <div class="al-alphabets">
+        <p class="al-title"><strong>Literal/length alphabet</strong>: 286 symbols, one Huffman code</p>
+        <div class="al-scroll"><div class="al-strip" id="al-litlen">
+          <span class="al-box al-bytes" data-sym="bytes" title="0–255: one symbol per byte">bytes 0–255</span>
+          <span class="al-box al-end" data-sym="256" title="256: end of block">256</span>
+          <span class="al-box al-len" data-sym="257" title="257: length 3">257</span><span class="al-box al-len" data-sym="258" title="258: length 4">258</span><span class="al-box al-len" data-sym="259" title="259: length 5">259</span><span class="al-box al-len" data-sym="260" title="260: length 6">260</span><span class="al-box al-len" data-sym="261" title="261: length 7">261</span><span class="al-box al-len" data-sym="262" title="262: length 8">262</span><span class="al-box al-len" data-sym="263" title="263: length 9">263</span><span class="al-box al-len" data-sym="264" title="264: length 10">264</span><span class="al-box al-len" data-sym="265" title="265: length 11–12, 1 extra bit">265</span><span class="al-box al-len" data-sym="266" title="266: length 13–14, 1 extra bit">266</span><span class="al-box al-len" data-sym="267" title="267: length 15–16, 1 extra bit">267</span><span class="al-box al-len" data-sym="268" title="268: length 17–18, 1 extra bit">268</span><span class="al-box al-len" data-sym="269" title="269: length 19–22, 2 extra bits">269</span><span class="al-box al-len" data-sym="270" title="270: length 23–26, 2 extra bits" aria-current="true">270</span><span class="al-box al-len" data-sym="271" title="271: length 27–30, 2 extra bits">271</span><span class="al-box al-len" data-sym="272" title="272: length 31–34, 2 extra bits">272</span><span class="al-box al-len" data-sym="273" title="273: length 35–42, 3 extra bits">273</span><span class="al-box al-len" data-sym="274" title="274: length 43–50, 3 extra bits">274</span><span class="al-box al-len" data-sym="275" title="275: length 51–58, 3 extra bits">275</span><span class="al-box al-len" data-sym="276" title="276: length 59–66, 3 extra bits">276</span><span class="al-box al-len" data-sym="277" title="277: length 67–82, 4 extra bits">277</span><span class="al-box al-len" data-sym="278" title="278: length 83–98, 4 extra bits">278</span><span class="al-box al-len" data-sym="279" title="279: length 99–114, 4 extra bits">279</span><span class="al-box al-len" data-sym="280" title="280: length 115–130, 4 extra bits">280</span><span class="al-box al-len" data-sym="281" title="281: length 131–162, 5 extra bits">281</span><span class="al-box al-len" data-sym="282" title="282: length 163–194, 5 extra bits">282</span><span class="al-box al-len" data-sym="283" title="283: length 195–226, 5 extra bits">283</span><span class="al-box al-len" data-sym="284" title="284: length 227–257, 5 extra bits">284</span><span class="al-box al-len" data-sym="285" title="285: length 258">285</span>
+        </div></div>
+        <p class="al-title"><strong>Distance alphabet</strong>: 30 symbols, its own Huffman code</p>
+        <div class="al-scroll"><div class="al-strip" id="al-dist">
+          <span class="al-box al-dist" data-sym="d0" title="d0: distance 1">d0</span><span class="al-box al-dist" data-sym="d1" title="d1: distance 2">d1</span><span class="al-box al-dist" data-sym="d2" title="d2: distance 3">d2</span><span class="al-box al-dist" data-sym="d3" title="d3: distance 4">d3</span><span class="al-box al-dist" data-sym="d4" title="d4: distance 5–6, 1 extra bit">d4</span><span class="al-box al-dist" data-sym="d5" title="d5: distance 7–8, 1 extra bit">d5</span><span class="al-box al-dist" data-sym="d6" title="d6: distance 9–12, 2 extra bits">d6</span><span class="al-box al-dist" data-sym="d7" title="d7: distance 13–16, 2 extra bits">d7</span><span class="al-box al-dist" data-sym="d8" title="d8: distance 17–24, 3 extra bits">d8</span><span class="al-box al-dist" data-sym="d9" title="d9: distance 25–32, 3 extra bits">d9</span><span class="al-box al-dist" data-sym="d10" title="d10: distance 33–48, 4 extra bits">d10</span><span class="al-box al-dist" data-sym="d11" title="d11: distance 49–64, 4 extra bits">d11</span><span class="al-box al-dist" data-sym="d12" title="d12: distance 65–96, 5 extra bits">d12</span><span class="al-box al-dist" data-sym="d13" title="d13: distance 97–128, 5 extra bits">d13</span><span class="al-box al-dist" data-sym="d14" title="d14: distance 129–192, 6 extra bits">d14</span><span class="al-box al-dist" data-sym="d15" title="d15: distance 193–256, 6 extra bits">d15</span><span class="al-box al-dist" data-sym="d16" title="d16: distance 257–384, 7 extra bits">d16</span><span class="al-box al-dist" data-sym="d17" title="d17: distance 385–512, 7 extra bits">d17</span><span class="al-box al-dist" data-sym="d18" title="d18: distance 513–768, 8 extra bits">d18</span><span class="al-box al-dist" data-sym="d19" title="d19: distance 769–1,024, 8 extra bits">d19</span><span class="al-box al-dist" data-sym="d20" title="d20: distance 1,025–1,536, 9 extra bits">d20</span><span class="al-box al-dist" data-sym="d21" title="d21: distance 1,537–2,048, 9 extra bits">d21</span><span class="al-box al-dist" data-sym="d22" title="d22: distance 2,049–3,072, 10 extra bits">d22</span><span class="al-box al-dist" data-sym="d23" title="d23: distance 3,073–4,096, 10 extra bits">d23</span><span class="al-box al-dist" data-sym="d24" title="d24: distance 4,097–6,144, 11 extra bits">d24</span><span class="al-box al-dist" data-sym="d25" title="d25: distance 6,145–8,192, 11 extra bits">d25</span><span class="al-box al-dist" data-sym="d26" title="d26: distance 8,193–12,288, 12 extra bits">d26</span><span class="al-box al-dist" data-sym="d27" title="d27: distance 12,289–16,384, 12 extra bits">d27</span><span class="al-box al-dist" data-sym="d28" title="d28: distance 16,385–24,576, 13 extra bits">d28</span><span class="al-box al-dist" data-sym="d29" title="d29: distance 24,577–32,768, 13 extra bits">d29</span>
+        </div></div>
+      </div>
+      <p class="al-cells-title" id="al-cells-title">Symbol 270 covers 4 lengths. The extra bits say which one:</p>
+      <div class="al-cells" id="al-cells"><span aria-current="true">23<small>+0</small></span><span>24<small>+1</small></span><span>25<small>+2</small></span><span>26<small>+3</small></span></div>
+    </bh-playground>
     <p>The two changes, one at a time:</p>
     <ol class="steps">
       <li><strong>A length or distance is a range symbol plus extra bits.</strong> Length 23 is not a symbol of its own. It is symbol 270, which means "a length from 23 to 26", followed by 2 plain extra bits, <code>00</code>, that pick 23. The extra bits are written as they are, not Huffman-coded. Short lengths (3–10) and distances (1–4) still get exact symbols, because they are the most common.</li>
@@ -1104,6 +1150,82 @@ document.addEventListener("DOMContentLoaded", () => {
       total.textContent = `${Math.round(s.total.n)}${rest}`;
       fade(total, s.total.op);
     });
+  }
+
+  // ---- The alphabet explorer: one value in, DEFLATE's symbol and extra bits out ---------------
+  {
+    const lab = document.getElementById("alphabet-lab");
+    const range = lab && lab.querySelector("#al-range");
+    if (lab && range) {
+      const $a = (id) => lab.querySelector(`#${id}`), nf = (n) => n.toLocaleString("en");
+      const KINDS = { byte: [0, 255, 97], end: [0, 0, 0], length: [3, 258, 23], distance: [1, 32768, 12] };
+      let kind = "length";
+      // Distances span 1–32,768: the slider moves on a log scale so short distances stay reachable.
+      const toValue = () => (kind === "distance" ? Math.round(2 ** ((+range.value / 1000) * 15)) : +range.value);
+      const fromValue = (v) => (kind === "distance" ? Math.round((Math.log2(v) / 15) * 1000) : v);
+      const span = (sym) => { // the values a length or distance symbol stands for
+        if (kind === "length") { const b = Deflate.lengthSymbol(toValue()); const base = toValue() - b.extra; return { sym: String(b.sym), base, end: b.sym === 284 ? 257 : base + 2 ** b.nExtra - 1, n: b.nExtra, off: b.extra }; }
+        const d = Deflate.distanceCode(toValue()); const base = toValue() - d.extra; return { sym: `d${d.code}`, base, end: base + 2 ** d.nExtra - 1, n: d.nExtra, off: d.extra };
+      };
+      const cell = (v, off, on) => { const c = document.createElement("span"); c.textContent = nf(v); const m = document.createElement("small"); m.textContent = `+${nf(off)}`; c.append(m); if (on) c.setAttribute("aria-current", "true"); return c; };
+      function show() {
+        const v = toValue();
+        $a("al-value").textContent = kind === "end" ? "–" : nf(v);
+        range.disabled = kind === "end";
+        lab.querySelectorAll(".al-box").forEach((b) => b.removeAttribute("aria-current"));
+        const cells = $a("al-cells"), title = $a("al-cells-title");
+        cells.replaceChildren();
+        let naive, sym, note, box;
+        if (kind === "byte") {
+          naive = `b${v}`; sym = String(v); box = "bytes";
+          note = `Byte ${v} is symbol ${v} of the literal/length alphabet: bytes keep one symbol each, so no extra bits follow.`;
+          title.textContent = "";
+        } else if (kind === "end") {
+          naive = "eob"; sym = "256"; box = "256";
+          note = "The end of the block is symbol 256 of the literal/length alphabet. No extra bits follow.";
+          title.textContent = "";
+        } else {
+          const r = span(); sym = r.sym; box = r.sym;
+          naive = `${kind === "length" ? "w" : "d"}${v}`;
+          const alpha = kind === "length" ? "literal/length" : "distance";
+          const count = r.end - r.base + 1;
+          note = r.n === 0
+            ? `Symbol ${sym} of the ${alpha} alphabet stands for ${kind} ${nf(v)} alone, so no extra bits follow.`
+            : `Symbol ${sym} of the ${alpha} alphabet stands for ${kind}s ${nf(r.base)}\u2060–\u2060${nf(r.end)}. ${r.n} extra bit${r.n > 1 ? "s" : ""} after it give the offset: ${nf(r.base)} + ${nf(r.off)} = ${nf(v)}.`;
+          title.textContent = count === 1 ? `Symbol ${sym} covers one ${kind}, so it needs no extra bits:` : `Symbol ${sym} covers ${nf(count)} ${kind}s. The extra bits say which one:`;
+          // Every value of a small range; the ends and the chosen value of a large one.
+          const shown = count <= 16 ? [...Array(count).keys()] : [...new Set([0, 1, 2, r.off, count - 2, count - 1])].sort((a, b) => a - b);
+          shown.forEach((off, i) => {
+            if (i > 0 && off > shown[i - 1] + 1) { const g = document.createElement("span"); g.className = "al-gap"; g.textContent = "…"; cells.append(g); }
+            cells.append(cell(r.base + off, off, off === r.off));
+          });
+          $a("al-extra").textContent = nf(r.off);
+        }
+        $a("al-naive").textContent = naive;
+        $a("al-naive-note").textContent = "one of 33,281 symbols, if every value had its own";
+        $a("al-symbol").textContent = sym;
+        $a("al-extra-wrap").hidden = !(kind === "length" || kind === "distance") || span().n === 0;
+        $a("al-note").textContent = note;
+        const lit = lab.querySelector(`.al-box[data-sym="${box}"]`);
+        if (lit) {
+          lit.setAttribute("aria-current", "true");
+          // On a narrow screen the strip scrolls: keep the lit symbol in the middle of it.
+          const strip = lit.closest(".al-scroll");
+          strip.scrollLeft = lit.offsetLeft - strip.clientWidth / 2 + lit.offsetWidth / 2;
+        }
+      }
+      lab.querySelectorAll("[data-kind]").forEach((b) => b.addEventListener("click", () => {
+        kind = b.dataset.kind;
+        lab.querySelectorAll("[data-kind]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+        const [min, max, start] = KINDS[kind];
+        range.min = kind === "distance" ? 0 : min;
+        range.max = kind === "distance" ? 1000 : Math.max(max, 1);
+        range.value = fromValue(start);
+        show();
+      }));
+      range.addEventListener("input", show);
+      show();
+    }
   }
 
   // ---- The playground: real DEFLATE output for whatever the reader types ----------------------

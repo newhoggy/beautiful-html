@@ -182,6 +182,29 @@ test("the alphabet table's examples are the encoder's own mapping", () => {
   assert.deepEqual([dist(4).code, dist(4).nExtra, dist(5).code, dist(5).nExtra, dist(32768).code, dist(32768).nExtra], [3, 0, 4, 1, 29, 13]);
 });
 
+test("the alphabet explorer's strips and default state are the encoder's mapping", () => {
+  const lab = PAGE.match(/<bh-playground class="wide" id="alphabet-lab">[\s\S]*?<\/bh-playground>/)[0];
+  const boxes = [...lab.matchAll(/data-sym="(\d+|d\d+)" title="[^:]+: (length|distance) ([\d,]+)(?:–([\d,]+))?(?:, (\d+) extra bits?)?"/g)];
+  assert.equal(boxes.length, 29 + 30, "29 length symbols and 30 distance symbols");
+  const num = (t) => +t.replace(/,/g, "");
+  for (const [, sym, kind, lo, hi = lo, n = "0"] of boxes) {
+    for (const v of [num(lo), num(hi)]) {
+      const r = kind === "length" ? Deflate.lengthSymbol(v) : Deflate.distanceCode(v);
+      assert.equal(kind === "length" ? String(r.sym) : `d${r.code}`, sym, `${kind} ${v}`);
+      assert.equal(r.nExtra, +n, `${sym} extra bits`);
+    }
+    // The range is exactly the values that map to this symbol: one below and one above map elsewhere.
+    const map = (v) => (kind === "length" ? String(Deflate.lengthSymbol(v).sym) : `d${Deflate.distanceCode(v).code}`);
+    if (num(lo) > (kind === "length" ? 3 : 1)) assert.notEqual(map(num(lo) - 1), sym);
+    if (num(hi) < (kind === "length" ? 258 : 32768)) assert.notEqual(map(num(hi) + 1), sym);
+  }
+  // Without JavaScript the explorer shows length 23, the worked example's long copy.
+  assert.match(lab, /<code id="al-naive">w23<\/code>/);
+  assert.match(lab, /<code id="al-symbol">270<\/code>/);
+  assert.match(lab, /<code id="al-extra">0<\/code>/);
+  assert.match(lab, /data-sym="270" title="[^"]*" aria-current="true"/);
+});
+
 test("the Huffman and canonical-code figures agree with the algorithm", () => {
   const counts = new Array(256).fill(0);
   for (const ch of "abracadabra") counts[ch.charCodeAt(0)]++;
