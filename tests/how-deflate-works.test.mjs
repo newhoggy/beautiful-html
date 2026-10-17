@@ -168,6 +168,20 @@ test("the playground's no-JavaScript state is the encoder's result for its defau
   assert.equal(rows, r.tokens.length);
 });
 
+test("the alphabet table's examples are the encoder's own mapping", () => {
+  const table = text(PAGE.match(/<div class="table-wrap wide" id="alphabets"[\s\S]*?<\/table>/)[0]);
+  const len = (n) => Deflate.lengthSymbol(n), dist = (n) => Deflate.distanceCode(n);
+  assert.deepEqual([len(4).sym, len(4).nExtra], [258, 0]);
+  assert.match(table, /length 4 → 258/);
+  assert.deepEqual([len(23).sym, len(23).nExtra, len(26).sym, len(27).sym], [270, 2, 270, 271]);
+  assert.match(table, /length 23 → 270 \(23–26\) \+ 2 bits/);
+  assert.deepEqual([dist(7).code, dist(7).nExtra, dist(8).code, dist(12).code, dist(12).nExtra, dist(9).code], [5, 1, 5, 6, 2, 6]);
+  assert.match(table, /distance 7 → d5 \(7–8\) \+ 1 bit; 12 → d6 \(9–12\) \+ 2 bits/);
+  // The ranges in the table: exact symbols up to length 10 and distance 4, then buckets.
+  assert.deepEqual([len(3).sym, len(10).sym, len(10).nExtra, len(11).sym, len(11).nExtra, len(257).sym, len(257).nExtra, len(258).sym, len(258).nExtra], [257, 264, 0, 265, 1, 284, 5, 285, 0]);
+  assert.deepEqual([dist(4).code, dist(4).nExtra, dist(5).code, dist(5).nExtra, dist(32768).code, dist(32768).nExtra], [3, 0, 4, 1, 29, 13]);
+});
+
 test("the Huffman and canonical-code figures agree with the algorithm", () => {
   const counts = new Array(256).fill(0);
   for (const ch of "abracadabra") counts[ch.charCodeAt(0)]++;
