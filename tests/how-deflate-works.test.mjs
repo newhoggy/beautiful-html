@@ -462,8 +462,8 @@ test("the four steps to sending a dynamic code cost what the page says", () => {
   assert.equal(Math.floor(ex.naive / ex.data), 30);
   assert.match(prose, /Even the paragraph's data, 1,521 bits/);
   assert.match(prose, /1,122 bits for the example and 1,158 for the paragraph/);
-  assert.match(prose, /The header drops to 146 bits for the example and 443 for the paragraph/);
-  assert.match(prose, /it costs 159 bits for the example and 352 for the paragraph\. For the paragraph, coding the run symbols saved another 91 bits\. For the tiny example it cost 13 more: describing the small code took more than it saved on just 19 run symbols/);
+  assert.match(prose, /The header drops to 146 bits for the example \(step 3 in the figure\) and 443 for the paragraph/);
+  assert.match(prose, /it costs 159 bits for the example \(step 4 in the figure\) and 352 for the paragraph\. For the paragraph, coding the run symbols saved another 91 bits\. For the tiny example it cost 13 more: describing the small code took more than it saved on just 19 run symbols/);
   assert.equal(para.runs - para.coded, 91);
   assert.equal(ex.coded - ex.runs, 13);
   // "the example's 262 unused literal/length symbols take just 7"
@@ -528,6 +528,33 @@ test("the bridges between sections quote real numbers", () => {
   assert.deepEqual([ex.streams.dynamic.length, ex.streams.fixed.length], [26, 13]);
   assert.ok(rn.streams.fixed.length > 1024 && rn.streams.dynamic.length > 1024);
   assert.match(PAGE, /The example's dynamic block is twice the size of its fixed one, while the paragraph's dynamic block is a fifth smaller than its fixed one/);
+});
+
+test("the send-steps figure is the example's real code-length list", () => {
+  const tr = trace(Buffer.from(Deflate.encode(utf8(EXAMPLE)).streams.dynamic)), b = tr.blocks[0];
+  const runs = tr.fields.filter((f) => f.kind === "clsym");
+  const fig = PAGE.match(/<figure class="diagram wide" id="send-steps">[\s\S]*?<\/bh-stepper>/)[0];
+  const chips = [...fig.matchAll(/data-id="(r\d+)"><rect [^>]*\/><text[^>]*>(\d+)<\/text><\/g>/g)].map((m) => m[2]);
+  const sub = (k) => text(fig.match(new RegExp(`data-id="r${k}-sub"[^>]*>([^<]*)<`))[1]);
+  const code = (k) => fig.match(new RegExp(`data-id="r${k}-code"[^>]*>([^<]*)<`))[1];
+  const cost = (k) => fig.match(new RegExp(`data-id="r${k}-cost"[^>]*>([^<]*)<`))[1];
+  assert.deepEqual(chips, runs.map((f) => String(f.symbol)), "one chip per run symbol, in order");
+  runs.forEach((f, k) => {
+    assert.equal(code(k), f.bits, `chip ${k} code`);
+    assert.equal(cost(k), f.extraBits ? `${f.bits.length}+${f.extraBits.length}` : String(f.bits.length));
+    if (f.symbol >= 16) assert.equal(sub(k), `×${f.count}`);
+  });
+  // Each step's total, as the counter shows it.
+  const used = runs.filter((f) => f.value > 0).length, extra = runs.reduce((s, f) => s + f.extraBits.length, 0);
+  const cl = tr.fields.filter((f) => f.kind === "cllen").length;
+  assert.deepEqual([316 * 4, 10 + (b.hlit + b.hdist) * 4, 10 + runs.length * 5 + extra, b.headerBits], [1264, 1122, 146, 159]);
+  assert.deepEqual([used, 286 - b.hlit + 30 - b.hdist, runs.length, extra, cl * 3, b.headerBits - 14 - cl * 3], [11, 38, 19, 41, 54, 91]);
+  assert.match(PAGE, /const TOTAL = \[1264, 1122, 146, 159\];/);
+  assert.match(PAGE, /const NOTE = \["316 slots × 4 bits", "10 \+ 278 × 4", "10 \+ 19 × 5 \+ 41 extra bits", "14 \+ 54 \+ 91"\];/);
+  assert.match(fig, /Only the 11 marked slots are not zero\. 1,264 bits/);
+  assert.match(fig, /so 38 slots go\. 1,122 bits/);
+  assert.match(fig, /19 symbols at 5 bits each, plus their extra bits: 146 bits/);
+  assert.match(fig, /With the 54 bits that describe this code, that makes 159 bits: for this short list, 13 more than step 3/);
 });
 
 test("the BTYPE table matches what zlib accepts", () => {

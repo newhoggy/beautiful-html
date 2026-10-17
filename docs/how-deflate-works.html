@@ -47,6 +47,11 @@
     #huffman-tree .tree-bit { fill: var(--c6); }
     #canonical-codes .node text { font-size: 16px; }
     #join .node.bits text { font-weight: 500; }
+    #send-steps .node text, #send-steps .send-code { font-family: var(--font-mono); }
+    #send-steps .send-code { font-size: 12px; fill: var(--text); }
+    #send-steps .send-trim > rect { fill: none; stroke-dasharray: 3 3; }
+    #send-steps .send-zero > rect, #send-steps .send-run > rect { fill: color-mix(in oklab, var(--text-muted) 10%, var(--surface)); }
+    @media (max-width: 640px) { #send-steps > svg { min-width: 900px; } }
     #join .node.sym text:not(.sub), #join .node.tok text { font-family: var(--font-mono); }
     @media (max-width: 640px) { #join > svg { min-width: 900px; } }
     #alphabets .range { white-space: nowrap; }
@@ -687,6 +692,107 @@
 
     <h2 id="dynamic-header">Sending a dynamic code</h2>
     <p>A dynamic block must tell the decoder its codes before its data. Thanks to <a href="#canonical">canonical codes</a>, it only needs to send each symbol's code length: 286 literal/length symbols and 30 distance symbols, 316 lengths in all, each from 0 to 15. The question is how to send them cheaply, and it matters: every bit spent on the code comes out of the saving. For the paragraph, the fitted code saved 854 bits on the data, and sending it cost 352 of them. Here are four tries, each fixing the biggest waste in the one before, measured on two blocks: the worked example written as a dynamic block (the one <a href="#dynamic-block">walked through below</a>), and zlib's real block for the 381-byte paragraph.</p>
+    <figure class="diagram wide" id="send-steps">
+      <svg viewBox="-16 -16 1088 232" role="img" aria-label="The example's 316 code lengths: 11 used slots in a long bar of zeros, cut after the last used symbol, then collapsed into 19 run symbols, which get codes of their own">
+        <text class="label strong send-total" x="1056" y="56" text-anchor="end">159 bits</text>
+        <text class="label send-note" x="1056" y="76" text-anchor="end">14 + 54 + 91</text>
+        <text class="label send-title" data-id="t-lit" x="0" y="6" opacity="0">literal/length: 286 slots</text>
+        <text class="label send-title" data-id="t-dist" x="706.4" y="6" opacity="0">distance: 30</text>
+        <text class="label strong send-group" data-id="g-sp" x="78" y="24" text-anchor="middle" opacity="0">␣</text>
+        <text class="label strong send-group" data-id="g-abcd" x="237.6" y="24" text-anchor="middle" opacity="0">a b c d</text>
+        <text class="label strong send-group" data-id="g-r" x="274.8" y="24" text-anchor="middle" opacity="0">r</text>
+        <text class="label strong send-group" data-id="g-end" x="618" y="24" text-anchor="middle" opacity="0">end, 258</text>
+        <text class="label strong send-group" data-id="g-270" x="649.2" y="6" text-anchor="middle" opacity="0">270</text>
+        <text class="label strong send-group" data-id="g-dist" x="720.8" y="24" text-anchor="middle" opacity="0">d5 d6</text>
+        <text class="label send-cut" data-id="cut-lit" x="650.4" y="80" text-anchor="middle" opacity="0">HLIT cut</text>
+        <text class="label send-cut" data-id="cut-dist" x="743.2" y="80" text-anchor="middle" opacity="0">HDIST cut</text>
+        <g class="node send-trim" data-id="trim-lit" opacity="0"><rect x="650.4" y="40" width="36" height="24"/></g>
+        <g class="node send-trim" data-id="trim-dist" opacity="0"><rect x="723.2" y="40" width="55.2" height="24"/></g>
+        <g class="node send-chip send-run" data-id="r0"><rect x="0" y="104" width="48" height="30" rx="5"/><text x="24" y="119">18</text></g>
+        <text class="label send-sub" data-id="r0-sub" x="24" y="150" text-anchor="middle">×32</text>
+        <text class="mono send-code" data-id="r0-code" x="24" y="172" text-anchor="middle">10</text>
+        <text class="label send-cost" data-id="r0-cost" x="24" y="194" text-anchor="middle">2+7</text>
+        <g class="node c6 send-chip send-len" data-id="r1"><rect x="56" y="104" width="48" height="30" rx="5"/><text x="80" y="119">4</text></g>
+        <text class="label send-sub" data-id="r1-sub" x="80" y="150" text-anchor="middle">␣</text>
+        <text class="mono send-code" data-id="r1-code" x="80" y="172" text-anchor="middle">01</text>
+        <text class="label send-cost" data-id="r1-cost" x="80" y="194" text-anchor="middle">2</text>
+        <g class="node send-chip send-run" data-id="r2"><rect x="112" y="104" width="48" height="30" rx="5"/><text x="136" y="119">18</text></g>
+        <text class="label send-sub" data-id="r2-sub" x="136" y="150" text-anchor="middle">×64</text>
+        <text class="mono send-code" data-id="r2-code" x="136" y="172" text-anchor="middle">10</text>
+        <text class="label send-cost" data-id="r2-cost" x="136" y="194" text-anchor="middle">2+7</text>
+        <g class="node c6 send-chip send-len" data-id="r3"><rect x="168" y="104" width="48" height="30" rx="5"/><text x="192" y="119">2</text></g>
+        <text class="label send-sub" data-id="r3-sub" x="192" y="150" text-anchor="middle">a</text>
+        <text class="mono send-code" data-id="r3-code" x="192" y="172" text-anchor="middle">11111</text>
+        <text class="label send-cost" data-id="r3-cost" x="192" y="194" text-anchor="middle">5</text>
+        <g class="node c6 send-chip send-len" data-id="r4"><rect x="224" y="104" width="48" height="30" rx="5"/><text x="248" y="119">4</text></g>
+        <text class="label send-sub" data-id="r4-sub" x="248" y="150" text-anchor="middle">b</text>
+        <text class="mono send-code" data-id="r4-code" x="248" y="172" text-anchor="middle">01</text>
+        <text class="label send-cost" data-id="r4-cost" x="248" y="194" text-anchor="middle">2</text>
+        <g class="node c6 send-chip send-len" data-id="r5"><rect x="280" y="104" width="48" height="30" rx="5"/><text x="304" y="119">4</text></g>
+        <text class="label send-sub" data-id="r5-sub" x="304" y="150" text-anchor="middle">c</text>
+        <text class="mono send-code" data-id="r5-code" x="304" y="172" text-anchor="middle">01</text>
+        <text class="label send-cost" data-id="r5-cost" x="304" y="194" text-anchor="middle">2</text>
+        <g class="node c6 send-chip send-len" data-id="r6"><rect x="336" y="104" width="48" height="30" rx="5"/><text x="360" y="119">4</text></g>
+        <text class="label send-sub" data-id="r6-sub" x="360" y="150" text-anchor="middle">d</text>
+        <text class="mono send-code" data-id="r6-code" x="360" y="172" text-anchor="middle">01</text>
+        <text class="label send-cost" data-id="r6-cost" x="360" y="194" text-anchor="middle">2</text>
+        <g class="node send-chip send-run" data-id="r7"><rect x="392" y="104" width="48" height="30" rx="5"/><text x="416" y="119">18</text></g>
+        <text class="label send-sub" data-id="r7-sub" x="416" y="150" text-anchor="middle">×13</text>
+        <text class="mono send-code" data-id="r7-code" x="416" y="172" text-anchor="middle">10</text>
+        <text class="label send-cost" data-id="r7-cost" x="416" y="194" text-anchor="middle">2+7</text>
+        <g class="node c6 send-chip send-len" data-id="r8"><rect x="448" y="104" width="48" height="30" rx="5"/><text x="472" y="119">3</text></g>
+        <text class="label send-sub" data-id="r8-sub" x="472" y="150" text-anchor="middle">r</text>
+        <text class="mono send-code" data-id="r8-code" x="472" y="172" text-anchor="middle">00</text>
+        <text class="label send-cost" data-id="r8-cost" x="472" y="194" text-anchor="middle">2</text>
+        <g class="node send-chip send-run" data-id="r9"><rect x="504" y="104" width="48" height="30" rx="5"/><text x="528" y="119">18</text></g>
+        <text class="label send-sub" data-id="r9-sub" x="528" y="150" text-anchor="middle">×138</text>
+        <text class="mono send-code" data-id="r9-code" x="528" y="172" text-anchor="middle">10</text>
+        <text class="label send-cost" data-id="r9-cost" x="528" y="194" text-anchor="middle">2+7</text>
+        <g class="node send-chip send-run" data-id="r10"><rect x="560" y="104" width="48" height="30" rx="5"/><text x="584" y="119">17</text></g>
+        <text class="label send-sub" data-id="r10-sub" x="584" y="150" text-anchor="middle">×3</text>
+        <text class="mono send-code" data-id="r10-code" x="584" y="172" text-anchor="middle">110</text>
+        <text class="label send-cost" data-id="r10-cost" x="584" y="194" text-anchor="middle">3+3</text>
+        <g class="node c6 send-chip send-len" data-id="r11"><rect x="616" y="104" width="48" height="30" rx="5"/><text x="640" y="119">3</text></g>
+        <text class="label send-sub" data-id="r11-sub" x="640" y="150" text-anchor="middle">end</text>
+        <text class="mono send-code" data-id="r11-code" x="640" y="172" text-anchor="middle">00</text>
+        <text class="label send-cost" data-id="r11-cost" x="640" y="194" text-anchor="middle">2</text>
+        <g class="node send-chip send-zero" data-id="r12"><rect x="672" y="104" width="48" height="30" rx="5"/><text x="696" y="119">0</text></g>
+        <text class="label send-sub" data-id="r12-sub" x="696" y="150" text-anchor="middle">257</text>
+        <text class="mono send-code" data-id="r12-code" x="696" y="172" text-anchor="middle">11110</text>
+        <text class="label send-cost" data-id="r12-cost" x="696" y="194" text-anchor="middle">5</text>
+        <g class="node c6 send-chip send-len" data-id="r13"><rect x="728" y="104" width="48" height="30" rx="5"/><text x="752" y="119">3</text></g>
+        <text class="label send-sub" data-id="r13-sub" x="752" y="150" text-anchor="middle">258</text>
+        <text class="mono send-code" data-id="r13-code" x="752" y="172" text-anchor="middle">00</text>
+        <text class="label send-cost" data-id="r13-cost" x="752" y="194" text-anchor="middle">2</text>
+        <g class="node send-chip send-run" data-id="r14"><rect x="784" y="104" width="48" height="30" rx="5"/><text x="808" y="119">18</text></g>
+        <text class="label send-sub" data-id="r14-sub" x="808" y="150" text-anchor="middle">×11</text>
+        <text class="mono send-code" data-id="r14-code" x="808" y="172" text-anchor="middle">10</text>
+        <text class="label send-cost" data-id="r14-cost" x="808" y="194" text-anchor="middle">2+7</text>
+        <g class="node c6 send-chip send-len" data-id="r15"><rect x="840" y="104" width="48" height="30" rx="5"/><text x="864" y="119">3</text></g>
+        <text class="label send-sub" data-id="r15-sub" x="864" y="150" text-anchor="middle">270</text>
+        <text class="mono send-code" data-id="r15-code" x="864" y="172" text-anchor="middle">00</text>
+        <text class="label send-cost" data-id="r15-cost" x="864" y="194" text-anchor="middle">2</text>
+        <g class="node send-chip send-run" data-id="r16"><rect x="896" y="104" width="48" height="30" rx="5"/><text x="920" y="119">17</text></g>
+        <text class="label send-sub" data-id="r16-sub" x="920" y="150" text-anchor="middle">×5</text>
+        <text class="mono send-code" data-id="r16-code" x="920" y="172" text-anchor="middle">110</text>
+        <text class="label send-cost" data-id="r16-cost" x="920" y="194" text-anchor="middle">3+3</text>
+        <g class="node c6 send-chip send-len" data-id="r17"><rect x="952" y="104" width="48" height="30" rx="5"/><text x="976" y="119">1</text></g>
+        <text class="label send-sub" data-id="r17-sub" x="976" y="150" text-anchor="middle">d5</text>
+        <text class="mono send-code" data-id="r17-code" x="976" y="172" text-anchor="middle">1110</text>
+        <text class="label send-cost" data-id="r17-cost" x="976" y="194" text-anchor="middle">4</text>
+        <g class="node c6 send-chip send-len" data-id="r18"><rect x="1008" y="104" width="48" height="30" rx="5"/><text x="1032" y="119">1</text></g>
+        <text class="label send-sub" data-id="r18-sub" x="1032" y="150" text-anchor="middle">d6</text>
+        <text class="mono send-code" data-id="r18-code" x="1032" y="172" text-anchor="middle">1110</text>
+        <text class="label send-cost" data-id="r18-cost" x="1032" y="194" text-anchor="middle">4</text>
+      </svg>
+      <figcaption>Notice what the four steps do to the same list: the long bar is almost all zeros, cutting its end barely shortens it, and only collapsing the zeros into run symbols shrinks it. Each chip is one code-length symbol; under it is what it stands for (×32 means a run of 32 zeros), its code once it has one, and its cost in bits.</figcaption>
+    </figure>
+    <bh-stepper for="send-steps">
+      <bh-step><p><strong>Step 1: every slot, 4 bits.</strong> All 316 of the example's code lengths, in symbol order. Only the 11 marked slots are not zero. 1,264 bits.</p></bh-step>
+      <bh-step><p><strong>Step 2: say how many.</strong> <code>HLIT</code> and <code>HDIST</code> cut each list after its last used symbol, 270 and d6, so 38 slots go. 1,122 bits: the zeros in the middle are still there.</p></bh-step>
+      <bh-step id="send-steps-step-3"><p><strong>Step 3: runs.</strong> Each stretch of zeros collapses into one run symbol: 18 for 11–138 zeros, 17 for 3–10. Each used length becomes one symbol too. 19 symbols at 5 bits each, plus their extra bits: 146 bits.</p></bh-step>
+      <bh-step id="send-steps-step-4"><p><strong>Step 4: code the run symbols.</strong> 18, 3 and 4 get 2-bit codes, 17 gets 3 bits, 1 gets 4, and 0 and 2 get 5. With the 54 bits that describe this code, that makes 159 bits: for this short list, 13 more than step 3.</p></bh-step>
+    </bh-stepper>
     <h3 id="step-naive">1. Every length, 4 bits each</h3>
     <p>Write all 316 lengths as plain 4-bit numbers, in symbol order. That is 1,264 bits, 158 bytes, in every dynamic block whatever it holds. The example's data is only 41 bits, so its code table would cost 30 times as much as the data it describes. Even the paragraph's data, 1,521 bits, would nearly double.</p>
     <h3 id="step-counts">2. Say how many</h3>
@@ -694,7 +800,7 @@
 
     <h2 id="dynamic-runs">Runs, and a code for the runs</h2>
     <h3 id="step-runs">3. Replace runs with one symbol</h3>
-    <p>Write the lengths with a small alphabet of 19 symbols instead: 0–15 for a length, 16 to repeat the previous length, and 17 and 18 for runs of zeros, each followed by plain extra bits that give the count. For now, write each of these symbols as a plain 5-bit number. A whole stretch of unused byte values becomes one symbol: the example's 262 unused literal/length symbols take just 7. The header drops to 146 bits for the example and 443 for the paragraph. That is the big win, but the paragraph's header is still 443 bits.</p>
+    <p>Write the lengths with a small alphabet of 19 symbols instead: 0–15 for a length, 16 to repeat the previous length, and 17 and 18 for runs of zeros, each followed by plain extra bits that give the count. For now, write each of these symbols as a plain 5-bit number. A whole stretch of unused byte values becomes one symbol: the example's 262 unused literal/length symbols take just 7. The header drops to 146 bits for the example (<a href="#send-steps-step-3">step 3 in the figure</a>) and 443 for the paragraph. That is the big win, but the paragraph's header is still 443 bits.</p>
     <div class="table-wrap" id="cl-alphabet" data-linkable>
       <table>
         <caption>The code-length alphabet. Fixed by the format: the same in every dynamic block. Each range follows from its extra bits: 2 bits give 4 counts, 3 give 8, 7 give 128.</caption>
@@ -721,7 +827,7 @@
         </tbody>
       </table>
     </div>
-    <p>It stops at three layers because the bottom one is so small: 57 bits at most, too little for yet another code to repay its own description. This is DEFLATE's actual scheme, and it costs 159 bits for the example and 352 for the paragraph. For the paragraph, coding the run symbols saved another 91 bits. For the tiny example it cost 13 more: describing the small code took more than it saved on just 19 run symbols. DEFLATE has no way to stop at step 3, which is one more reason tiny blocks are written with the fixed codes.</p>
+    <p>It stops at three layers because the bottom one is so small: 57 bits at most, too little for yet another code to repay its own description. This is DEFLATE's actual scheme, and it costs 159 bits for the example (<a href="#send-steps-step-4">step 4 in the figure</a>) and 352 for the paragraph. For the paragraph, coding the run symbols saved another 91 bits. For the tiny example it cost 13 more: describing the small code took more than it saved on just 19 run symbols. DEFLATE has no way to stop at step 3, which is one more reason tiny blocks are written with the fixed codes.</p>
     <figure class="frame wide" id="header-steps">
       <bh-chart type="bar" unit="bits" y-label="Bits to send the codes">
         <table>
@@ -1632,6 +1738,50 @@ document.addEventListener("DOMContentLoaded", () => {
       range.addEventListener("input", show);
       show();
     }
+  }
+
+  // ---- Sending a dynamic code: the example's code-length list through the four steps --------
+  {
+    const SEND = {"SLOT":2.4,"BAR":{"y":40,"h":24},"ROW":{"y":104,"h":30,"w":48,"pitch":56,"x0":0},"chips":[{"id":"r0","kind":"run","bar":{"x":0,"w":76.8},"row":{"x":0},"step3":"5+7","step4":"2+7"},{"id":"r1","kind":"len","bar":{"x":76.8,"w":2.4},"row":{"x":56},"step3":"5","step4":"2"},{"id":"r2","kind":"run","bar":{"x":79.2,"w":153.6},"row":{"x":112},"step3":"5+7","step4":"2+7"},{"id":"r3","kind":"len","bar":{"x":232.8,"w":2.4},"row":{"x":168},"step3":"5","step4":"5"},{"id":"r4","kind":"len","bar":{"x":235.2,"w":2.4},"row":{"x":224},"step3":"5","step4":"2"},{"id":"r5","kind":"len","bar":{"x":237.6,"w":2.4},"row":{"x":280},"step3":"5","step4":"2"},{"id":"r6","kind":"len","bar":{"x":240,"w":2.4},"row":{"x":336},"step3":"5","step4":"2"},{"id":"r7","kind":"run","bar":{"x":242.4,"w":31.2},"row":{"x":392},"step3":"5+7","step4":"2+7"},{"id":"r8","kind":"len","bar":{"x":273.6,"w":2.4},"row":{"x":448},"step3":"5","step4":"2"},{"id":"r9","kind":"run","bar":{"x":276,"w":331.2},"row":{"x":504},"step3":"5+7","step4":"2+7"},{"id":"r10","kind":"run","bar":{"x":607.2,"w":7.2},"row":{"x":560},"step3":"5+3","step4":"3+3"},{"id":"r11","kind":"len","bar":{"x":614.4,"w":2.4},"row":{"x":616},"step3":"5","step4":"2"},{"id":"r12","kind":"zero","bar":{"x":616.8,"w":2.4},"row":{"x":672},"step3":"5","step4":"5"},{"id":"r13","kind":"len","bar":{"x":619.2,"w":2.4},"row":{"x":728},"step3":"5","step4":"2"},{"id":"r14","kind":"run","bar":{"x":621.6,"w":26.4},"row":{"x":784},"step3":"5+7","step4":"2+7"},{"id":"r15","kind":"len","bar":{"x":648,"w":2.4},"row":{"x":840},"step3":"5","step4":"2"},{"id":"r16","kind":"run","bar":{"x":706.4,"w":12},"row":{"x":896},"step3":"5+3","step4":"3+3"},{"id":"r17","kind":"len","bar":{"x":718.4,"w":2.4},"row":{"x":952},"step3":"5","step4":"4"},{"id":"r18","kind":"len","bar":{"x":720.8,"w":2.4},"row":{"x":1008},"step3":"5","step4":"4"}],"trims":[{"id":"trim-lit","bar":{"x":650.4,"w":36}},{"id":"trim-dist","bar":{"x":723.2,"w":55.2}}],"groups":["g-sp","g-abcd","g-r","g-end","g-270","g-dist"]};
+    const TOTAL = [1264, 1122, 146, 159];
+    const NOTE = ["316 slots × 4 bits", "10 + 278 × 4", "10 + 19 × 5 + 41 extra bits", "14 + 54 + 91"];
+    const sendState = (k) => {
+      const s = {};
+      for (const c of SEND.chips) {
+        s[c.id] = k <= 1
+          ? { x: c.bar.x, y: SEND.BAR.y, w: Math.max(c.bar.w, SEND.SLOT), h: SEND.BAR.h, text: 0 }
+          : { x: c.row.x, y: SEND.ROW.y, w: SEND.ROW.w, h: SEND.ROW.h, text: 1 };
+        s[c.id + "-sub"] = { op: k >= 2 ? 1 : 0 };
+        s[c.id + "-code"] = { op: k >= 3 ? 1 : 0 };
+        s[c.id + "-cost"] = { op: k >= 2 ? 1 : 0, text: k >= 3 ? c.step4 : c.step3 };
+      }
+      for (const t of SEND.trims) s[t.id] = { op: k === 0 ? 1 : 0 };
+      s.bar = { op: k <= 1 ? 1 : 0 };
+      s.cut = { op: k === 1 ? 1 : 0 };
+      s.total = { n: TOTAL[k], note: NOTE[k] };
+      return s;
+    };
+    const fig = document.getElementById("send-steps");
+    const total = fig && fig.querySelector(".send-total"), note = fig && fig.querySelector(".send-note");
+    scene("send-steps", sendState(3), [0, 1, 2, 3].map(sendState), (part, s) => {
+      for (const c of SEND.chips) {
+        const v = s[c.id], g = part(c.id), [r, t] = g.children;
+        r.setAttribute("x", v.x); r.setAttribute("y", v.y); r.setAttribute("width", v.w); r.setAttribute("height", v.h);
+        r.setAttribute("rx", Math.min(5, v.w / 2));
+        t.setAttribute("x", v.x + v.w / 2); t.setAttribute("y", v.y + v.h / 2);
+        fade(t, v.text);
+        fade(part(c.id + "-sub"), s[c.id + "-sub"].op);
+        fade(part(c.id + "-code"), s[c.id + "-code"].op);
+        const cost = part(c.id + "-cost");
+        if (cost.textContent !== s[c.id + "-cost"].text) cost.textContent = s[c.id + "-cost"].text;
+        fade(cost, s[c.id + "-cost"].op);
+      }
+      for (const t of SEND.trims) { const g = part(t.id); g.setAttribute("opacity", 1); fade(g, s[t.id].op); }
+      for (const id of ["t-lit", "t-dist", ...SEND.groups]) { const n = part(id); n.setAttribute("opacity", 1); fade(n, s.bar.op); }
+      for (const id of ["cut-lit", "cut-dist"]) { const n = part(id); n.setAttribute("opacity", 1); fade(n, s.cut.op); }
+      total.textContent = `${Math.round(s.total.n).toLocaleString("en")} bits`;
+      if (note.textContent !== s.total.note) note.textContent = s.total.note;
+    });
   }
 
   // ---- The bit walk's output: what the decoder has written by each step of the walk ----------
