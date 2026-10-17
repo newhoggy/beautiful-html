@@ -132,6 +132,17 @@ window.BH_GLOSSARY = [
     "href": "docs/glossary.html#end-of-block"
   },
   {
+    "id": "extra-bits",
+    "term": "Extra bits",
+    "aliases": [
+      "extra bit",
+      "length extra bits",
+      "distance extra bits"
+    ],
+    "html": "<p>In <a href=\"docs/glossary.html#deflate\">DEFLATE</a>, the plain bits that follow a length or distance symbol to pick an exact value, because each symbol stands for a range: symbol 270 means a length from 23 to 26, and the 2 extra bits after it say which. They are written as a plain number, not Huffman-coded, and the symbol alone decides how many there are.</p>\n        <p><a href=\"docs/how-deflate-works.html#joining\">Step by step</a></p>",
+    "href": "docs/glossary.html#extra-bits"
+  },
+  {
     "id": "gcra",
     "term": "GCRA",
     "aliases": [

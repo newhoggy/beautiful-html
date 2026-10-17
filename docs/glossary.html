@@ -98,6 +98,10 @@
       <dd><p>Symbol 256 of <a href="#deflate">DEFLATE</a>'s literal/length alphabet. It closes every Huffman-coded block, so it needs a code of its own even though it appears once.</p>
         <p><a href="how-deflate-works.html#joining">Step by step</a></p></dd>
 
+      <dt id="extra-bits" data-aliases="extra bit, length extra bits, distance extra bits">Extra bits</dt>
+      <dd><p>In <a href="#deflate">DEFLATE</a>, the plain bits that follow a length or distance symbol to pick an exact value, because each symbol stands for a range: symbol 270 means a length from 23 to 26, and the 2 extra bits after it say which. They are written as a plain number, not Huffman-coded, and the symbol alone decides how many there are.</p>
+        <p><a href="how-deflate-works.html#joining">Step by step</a></p></dd>
+
       <dt id="gcra" data-aliases="generic cell rate algorithm">GCRA</dt>
       <dd><p>The generic cell rate algorithm. It is equivalent to a token bucket, but stores one timestamp per key: the theoretical arrival time of the next conforming request.</p>
         <p><a href="https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm">Generic cell rate algorithm (Wikipedia)</a></p></dd>

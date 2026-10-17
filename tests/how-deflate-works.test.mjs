@@ -80,6 +80,12 @@ test("the recorded zlib streams are what this zlib writes, where it is the refer
   }
   assert.equal(zlib.deflateRawSync(Buffer.from(EXAMPLE), { level: 9 }).toString("hex"), REFERENCE.example);
   assert.equal(zlib.gzipSync(Buffer.from(EXAMPLE), { level: 9 }).length, 33);
+  // "zlib 1.2.12 switches from fixed to dynamic once the text is 74 bytes long."
+  const types = [];
+  for (let n = 1; n <= PARAGRAPH.length; n++) types.push(trace(zlib.deflateRawSync(Buffer.from(PARAGRAPH.slice(0, n)), { level: 9 })).blocks.map((b) => b.type).join("+"));
+  assert.equal(types.indexOf("dynamic") + 1, 74);
+  assert.ok(types.slice(0, 73).every((t) => t === "fixed"));
+  assert.match(PAGE, /zlib 1\.2\.12 switches from fixed to dynamic once the text is 74 bytes long/);
 });
 
 test("the recorded streams are valid DEFLATE for the page's inputs", () => {
@@ -234,6 +240,358 @@ test("the bit walk's output figure is what zlib's stream decodes to", () => {
   assert.match(fig, />written to: bytes 13–34</);
 });
 
+test("the plain-field table's widths are the ones that decode real streams", () => {
+  const table = text(PAGE.match(/<div class="table-wrap wide" id="plain-fields"[\s\S]*?<\/table>/)[0]);
+  const rows = Object.fromEntries([...PAGE.match(/<div class="table-wrap wide" id="plain-fields"[\s\S]*?<\/tbody>/)[0]
+    .matchAll(/<tr><td>(.*?)<\/td><td class="num">(.*?)<\/td>/g)].map((m) => [text(m[1]), m[2]]));
+  assert.deepEqual(rows, {
+    BFINAL: "1", BTYPE: "2", "length extra bits": "0–5", "distance extra bits": "0–13",
+    HLIT: "5", HDIST: "5", HCLEN: "4", "code-length-code lengths": "3 each", "run extra bits": "2, 3 or 7",
+    alignment: "0–7", "LEN, NLEN": "16 each", "stored bytes": "8 each", "final padding": "0–7",
+  });
+  assert.match(table, /the run's count, minus 3, 3 or 11/);
+
+  // The tracer reads a dynamic header with exactly these widths (5, 5, 4, 3 each, run extras 2/3/7):
+  // decoding zlib's real dynamic block back to the paragraph proves them.
+  const dyn = trace(Buffer.from(REFERENCE.paragraph, "hex"));
+  assert.equal(dyn.blocks[0].type, "dynamic");
+  assert.equal(new TextDecoder().decode(dyn.output), PARAGRAPH);
+
+  // Extra-bit widths over every length and distance.
+  const lenExtra = new Set(), distExtra = new Set();
+  for (let n = 3; n <= 258; n++) lenExtra.add(Deflate.lengthSymbol(n).nExtra);
+  for (let n = 1; n <= 32768; n++) distExtra.add(Deflate.distanceCode(n).nExtra);
+  assert.deepEqual([Math.min(...lenExtra), Math.max(...lenExtra)], [0, 5]);
+  assert.deepEqual([Math.min(...distExtra), Math.max(...distExtra)], [0, 13]);
+
+  // A stored block, byte by byte: BFINAL 1 and BTYPE 00 in the first 3 bits, 5 bits of alignment,
+  // then LEN and NLEN (low byte first), then the data.
+  const stored = zlib.deflateRawSync(Buffer.from("hello"), { level: 0 });
+  assert.deepEqual([...stored], [0b001, 5, 0, 0xfa, 0xff, ...Buffer.from("hello")]);
+  assert.equal(new TextDecoder().decode(trace(stored).output), "hello");
+
+  // Final padding: the worked example uses 119 of its 120 bits.
+  assert.equal(example().bytes * 8 - example().bitsUsed, 1);
+});
+
+test("the fixed code's lengths, budget and the playground's default stream", () => {
+  const FIXED = Array.from({ length: 288 }, (_, s) => (s < 144 ? 8 : s < 256 ? 9 : s < 280 ? 7 : 8));
+  const codes = Deflate.canonicalCodes(FIXED);
+  assert.equal(codes[97].toString(2).padStart(8, "0"), "10010001", "a is 10010001 in the fixed code");
+  assert.equal(codes[0].toString(2).padStart(8, "0"), "00110000");
+  const budget = FIXED.reduce((sum, l) => sum + 2 ** -l, 0);
+  assert.equal(budget, 1, "the fixed code spends the whole budget");
+  const box = PAGE.match(/<details class="disclosure" id="fixed-lengths"[\s\S]*?<\/details>/)[0];
+  for (const [label, count, bits] of [["bytes 0–143", 144, 8], ["bytes 144–255", 112, 9], ["256–279", 24, 7], ["280–287", 8, 8]]) {
+    const row = text(box.match(new RegExp(`<tr><td>${label}[\\s\\S]*?</tr>`))[0]);
+    assert.match(row, new RegExp(`${count}\\s*${bits}`), label);
+  }
+  // Without JavaScript the playground shows the encoder's own stream for its default text.
+  const r = Deflate.encode(utf8(EXAMPLE));
+  assert.equal(byId("lab-hex"), Array.from(r.bytes, (b) => b.toString(16).padStart(2, "0")).join(" "));
+  assert.equal(byId("lab-stream-bits"), String(r.bits[r.best]));
+  assert.equal(byId("lab-stream-type"), r.best);
+});
+
+test("the dynamic bit walk is every bit of the encoder's dynamic block, in read order", () => {
+  const stream = Deflate.encode(utf8(EXAMPLE)).streams.dynamic;
+  assert.equal(new TextDecoder().decode(zlib.inflateRawSync(stream)), EXAMPLE, "zlib reads it back");
+  const all = Array.from({ length: stream.length * 8 }, (_, i) => (stream[i >> 3] >> (i & 7)) & 1).join("");
+  const walk = text(PAGE.match(/<bh-codewalk[^>]*id="dyn-walk"[\s\S]*?<code>([\s\S]*?)<\/code>/)[1]).split("\n");
+  assert.equal(walk.length, 56);
+  const shown = walk.map((l) => l.slice(0, 13).trim().replace(" +", ""));
+  shown.forEach((b) => assert.match(b, /^[01]+$/));
+  assert.equal(shown.join(""), all, "the walk shows all 208 bits, padding included");
+
+  // Each line names what the tracer decodes there.
+  const t = trace(Buffer.from(stream));
+  const fields = t.fields.filter((f) => f.kind !== "bfinal" && f.kind !== "btype");
+  const desc = walk.slice(2, 2 + fields.length).map((l) => l.slice(13));
+  fields.forEach((f, i) => {
+    const d = desc[i];
+    const rev = [...f.bits].reverse().join(""); // a plain number, shown the usual way round
+    const off = { hlit: 257, hdist: 1, hclen: 4 }[f.kind];
+    if (off) {
+      assert.equal(d, `${f.kind.toUpperCase()}: ${rev} = ${f.value - off}, + ${off} = ${f.value}`);
+      assert.equal(parseInt(rev, 2), f.value - off);
+    }
+    if (f.kind === "cllen") {
+      assert.equal(d, f.value ? `CL symbol ${f.symbol}: ${rev} = ${f.value} bits` : `CL symbol ${f.symbol}: 000 = 0, unused`);
+      assert.equal(parseInt(rev, 2), f.value);
+    }
+    if (f.kind === "clsym") assert.match(d, new RegExp(`^${f.symbol}: `), d);
+    if (f.kind === "clsym" && f.symbol >= 16) assert.match(d, new RegExp(`: ${f.count} zeros, `), d);
+    if (f.kind === "clsym" && f.symbol < 16 && f.value) assert.match(d, new RegExp(`gets ${f.value} bits?$`), d);
+    if (f.kind === "literal") assert.match(d, new RegExp(`^literal .* \\(${f.value}\\)$`), d);
+    if (f.kind === "length") assert.equal(d, `length symbol ${f.value} → ${f.length}`);
+    if (f.kind === "distance") assert.equal(d, `distance d${f.value} → ${f.distance}`);
+    if (f.kind === "end") assert.equal(d, "end of block (256)");
+  });
+
+  assert.equal(walk[1].slice(13), "BTYPE: 10 = 2, dynamic");
+
+  // The first byte, most significant bit on the left: HLIT | BTYPE | BFINAL.
+  assert.equal(stream[0], 0x75);
+  assert.deepEqual([stream[0] >> 3, (stream[0] >> 1) & 3, stream[0] & 1], [14, 2, 1]);
+  assert.match(PAGE, /<code>0 1 1 1 0 \| 1 0   \| 1\nHLIT      \| BTYPE \| BFINAL\n= 14      \| = 2   \| = 1<\/code>/);
+
+  // "Isn't sending all those zeros wasteful?": the literal/length list's zeros and used lengths.
+  const lit = fields.filter((f) => f.kind === "clsym" && f.at < f.hlit);
+  const zeros = lit.filter((f) => f.value === 0), used = lit.filter((f) => f.value > 0);
+  const bitsOf = (list) => list.reduce((sum, f) => sum + f.bits.length + (f.extraBits || "").length, 0);
+  assert.equal(zeros.reduce((sum, f) => sum + f.count, 0), 262);
+  assert.deepEqual([zeros.filter((f) => f.count > 1).length, zeros.filter((f) => f.count === 1).length], [6, 1]);
+  assert.deepEqual([bitsOf(zeros), bitsOf(used), used.length], [56, 21, 9]);
+  assert.equal(9 * (Math.ceil(Math.log2(286)) + 4), 117);
+  const note = text(PAGE.match(/<details class="disclosure" id="zero-lengths"[\s\S]*?<\/details>/)[0]);
+  assert.match(note, /271 symbols in 77 bits: its 262 zeros take 56 bits, as 6 runs and one lone zero, and the 9 used lengths take 21/);
+  assert.match(note, /117 bits/);
+  // Every bit that says "unused": the code-length code's zeros (3 bits each), and the zero runs of both lists.
+  const cl = fields.filter((f) => f.kind === "cllen"), dist = fields.filter((f) => f.kind === "clsym" && f.at >= f.hlit);
+  const clZero = cl.filter((f) => f.value === 0), distZero = dist.filter((f) => f.value === 0);
+  assert.deepEqual([clZero.length, cl.length, bitsOf(clZero)], [11, 18, 33]);
+  assert.equal(bitsOf(distZero), 6);
+  assert.equal(bitsOf(clZero) + bitsOf(zeros) + bitsOf(distZero), 95);
+  assert.equal(t.blocks[0].headerBits, 159);
+  assert.match(note, /saying "unused" is most of the header: 95 of its 159 bits\. Besides those 56, 6 bits mark d0–d4 as unused, and 33 go on the code-length code's own list, where 11 of the 18 lengths are 0 at 3 bits each/);
+  assert.match(text(PAGE.match(/<bh-cw-step lines="6-23">[\s\S]*?<\/bh-cw-step>/)[0]), /11 of these 18 lengths are 0, and each costs the full 3 bits: 33 bits/);
+
+  // The two levels: which symbols each alphabet uses, their code lengths, and the walk lines.
+  const litUsed = lit.filter((f) => f.value > 0), distUsed = dist.filter((f) => f.value > 0), clUsed = cl.filter((f) => f.value > 0);
+  assert.deepEqual(litUsed.map((f) => f.at).sort((x, y) => x - y), [32, 97, 98, 99, 100, 114, 256, 258, 270]);
+  assert.deepEqual([...new Set(litUsed.map((f) => f.value))].sort(), [2, 3, 4]);
+  assert.deepEqual(distUsed.map((f) => [f.at - f.hlit, f.value]), [[5, 1], [6, 1]]);
+  assert.deepEqual(clUsed.map((f) => f.symbol).sort((x, y) => x - y), [0, 1, 2, 3, 4, 17, 18]);
+  assert.deepEqual([Math.min(...clUsed.map((f) => f.value)), Math.max(...clUsed.map((f) => f.value))], [2, 5]);
+  const levels = text(PAGE.match(/<div class="table-wrap wide" id="dynamic-levels"[\s\S]*?<\/table>/)[0]);
+  assert.match(levels, /literal\/length\s*9: a, b, r, c, d, ␣, 256, 258, 270\s*2, 3 or 4 bits\s*24–39\s*43–55/);
+  assert.match(levels, /distance\s*2: d5, d6\s*1 bit each\s*40–42\s*51, 54/);
+  assert.match(levels, /code-length \(CL\)\s*7: 1, 2, 3, 4 \(the lengths above\), 0, 17, 18 \(for zeros\)\s*2 to 5 bits\s*6–23\s*24–42/);
+  // Those line ranges really hold those parts of the walk.
+  assert.ok(walk.slice(5, 23).every((l) => l.includes("CL symbol")));
+  assert.ok(walk.slice(23, 39).every((l) => !/^[01 +]+\s+d/.test(l.slice(13))) && walk[39].includes("d0–d4"));
+  assert.match(walk[50], /distance d5/);
+  assert.match(walk[53], /distance d6/);
+
+  // The fixed order: 16, 17, 18, then 0, then outward from 8, then 15. For the paragraph zlib cuts the last three.
+  const ORDER = fields.filter((f) => f.kind === "cllen").map((f) => f.symbol).concat(15);
+  assert.deepEqual(ORDER, [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
+  const outward = [8]; for (let k = 1; k <= 7; k++) outward.push(8 - k, 8 + k);
+  assert.deepEqual(ORDER.slice(4, 18), outward.slice(0, 14));
+  const para = trace(Buffer.from(REFERENCE.paragraph, "hex"));
+  assert.equal(para.blocks[0].hclen, 16);
+  assert.deepEqual(ORDER.slice(16), [14, 1, 15]);
+  const paraLengths = para.fields.filter((f) => f.kind === "clsym" && f.symbol >= 1 && f.symbol <= 15).map((f) => f.symbol);
+  assert.deepEqual([Math.min(...paraLengths), Math.max(...paraLengths)], [2, 8]);
+  assert.match(PAGE, /For the paragraph, zlib's codes use lengths 2 to 8, so <code>HCLEN<\/code> is 16 and the last three, 14, 1 and 15, are never sent\./);
+
+  // The hex, and where the bits go.
+  assert.ok(PAGE.includes(`<code>${Array.from(stream, (b) => b.toString(16).padStart(2, "0")).join(" ")}</code>`));
+  const n = (kinds) => fields.filter((f) => kinds.includes(f.kind)).reduce((sum, f) => sum + f.bits.length + (f.extraBits || "").length, 0);
+  const parts = [3, n(["hlit", "hdist", "hclen"]), n(["cllen"]), n(["clsym"]), n(["literal", "length", "distance", "end"])];
+  assert.deepEqual(parts, [3, 14, 54, 91, 41]);
+  assert.equal(parts.reduce((a, b) => a + b), t.bitsUsed);
+  const table = text(PAGE.match(/<div class="table-wrap" id="dynamic-bits"[\s\S]*?<\/table>/)[0]);
+  assert.match(table, /HLIT, HDIST and HCLEN\s*14\s*0/);
+  assert.match(table, /code-length-code lengths\s*54/);
+  assert.match(table, /the code lengths themselves\s*91/);
+  assert.match(table, /to end of block\s*41\s*100/);
+  assert.match(table, /total\s*203\s*103/);
+  assert.equal(Deflate.encode(utf8(EXAMPLE)).bits.fixed - 3, 100);
+});
+
+test("the page's own glossary: A–Z, no clash with the site glossary, every link resolves", () => {
+  const terms = (html) => [...html.matchAll(/<dt id="([^"]+)"(?: data-aliases="([^"]*)")?>([^<]+)<\/dt>/g)]
+    .map(([, id, aliases = "", term]) => ({ id, names: [term, ...aliases.split(",").map((x) => x.trim()).filter(Boolean)].map((n) => n.toLowerCase()), term }));
+  const local = terms(PAGE.match(/<dl class="glossary wide">[\s\S]*?<\/dl>/)[0]);
+  const site = terms(fs.readFileSync(path.join(ROOT, "docs/glossary.html"), "utf8"));
+  assert.equal(local.length, 19);
+  const sorted = [...local].sort((x, y) => x.term.localeCompare(y.term, "en", { sensitivity: "base" }));
+  assert.deepEqual(local.map((e) => e.id), sorted.map((e) => e.id), "kept A–Z");
+  const siteNames = new Map(site.flatMap((e) => e.names.map((n) => [n, e.id])));
+  for (const e of local) for (const n of e.names) assert.ok(!siteNames.has(n), `"${n}" is already the site glossary's "${siteNames.get(n)}"`);
+  const ids = new Set([...PAGE.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+  const box = PAGE.match(/<h2 id="terms">[\s\S]*?<\/dl>/)[0];
+  for (const [, href] of box.matchAll(/href="#([^"]+)"/g)) assert.ok(ids.has(href), `#${href}`);
+  const siteIds = new Set(site.map((e) => e.id));
+  for (const [, href] of box.matchAll(/href="glossary\.html#([^"]+)"/g)) assert.ok(siteIds.has(href), `glossary.html#${href}`);
+});
+
+test("the code-length alphabet table holds for every run symbol in real dynamic blocks", () => {
+  const table = PAGE.match(/<div class="table-wrap" id="cl-alphabet"[\s\S]*?<\/table>/)[0];
+  const rows = Object.fromEntries([...table.matchAll(/<tr><td>(\d+)<\/td><td>[^<]*<\/td><td class="num">(\d+)<\/td><td>(.*?)<\/td><\/tr>/g)]
+    .map(([, sym, n, count]) => [sym, { n: +n, count: text(count) }]));
+  assert.deepEqual(rows, { 16: { n: 2, count: "3–6 times" }, 17: { n: 3, count: "3–10" }, 18: { n: 7, count: "11–138" } });
+  // Each range is its minimum plus every value the extra bits can hold.
+  for (const [sym, min] of [[16, 3], [17, 3], [18, 11]]) assert.match(rows[sym].count, new RegExp(`^${min}–${min + 2 ** rows[sym].n - 1}`));
+  let seen = 0;
+  for (const stream of [Deflate.encode(utf8(EXAMPLE)).streams.dynamic, Buffer.from(REFERENCE.paragraph, "hex")]) {
+    for (const f of trace(Buffer.from(stream)).fields.filter((x) => x.kind === "clsym" && x.symbol >= 16)) {
+      const { n } = rows[f.symbol], min = f.symbol === 18 ? 11 : 3;
+      assert.equal(f.extraBits.length, n, `symbol ${f.symbol} carries ${n} extra bits`);
+      assert.ok(f.count >= min && f.count <= min + 2 ** n - 1, `symbol ${f.symbol} count ${f.count}`);
+      seen++;
+    }
+  }
+  assert.ok(seen >= 10);
+});
+
+test("the four steps to sending a dynamic code cost what the page says", () => {
+  // Each step's header cost, computed from the real blocks' code lengths and run symbols.
+  const steps = (buf) => {
+    const tr = trace(buf), b = tr.blocks[0], runs = tr.fields.filter((f) => f.kind === "clsym");
+    const data = tr.fields.filter((f) => ["literal", "length", "distance", "end"].includes(f.kind)).reduce((s, f) => s + f.bits.length + (f.extraBits || "").length, 0);
+    return {
+      data,
+      naive: (286 + 30) * 4,                                                    // 1. every length, 4 bits
+      counts: 5 + 5 + (b.hlit + b.hdist) * 4,                                   // 2. counts, then lengths up to the highest used
+      runs: 5 + 5 + runs.length * 5 + runs.reduce((s, f) => s + f.extraBits.length, 0), // 3. run symbols as plain 5-bit numbers
+      coded: b.headerBits,                                                      // 4. DEFLATE's scheme
+      runSymbols: runs.length,
+    };
+  };
+  const ex = steps(Buffer.from(Deflate.encode(utf8(EXAMPLE)).streams.dynamic)), para = steps(Buffer.from(REFERENCE.paragraph, "hex"));
+  assert.deepEqual([ex.naive, ex.counts, ex.runs, ex.coded, ex.data, ex.runSymbols], [1264, 1122, 146, 159, 41, 19]);
+  assert.deepEqual([para.naive, para.counts, para.runs, para.coded, para.data], [1264, 1158, 443, 352, 1521]);
+  const chart = PAGE.match(/<figure class="frame wide" id="header-steps">[\s\S]*?<\/figure>/)[0];
+  const rows = [...chart.matchAll(/<tr><td>[^<]*<\/td><td>(\d+)<\/td><td>(\d+)<\/td><\/tr>/g)].map((m) => [+m[1], +m[2]]);
+  assert.deepEqual(rows, [[ex.naive, para.naive], [ex.counts, para.counts], [ex.runs, para.runs], [ex.coded, para.coded]]);
+  const prose = text(PAGE.match(/<h2 id="dynamic-header">[\s\S]*?<figure class="frame wide" id="header-steps">/)[0]);
+  assert.match(prose, /That is 1,264 bits, 158 bytes/);
+  assert.match(prose, /The example's data is only 41 bits, so its code table would cost 30 times as much/);
+  assert.equal(Math.floor(ex.naive / ex.data), 30);
+  assert.match(prose, /Even the paragraph's data, 1,521 bits/);
+  assert.match(prose, /1,122 bits for the example and 1,158 for the paragraph/);
+  assert.match(prose, /The header drops to 146 bits for the example \(step 3 in the figure\) and 443 for the paragraph/);
+  assert.match(prose, /it costs 159 bits for the example \(step 4 in the figure\) and 352 for the paragraph\. For the paragraph, coding the run symbols saved another 91 bits\. For the tiny example it cost 13 more: describing the small code took more than it saved on just 19 run symbols/);
+  assert.equal(para.runs - para.coded, 91);
+  assert.equal(ex.coded - ex.runs, 13);
+  // "the example's 262 unused literal/length symbols take just 7"
+  const exRuns = trace(Buffer.from(Deflate.encode(utf8(EXAMPLE)).streams.dynamic)).fields.filter((f) => f.kind === "clsym" && f.at < f.hlit && f.value === 0);
+  assert.deepEqual([exRuns.reduce((s, f) => s + f.count, 0), exRuns.length], [262, 7]);
+  assert.match(prose, /the example's 262 unused literal\/length symbols take just 7/);
+});
+
+test("the page finishes the fixed scheme before building up to the dynamic one", () => {
+  const order = [...PAGE.matchAll(/<h2 id="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(order, ["question", "two-ideas", "lz77", "huffman", "joining", "join-example", "two-alphabets",
+    "block-types", "one-block", "fixed-limits",                   // the fixed code, its bit walk, and where it falls short
+    "example-code", "canonical", "dynamic-header", "dynamic-runs", "dynamic-block", // the build-up to a dynamic block, then its walk
+    "choosing", "not-symbols", "try-it", "serial", "edge-cases", "terms", "further-reading"]);
+});
+
+test("where the fixed code falls short: the paragraph's fitted codes and totals", () => {
+  const tr = trace(Buffer.from(REFERENCE.paragraph, "hex")), b = tr.blocks[0];
+  const lengths = []; for (const f of tr.fields.filter((x) => x.kind === "clsym")) for (let k = 0; k < f.count; k++) lengths.push(f.value);
+  const fixedLen = (sym) => (sym < 144 ? 8 : sym < 256 ? 9 : sym < 280 ? 7 : 8);
+  const data = tr.fields.filter((f) => ["literal", "length", "distance", "end"].includes(f.kind));
+  const lits = data.filter((f) => f.kind === "literal");
+  const counts = new Map(); for (const f of lits) counts.set(f.value, (counts.get(f.value) || 0) + 1);
+  const extra = (f) => (f.extraBits || "").length;
+  const fitted = data.reduce((s, f) => s + f.bits.length + extra(f), 0);
+  const fixed = data.reduce((s, f) => s + (f.kind === "distance" ? 5 : fixedLen(f.value)) + extra(f), 0);
+  const litFitted = lits.reduce((s, f) => s + f.bits.length, 0);
+  assert.deepEqual([lits.length, counts.size, lits.length * 8, litFitted, fixed, fitted, b.headerBits, 3 + fixed, 3 + b.headerBits + fitted],
+    [233, 38, 1864, 1108, 2375, 1521, 352, 2378, 1876]);
+  assert.ok(lits.every((f) => fixedLen(f.value) === 8), "every literal here costs 8 bits in the fixed code");
+  const table = text(PAGE.match(/<div class="table-wrap" id="fitted-codes"[\s\S]*?<\/table>/)[0]);
+  for (const [ch, times, bits] of [[" ", 32, 3], ["e", 20, 4], ["i", 16, 4], ["s", 15, 4], ["t", 15, 4], ["o", 14, 4], ["k", 1, 8], ["u", 1, 8], ["v", 1, 8], ["x", 1, 8]]) {
+    const v = ch.charCodeAt(0);
+    assert.equal(counts.get(v), times, `${ch} count`);
+    assert.equal(lengths[v], bits, `${ch} fitted length`);
+  }
+  assert.match(table, /space\s*32\s*8 bits\s*3 bits/);
+  assert.match(table, /k, u, v, x\s*1 each\s*8 bits\s*8 bits/);
+  const prose = text(PAGE.match(/<h2 id="fixed-limits">[\s\S]*?<h2 id="canonical">/)[0]);
+  assert.match(prose, /233 literals, using 38 different bytes/);
+  assert.match(prose, /the fixed code spends 1,864 bits and the fitted code 1,108, about 4\.8 bits a literal/);
+  assert.equal((litFitted / lits.length).toFixed(1), "4.8");
+  assert.match(prose, /the data takes 2,375 bits with the fixed code and 1,521 with the fitted one/);
+  assert.match(prose, /for this block that costs 352 bits\. Even so, the block comes to 1,876 bits instead of 2,378, about a fifth smaller/);
+  assert.equal(Math.round((1 - 1876 / 2378) * 100), 21);
+});
+
+test("the bridges between sections quote real numbers", () => {
+  const tr = trace(Buffer.from(REFERENCE.paragraph, "hex"));
+  const data = tr.fields.filter((f) => ["literal", "length", "distance", "end"].includes(f.kind));
+  const fixedLen = (sym) => (sym < 144 ? 8 : sym < 256 ? 9 : sym < 280 ? 7 : 8), extra = (f) => (f.extraBits || "").length;
+  const saved = data.reduce((s, f) => s + (f.kind === "distance" ? 5 : fixedLen(f.value)) + extra(f), 0) - data.reduce((s, f) => s + f.bits.length + extra(f), 0);
+  assert.equal(saved, 854);
+  assert.match(PAGE, /the fitted code saved 854 bits on the data, and sending it cost 352 of them/);
+  // Step 3 → 4: how unequal the paragraph's run symbols are.
+  const runs = tr.fields.filter((f) => f.kind === "clsym"), n = (sym) => runs.filter((f) => f.symbol === sym).length;
+  assert.deepEqual([runs.length, n(8), n(5), n(0), n(2), n(16)], [78, 14, 14, 12, 1, 0]);
+  assert.ok(Math.max(...[...Array(19).keys()].map(n)) === 14, "8 and 5 are the most common");
+  assert.match(PAGE, /Of the paragraph's 78, the lengths 8 and 5 appear 14 times each and 0 appears 12 times, while 2 appears once and 16 not at all/);
+  // Choosing: the example's dynamic block is twice its fixed one; random bytes grow under both codes.
+  const ex = Deflate.encode(utf8(EXAMPLE)), rn = Deflate.encode(noise());
+  assert.deepEqual([ex.streams.dynamic.length, ex.streams.fixed.length], [26, 13]);
+  assert.ok(rn.streams.fixed.length > 1024 && rn.streams.dynamic.length > 1024);
+  assert.match(PAGE, /The example's dynamic block is twice the size of its fixed one, while the paragraph's dynamic block is a fifth smaller than its fixed one/);
+});
+
+test("the send-steps figure is the example's real code-length list", () => {
+  const tr = trace(Buffer.from(Deflate.encode(utf8(EXAMPLE)).streams.dynamic)), b = tr.blocks[0];
+  const runs = tr.fields.filter((f) => f.kind === "clsym");
+  const fig = PAGE.match(/<figure class="diagram wide" id="send-steps">[\s\S]*?<\/bh-stepper>/)[0];
+  const chips = [...fig.matchAll(/data-id="(r\d+)"><rect [^>]*\/><text[^>]*>(\d+)<\/text><\/g>/g)].map((m) => m[2]);
+  const sub = (k) => text(fig.match(new RegExp(`data-id="r${k}-sub"[^>]*>([^<]*)<`))[1]);
+  const code = (k) => fig.match(new RegExp(`data-id="r${k}-code"[^>]*>([^<]*)<`))[1];
+  const cost = (k) => fig.match(new RegExp(`data-id="r${k}-cost"[^>]*>([^<]*)<`))[1];
+  assert.deepEqual(chips, runs.map((f) => String(f.symbol)), "one chip per run symbol, in order");
+  runs.forEach((f, k) => {
+    assert.equal(code(k), f.bits, `chip ${k} code`);
+    assert.equal(cost(k), f.extraBits ? `${f.bits.length}+${f.extraBits.length}` : String(f.bits.length));
+    if (f.symbol >= 16) assert.equal(sub(k), `×${f.count}`);
+  });
+  // Each step's total, as the counter shows it.
+  const used = runs.filter((f) => f.value > 0).length, extra = runs.reduce((s, f) => s + f.extraBits.length, 0);
+  const cl = tr.fields.filter((f) => f.kind === "cllen").length;
+  assert.deepEqual([316 * 4, 10 + (b.hlit + b.hdist) * 4, 10 + runs.length * 5 + extra, b.headerBits], [1264, 1122, 146, 159]);
+  assert.deepEqual([used, 286 - b.hlit + 30 - b.hdist, runs.length, extra, cl * 3, b.headerBits - 14 - cl * 3], [11, 38, 19, 41, 54, 91]);
+  assert.match(PAGE, /const TOTAL = \[1264, 1122, 146, 159\];/);
+  assert.match(PAGE, /const NOTE = \["316 slots × 4 bits", "10 \+ 278 × 4", "10 \+ 19 × 5 \+ 41 extra bits", "14 \+ 54 \+ 91"\];/);
+  assert.match(fig, /Only the 11 marked slots are not zero\. 1,264 bits/);
+  assert.match(fig, /so 38 slots go\. 1,122 bits/);
+  assert.match(fig, /19 symbols at 5 bits each, plus their extra bits: 146 bits/);
+  assert.match(fig, /With the 54 bits that describe this code, that makes 159 bits: for this short list, 13 more than step 3/);
+});
+
+test("the example's tree is the encoder's Huffman code for its LZ77 symbols", () => {
+  const tr = trace(Buffer.from(Deflate.encode(utf8(EXAMPLE)).streams.dynamic));
+  const counts = new Map();
+  for (const f of tr.fields) if (["literal", "length", "end"].includes(f.kind)) counts.set(f.value, (counts.get(f.value) || 0) + 1);
+  const lengths = Deflate.codeLengths(Array.from({ length: 286 }, (_, s) => counts.get(s) || 0), 15);
+  const fig = PAGE.match(/<figure class="diagram wide" id="example-tree">[\s\S]*?<\/figure>/)[0];
+  const SYM = { "x-sp": 32, "x-b": 98, "x-c": 99, "x-d": 100, "x-r": 114, "x-end": 256, "x-258": 258, "x-270": 270, "x-a": 97 };
+  // The drawn tree, from its edges: each leaf's depth must be its code length.
+  const parent = new Map([...fig.matchAll(/data-id="e-(x-n\d+)-(x-[a-z0-9]+)"/g)].map((m) => [m[2], m[1]]));
+  const depth = (id) => (parent.has(id) ? 1 + depth(parent.get(id)) : 0);
+  assert.equal([...counts.keys()].length, 9);
+  for (const [id, sym] of Object.entries(SYM)) {
+    assert.equal(depth(id), lengths[sym], `${id} depth`);
+    assert.match(fig, new RegExp(`data-id="${id}-len"[^>]*>${lengths[sym]} bits<`));
+    assert.match(fig, new RegExp(`data-id="${id}"><rect [^>]*/><text[^>]*>[^<]+</text><text class="sub"[^>]*>×${counts.get(sym)}<`));
+  }
+  // Each inner node's weight is the sum of its leaves' counts.
+  const kids = new Map(); for (const [c, p] of parent) kids.set(p, [...(kids.get(p) || []), c]);
+  const weight = (id) => (SYM[id] !== undefined ? counts.get(SYM[id]) : kids.get(id).reduce((s, k) => s + weight(k), 0));
+  for (const m of fig.matchAll(/data-id="(x-n\d+)"><rect [^>]*\/><text[^>]*>(\d+)</g)) assert.equal(+m[2], weight(m[1]), m[1]);
+  // 85 bits with the fixed code, 34 with these codes.
+  const fixedLen = (s) => (s < 144 ? 8 : s < 256 ? 9 : s < 280 ? 7 : 8);
+  let fixed = 0, fitted = 0; for (const [s, n] of counts) { fixed += n * fixedLen(s); fitted += n * lengths[s]; }
+  assert.deepEqual([fixed, fitted], [85, 34]);
+  assert.match(PAGE, /With the fixed code these 11 symbols cost 85 bits/);
+  assert.match(PAGE, /The 11 symbols now cost 34 bits instead of 85/);
+});
+
+test("both Huffman trees read the codes, then the lengths, then lay them out as a table", () => {
+  const steps = (fig) => [...PAGE.match(new RegExp(`<bh-stepper for="${fig}">[\\s\\S]*?</bh-stepper>`))[0].matchAll(/<p><strong>([^<]*)/g)].map((m) => m[1].trim());
+  for (const fig of ["huffman-tree", "example-tree"]) assert.deepEqual(steps(fig).slice(-3), ["Read the codes.", "Count the bits.", "As a table."], fig);
+  // Static (no-JavaScript) pictures show the tree with both codes and lengths.
+  for (const id of ["a", "b", "r", "c", "d"]) assert.match(PAGE, new RegExp(`data-id="len-${id}"[^>]*>[13] bits?<`));
+});
+
 test("the BTYPE table matches what zlib accepts", () => {
   // First byte: BFINAL in bit 0, BTYPE in bits 1–2 (read low bit first).
   assert.equal(zlib.inflateRawSync(Buffer.from([0b001, 0x00, 0x00, 0xff, 0xff])).length, 0, "00: an empty stored block");
@@ -252,8 +610,35 @@ test("the Huffman and canonical-code figures agree with the algorithm", () => {
   const lengths = Deflate.codeLengths(counts, 15);
   const total = [..."abracadabra"].reduce((n, ch) => n + lengths[ch.charCodeAt(0)], 0);
   assert.equal(total, 23, "any optimal tie-break costs 23 bits");
-  const canon = Deflate.canonicalCodes([1, 3, 3, 3, 3]); // a, b, c, d, r
-  assert.deepEqual(canon.map((c, i) => c.toString(2).padStart([1, 3, 3, 3, 3][i], "0")), ["0", "100", "101", "110", "111"]);
+});
+
+test("the canonical ladder builds the example's real codes from its lengths", () => {
+  const stream = Deflate.encode(utf8(EXAMPLE)).streams.dynamic, tr = trace(Buffer.from(stream));
+  const counts = new Map();
+  for (const f of tr.fields) if (["literal", "length", "end"].includes(f.kind)) counts.set(f.value, (counts.get(f.value) || 0) + 1);
+  const lengths = Deflate.codeLengths(Array.from({ length: 286 }, (_, s) => counts.get(s) || 0), 15);
+  const codes = Deflate.canonicalCodes(lengths);
+  const bin = (s) => codes[s].toString(2).padStart(lengths[s], "0");
+  const ROWS = { a: 97, r: 114, end: 256, l258: 258, l270: 270, sp: 32, b: 98, c: 99, d: 100 };
+  const fig = PAGE.match(/<figure class="diagram" id="canonical-codes">[\s\S]*?<\/figure>/)[0];
+  // Rows in canonical order: by length, then by symbol number.
+  const order = [...fig.matchAll(/data-id="sym-([a-z0-9]+)"/g)].map((m) => ROWS[m[1]]);
+  assert.deepEqual(order, [...order].sort((x, y) => lengths[x] - lengths[y] || x - y));
+  for (const [id, sym] of Object.entries(ROWS)) {
+    assert.match(fig, new RegExp(`data-id="code-${id}"><rect [^>]*/><text[^>]*>${bin(sym)}<`), id);
+    assert.match(fig, new RegExp(`data-id="len-${id}"[^>]*>${lengths[sym]} bits<`), id);
+  }
+  // The dynamic walk's data uses exactly these codes.
+  for (const f of tr.fields.filter((x) => x.kind === "literal" || x.kind === "length" || x.kind === "end")) assert.equal(f.bits, bin(f.value));
+  // And the tree's own path codes, read off the drawn edges, match its labels.
+  const tree = PAGE.match(/<figure class="diagram wide" id="example-tree">[\s\S]*?<\/figure>/)[0];
+  const parent = new Map([...tree.matchAll(/data-id="e-(x-n\d+)-(x-[a-z0-9]+)"/g)].map((m) => [m[2], m[1]]));
+  const kids = new Map(); for (const [c, p] of parent) kids.set(p, [...(kids.get(p) || []), c]);
+  const path = (id) => (parent.has(id) ? path(parent.get(id)) + kids.get(parent.get(id)).indexOf(id) : "");
+  const treeCodes = {};
+  for (const m of tree.matchAll(/data-id="(x-[a-z0-9]+)-code"[^>]*>([01]+)</g)) { assert.equal(m[2], path(m[1]), m[1]); treeCodes[m[1]] = m[2]; }
+  assert.deepEqual(treeCodes, { "x-sp": "1100", "x-b": "1101", "x-c": "1110", "x-d": "1111", "x-r": "000", "x-end": "001", "x-258": "010", "x-270": "011", "x-a": "10" });
+  for (const m of tree.matchAll(/data-id="bit-(x-n\d+)-(x-[a-z0-9]+)"[^>]*>([01])</g)) assert.equal(+m[3], kids.get(m[1]).indexOf(m[2]));
 });
 
 test("the page has no audio, video or external media", () => {
