@@ -51,6 +51,7 @@
     @media (max-width: 640px) { #join > svg { min-width: 900px; } }
     #alphabets .range { white-space: nowrap; }
     #btype td:nth-child(2) { white-space: nowrap; }
+    #plain-fields td.num { white-space: nowrap; }
     /* The bit walk's output: pinned under the code by the page script, following the active step. */
     #bit-output .node text { font-family: var(--font-mono); font-weight: 500; font-size: 16px; }
     #bit-output .label { font-size: 15px; }
@@ -302,6 +303,7 @@
 
     <h2 id="huffman">Huffman: short codes for common symbols</h2>
     <p>Eight bits per letter is fair only if every letter is equally likely. In <code>abracadabra</code> the counts are a×5, b×2, r×2, c×1 and d×1, so <em>a</em> should get the shortest code. Huffman's algorithm finds the best codes for known counts, and it is greedy: <strong>repeatedly join the two rarest things.</strong></p>
+    <p>Here the symbols are the letters themselves, to keep the tree small. DEFLATE runs the same algorithm on the output of LZ77 instead, as <a href="#joining">the join</a> below shows: on counts of literals, lengths and distances, not of raw bytes.</p>
     <figure class="diagram wide" id="huffman-tree">
       <svg viewBox="-16 -16 872 368" role="img" aria-label="A Huffman tree for abracadabra: a sits one level below the root with code 0; b, r, c and d sit three levels down with three-bit codes">
         <text class="label strong tree-total" x="840" y="0" text-anchor="end">23 bits</text>
@@ -395,7 +397,14 @@
     <p>These are not the tree's codes, but they have the same lengths, so they cost the same 23 bits. Counting up keeps the code prefix-free: every 3-bit code starts with 1, and the only 1-bit code is 0.</p>
 
     <h2 id="joining">How the two ideas join</h2>
-    <p>Huffman coding never sees bytes or tokens. It codes <em>symbols</em> from a fixed alphabet: it counts how often each symbol occurs and gives the common ones short codes. So the join is a choice of alphabet for everything LZ77 can produce, and those symbols are the input to Huffman coding.</p>
+    <p>The two stages meet once per block, always in this order:</p>
+    <ol class="steps">
+      <li><strong>LZ77</strong> turns the block's bytes into tokens: literals and (length, distance) copies.</li>
+      <li><strong>Map</strong> every token to <em>symbols</em> from two alphabets, described below. This is the join.</li>
+      <li><strong>Count</strong> the symbols and build two Huffman codes from the counts: one for literals and lengths, one for distances.</li>
+      <li><strong>Write</strong> the block: its header (for a dynamic block, including the two codes), then each token's symbols as Huffman codes, each followed by its extra bits, then the end-of-block code.</li>
+    </ol>
+    <p>So Huffman coding never sees the raw bytes, or the tokens themselves. It counts and codes the symbols LZ77's output maps to, while the extra bits travel alongside, uncoded. The join is therefore a choice of alphabet for everything LZ77 can produce.</p>
     <p>The obvious alphabet would give every possible value its own symbol: <code>b0</code>–<code>b255</code> for the bytes, <code>eob</code>, <code>w3</code>–<code>w258</code> for the lengths and <code>d1</code>–<code>d32768</code> for the distances, 33,281 symbols in one code. <strong>DEFLATE does not do that.</strong> Its alphabets are drawn below, all 316 symbols. Pick something LZ77 can produce and see which symbol it becomes.</p>
     <bh-playground class="wide" id="alphabet-lab">
       <div class="al-pick">
@@ -585,11 +594,40 @@
     <h2 id="dynamic-header">Compressing the code lengths</h2>
     <p>A dynamic block opens with up to 316 code lengths, one per symbol of both alphabets. Sent as 4-bit numbers that would be about 160 bytes, more than many blocks save. So DEFLATE compresses the lengths too, with a third, smaller Huffman code.</p>
     <ol class="steps">
-      <li><strong>Count the alphabets.</strong> <code>HLIT</code> (5 bits) and <code>HDIST</code> (5 bits) say how many literal/length and distance codes follow, so unused symbols at the top cost nothing.</li>
-      <li><strong>Run-length the lengths.</strong> The sequence of lengths is written with 19 symbols: 0–15 are a length, 16 repeats the previous length 3–6 times, 17 and 18 write a run of 3–10 or 11–138 zeros. Long runs of unused byte values become one symbol.</li>
-      <li><strong>Code those symbols.</strong> The 19 symbols get their own canonical code, whose lengths come first, 3 bits each, in the fixed order 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15. <code>HCLEN</code> (4 bits) says how many are sent. The order puts the lengths that are usually unused last, so they can be left off.</li>
+      <li><strong>Count the alphabets.</strong> <code>HLIT</code> and <code>HDIST</code>, plain 5-bit numbers, say how many literal/length and distance codes follow, so unused symbols at the top cost nothing.</li>
+      <li><strong>Run-length the lengths.</strong> The sequence of lengths is written with 19 symbols: 0–15 are a length, 16 repeats the previous length 3–6 times, 17 and 18 write a run of 3–10 or 11–138 zeros. Like a length symbol, each run symbol is followed by plain extra bits that give its count: 2 bits after 16, 3 after 17 and 7 after 18. Long runs of unused byte values become one symbol.</li>
+      <li><strong>Code those symbols.</strong> The 19 symbols get their own canonical code, whose lengths come first, as plain 3-bit numbers, in the fixed order 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15. <code>HCLEN</code> (4 bits) says how many are sent. The order puts the lengths that are usually unused last, so they can be left off.</li>
     </ol>
     <p>For the 381-byte paragraph in the chart, zlib's whole header (<code>HLIT</code> = 270, <code>HDIST</code> = 17, <code>HCLEN</code> = 16, then the lengths) is 352 bits, about 44 bytes. That is the price of the table, and the paragraph is long enough to repay it.</p>
+
+    <h2 id="not-symbols">Everything in the stream that isn't a symbol</h2>
+    <p>A DEFLATE stream is mostly Huffman codes, but not entirely. Bits are written in two ways, and a decoder must know which kind comes next:</p>
+    <ul>
+      <li><strong>A Huffman code</strong> is read one bit at a time, most significant bit first, because the decoder walks down the code tree as each bit arrives.</li>
+      <li><strong>Everything else is a plain number</strong> of a fixed, known width, read lowest bit first. Each byte of the stream fills from its lowest bit up, so a plain number's bits arrive in the order they are packed.</li>
+    </ul>
+    <div class="table-wrap wide" id="plain-fields" data-linkable>
+      <table>
+        <caption>Every plain field in a DEFLATE stream. None of these is Huffman-coded: the decoder knows each one's width from what came before it.</caption>
+        <thead><tr><th>Field</th><th class="num">Bits</th><th>Where</th><th>Holds</th></tr></thead>
+        <tbody>
+          <tr><td><code>BFINAL</code></td><td class="num">1</td><td>start of every block</td><td>1 if this is the last block</td></tr>
+          <tr><td><code>BTYPE</code></td><td class="num">2</td><td>after <code>BFINAL</code></td><td>the block type (<a href="#btype">values</a>)</td></tr>
+          <tr><td>length extra bits</td><td class="num">0–5</td><td>after a length symbol</td><td>the offset within the symbol's range of lengths</td></tr>
+          <tr><td>distance extra bits</td><td class="num">0–13</td><td>after a distance symbol</td><td>the offset within the symbol's range of distances</td></tr>
+          <tr><td><code>HLIT</code></td><td class="num">5</td><td>dynamic block, after <code>BTYPE</code></td><td>the number of literal/length code lengths, minus 257</td></tr>
+          <tr><td><code>HDIST</code></td><td class="num">5</td><td>after <code>HLIT</code></td><td>the number of distance code lengths, minus 1</td></tr>
+          <tr><td><code>HCLEN</code></td><td class="num">4</td><td>after <code>HDIST</code></td><td>the number of code-length-code lengths, minus 4</td></tr>
+          <tr><td>code-length-code lengths</td><td class="num">3 each</td><td>after <code>HCLEN</code>, 4–19 of them</td><td>the lengths of the code that compresses the code lengths, in the fixed order</td></tr>
+          <tr><td>run extra bits</td><td class="num">2, 3 or 7</td><td>after code-length symbol 16, 17 or 18</td><td>the run's count, minus 3, 3 or 11</td></tr>
+          <tr><td>alignment</td><td class="num">0–7</td><td>stored block, after <code>BTYPE</code></td><td>nothing: skipped to reach the next byte boundary</td></tr>
+          <tr><td><code>LEN</code>, <code>NLEN</code></td><td class="num">16 each</td><td>stored block, after the alignment</td><td>the number of bytes, then its ones' complement as a check</td></tr>
+          <tr><td>stored bytes</td><td class="num">8 each</td><td>stored block, after <code>NLEN</code></td><td>the data itself, byte for byte</td></tr>
+          <tr><td>final padding</td><td class="num">0–7</td><td>after the last block</td><td>nothing: fills the last byte</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Everything else in the stream is a Huffman code: the literal/length and distance symbols, and, inside a dynamic block's header, the code-length symbols. The worked example's 119 bits show both kinds side by side in <a href="#one-block">the bit walk</a>.</p>
 
     <h2 id="try-it">Try it</h2>
     <p>Type anything, or pick an example. The tokens are what LZ77 found; the numbers show each saving on its own and both together. Every count is the size of a real DEFLATE stream that this page's encoder writes, not an estimate.</p>

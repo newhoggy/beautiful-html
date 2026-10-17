@@ -234,6 +234,40 @@ test("the bit walk's output figure is what zlib's stream decodes to", () => {
   assert.match(fig, />written to: bytes 13–34</);
 });
 
+test("the plain-field table's widths are the ones that decode real streams", () => {
+  const table = text(PAGE.match(/<div class="table-wrap wide" id="plain-fields"[\s\S]*?<\/table>/)[0]);
+  const rows = Object.fromEntries([...PAGE.match(/<div class="table-wrap wide" id="plain-fields"[\s\S]*?<\/tbody>/)[0]
+    .matchAll(/<tr><td>(.*?)<\/td><td class="num">(.*?)<\/td>/g)].map((m) => [text(m[1]), m[2]]));
+  assert.deepEqual(rows, {
+    BFINAL: "1", BTYPE: "2", "length extra bits": "0–5", "distance extra bits": "0–13",
+    HLIT: "5", HDIST: "5", HCLEN: "4", "code-length-code lengths": "3 each", "run extra bits": "2, 3 or 7",
+    alignment: "0–7", "LEN, NLEN": "16 each", "stored bytes": "8 each", "final padding": "0–7",
+  });
+  assert.match(table, /the run's count, minus 3, 3 or 11/);
+
+  // The tracer reads a dynamic header with exactly these widths (5, 5, 4, 3 each, run extras 2/3/7):
+  // decoding zlib's real dynamic block back to the paragraph proves them.
+  const dyn = trace(Buffer.from(REFERENCE.paragraph, "hex"));
+  assert.equal(dyn.blocks[0].type, "dynamic");
+  assert.equal(new TextDecoder().decode(dyn.output), PARAGRAPH);
+
+  // Extra-bit widths over every length and distance.
+  const lenExtra = new Set(), distExtra = new Set();
+  for (let n = 3; n <= 258; n++) lenExtra.add(Deflate.lengthSymbol(n).nExtra);
+  for (let n = 1; n <= 32768; n++) distExtra.add(Deflate.distanceCode(n).nExtra);
+  assert.deepEqual([Math.min(...lenExtra), Math.max(...lenExtra)], [0, 5]);
+  assert.deepEqual([Math.min(...distExtra), Math.max(...distExtra)], [0, 13]);
+
+  // A stored block, byte by byte: BFINAL 1 and BTYPE 00 in the first 3 bits, 5 bits of alignment,
+  // then LEN and NLEN (low byte first), then the data.
+  const stored = zlib.deflateRawSync(Buffer.from("hello"), { level: 0 });
+  assert.deepEqual([...stored], [0b001, 5, 0, 0xfa, 0xff, ...Buffer.from("hello")]);
+  assert.equal(new TextDecoder().decode(trace(stored).output), "hello");
+
+  // Final padding: the worked example uses 119 of its 120 bits.
+  assert.equal(example().bytes * 8 - example().bitsUsed, 1);
+});
+
 test("the BTYPE table matches what zlib accepts", () => {
   // First byte: BFINAL in bit 0, BTYPE in bits 1–2 (read low bit first).
   assert.equal(zlib.inflateRawSync(Buffer.from([0b001, 0x00, 0x00, 0xff, 0xff])).length, 0, "00: an empty stored block");
